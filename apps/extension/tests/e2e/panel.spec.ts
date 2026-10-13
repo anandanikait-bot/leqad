@@ -16,7 +16,7 @@ test('unimplemented checks offer direct self-reported continuation in the browse
   for (const step of [4, 5, 6]) {
     await expect(page.getByText(`Step ${step} of 8 · Visited`)).toBeVisible();
     await expect(
-      page.getByText(/cannot verify this step in this version/),
+      page.getByText(/Leqad cannot check it automatically/),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Check progress' }),
