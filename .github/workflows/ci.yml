@@ -35,3 +35,4 @@ jobs:
           name: leqad-browser-packages
           path: apps/extension/.output/*.zip
           if-no-files-found: error
+          include-hidden-files: true
