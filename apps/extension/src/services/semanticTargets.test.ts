@@ -37,6 +37,49 @@ describe('findSemanticTarget', () => {
     expect(findSemanticTarget(document, 'top-plane')).toBe(target);
   });
 
+  it('rejects weak text-only matches instead of highlighting or verifying an uncertain control', async () => {
+    const weak = document.createElement('div');
+    weak.tabIndex = 0;
+    weak.textContent = 'Top plane navigation item';
+    weak.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    document.body.append(weak);
+    const {
+      findSemanticTarget,
+      findSemanticTargets,
+      isUsableSemanticTarget,
+      recognizeSemanticTarget,
+    } = await import('./semanticTargets');
+
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'REJECTED',
+      confidence: 'LOW',
+      matchStrategy: 'WEAK_TEXT',
+    });
+    expect(
+      recognizeSemanticTarget(document, 'top-plane').explanation,
+    ).toContain('low-confidence');
+    expect(findSemanticTarget(document, 'top-plane')).toBeNull();
+    expect(findSemanticTargets(document, 'top-plane')).toEqual([]);
+    expect(isUsableSemanticTarget(weak, 'top-plane')).toBe(false);
+  });
+
+  it('continues recognizing medium-confidence interactive controls', async () => {
+    const target = document.createElement('div');
+    target.setAttribute('role', 'treeitem');
+    target.textContent = 'Top plane';
+    target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    document.body.append(target);
+    const { recognizeSemanticTarget, isUsableSemanticTarget } =
+      await import('./semanticTargets');
+
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'FOUND',
+      confidence: 'MEDIUM',
+      element: target,
+    });
+    expect(isUsableSemanticTarget(target, 'top-plane')).toBe(true);
+  });
+
   it('does not confuse a Top view control with the Top plane', async () => {
     visibleButton('Top view');
     const { findSemanticTarget, recognizeSemanticTarget } =

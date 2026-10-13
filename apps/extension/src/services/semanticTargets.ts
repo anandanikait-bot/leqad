@@ -252,6 +252,7 @@ function candidatesFor(
 
 function usable(candidate: TargetCandidate): boolean {
   return (
+    candidate.confidence !== 'LOW' &&
     candidate.visibility === 'VISIBLE' &&
     candidate.enabled === 'ENABLED' &&
     !candidate.leqadOwned
@@ -320,7 +321,9 @@ export function recognizeSemanticTarget(
       ? 'The matching control belongs to Leqad rather than the CAD page.'
       : representative.visibility !== 'VISIBLE'
         ? `The matching control is ${representative.visibility.toLocaleLowerCase().replaceAll('_', ' ')}.`
-        : 'The matching control is disabled.',
+        : representative.enabled !== 'ENABLED'
+          ? 'The matching control is disabled.'
+          : 'Only a low-confidence text match was found; Leqad cannot safely identify this control.',
     candidateCount: bestCandidates.length,
   };
 }
@@ -332,6 +335,7 @@ export function isUsableSemanticTarget(
   const strategy = matchStrategy(element, TARGET_LABELS[targetId]);
   return Boolean(
     strategy &&
+    strategyConfidence(strategy) !== 'LOW' &&
     visibilityState(element) === 'VISIBLE' &&
     enabledState(element) === 'ENABLED' &&
     !isLeqadOwned(element),
