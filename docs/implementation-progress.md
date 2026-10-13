@@ -75,7 +75,7 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 - Independent final review: complete with no critical findings. All important findings were corrected with regressions covering embedded evidence revisions, initialization/navigation races, live capability revocation, unavailable-verification continuation, persistence read/write ordering, expired UI evidence, content-size panel clamping, and ancestor-driven highlight movement. The reported pause-on-reload issue was also corrected.
 - Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
 
-## Final validation snapshot — 2026-10-13
+## Earlier validation snapshot — 2026-10-13
 
 See [`docs/testing/results/phase1-final-validation.md`](testing/results/phase1-final-validation.md) for the complete report and [`docs/testing/live-setup.md`](testing/live-setup.md) for the owner-executable setup.
 
@@ -83,3 +83,19 @@ See [`docs/testing/results/phase1-final-validation.md`](testing/results/phase1-f
 - Chrome and Edge MV3 builds and ZIP packages succeed. The local Playwright run reports five passes and one unpacked-extension skip under managed browser policy.
 - The pull request's [hosted Actions run](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233) passed all checks, including six Playwright tests, both packages, and artifact upload. The hosted extension load used the controlled fixture; it is not live Onshape evidence.
 - Real Onshape validation and manual Chrome/Edge runtime checks remain blocked. Phase 1 is not signed off.
+
+## Compatibility acceptance pass — 2026-10-13
+
+The incoming PR head was `85927ae1a9ec65e1fa51873ba15ea20bd561c44b`, with successful [Actions run 38433445327](https://github.com/anandanikait-bot/leqad/actions/runs/38433445327). The earlier report candidate `db7b243` is historical evidence, not the latest PR source.
+
+Compatibility fixes are committed as `f4450c4b3b6b53d1219294d187680d680223b9ab` on the existing `phase1-hardening` branch. They remove edit-permission inference from Part Studio/Sketch controls, separate current sketch editing from current Top selection, and provide direct SELF_REPORTED/UNKNOWN continuation for rectangle, dimensions, and finish steps. No positive permission observer is connected; production workspace permission stays UNKNOWN. Active/committed sketch plane association and model facts remain UNKNOWN.
+
+- Local frozen install, lint, typecheck, formatting, and all 162 unit/component tests pass (8 new regressions).
+- Complete local Playwright: 6 passed, 0 failed, 1 skipped under the managed extension policy; 1 new browser regression. Both browser builds and 120,728-byte ZIPs succeed.
+- Hosted [compatibility run 38475535722](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722) passed on unchanged attempt 2: 162 unit/component tests, all 7 browser tests, both browser packages, and artifact upload. Attempt 1 timed out in the existing production-extension test; its cause remains unverified. The baseline's green run is not substituted for verification of these fixes.
+- The downloaded compatibility artifact `11854470815` was inspected: its archive digest matches GitHub, both 120,728-byte inner ZIPs match the local packages byte-for-byte, and each has a root MV3 manifest. See the final report for independently measured checksums.
+- An independent code reviewer reported no findings in the nine changed code/test files.
+- [Live acceptance report](testing/results/phase1-live-acceptance.md): PASS 0 / FAIL 0 / BLOCKED 24. Real Onshape, live selectors, and normal Chrome/Edge runtime remain untested.
+- [Exact download and installation procedure](testing/live-setup.md) and [licensing comparison](legal/apache-2.0-proposal.md) are prepared. Licensing and merge require owner approval after the live gate; no license is added and PR #1 remains unmerged.
+
+The [final validation report](testing/results/phase1-final-validation.md) pins code/build provenance separately from documentation-only PR follow-ups. Phase 1 acceptance has not passed.

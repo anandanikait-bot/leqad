@@ -2,74 +2,82 @@
 
 **Report date:** 2026-10-13
 
-**Candidate branch:** `phase1-hardening`
+**Branch / PR:** `phase1-hardening` / [PR #1](https://github.com/anandanikait-bot/leqad/pull/1), open and unmerged.
 
-**Candidate commit:** `db7b243ccaec0d02fb22f648e16ffc736a724d4c`
+**Phase 1 acceptance:** **INCOMPLETE — real Onshape acceptance is BLOCKED.**
 
-**Phase 1 status:** **INCOMPLETE — live Onshape acceptance is blocked**
+## Revision and build provenance
 
-## Environment
+| Revision                                    | Source commit                                                                                    | Evidence                                                                                                                                                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Earlier validation candidate                | `db7b243ccaec0d02fb22f648e16ffc736a724d4c`                                                       | [Actions run 38432996233](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233); historical evidence only.                                                                                                   |
+| Incoming PR head before compatibility fixes | `85927ae1a9ec65e1fa51873ba15ea20bd561c44b`                                                       | [Successful run 38433445327](https://github.com/anandanikait-bot/leqad/actions/runs/38433445327), artifact `11830789903`; 154 unit/component and 6 browser tests.                                                          |
+| Compatibility source candidate              | `f4450c4b3b6b53d1219294d187680d680223b9ab`                                                       | [Actions run 38475535722](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722); PASS on attempt 2: 162 unit/component and 7 browser tests; artifact `11854470815`. Local results below are for this source. |
+| Latest PR revision                          | [Current phase1-hardening head](https://github.com/anandanikait-bot/leqad/tree/phase1-hardening) | The PR may include later documentation-only reporting commits. Check its current SHA and CI in PR #1; the pinned candidate above identifies the code and build covered by this report.                                     |
 
-- Local system: Debian GNU/Linux 13 (trixie)
-- Local Chromium: 154.0.8037.57
-- Node.js: 24.19.0
-- pnpm: 11.25.0
-- GitHub Actions used Ubuntu 24.04.5 and Node.js 24.21.0. Its Playwright Chromium was Chrome for Testing 156.0.8078.4.
-- No Microsoft Edge runtime or authenticated Onshape session was available locally.
+The earlier candidate is not the latest PR commit. Historical runs and artifacts identify their own source revisions; their hashes are not reused for the compatibility build.
 
-## Automated results
+## Confirmed defects and unverified concerns
 
-| Check                                                   | Result                                                                           |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Frozen dependency install                               | Passed with `CI=true pnpm install --frozen-lockfile`                             |
-| Lint                                                    | Passed                                                                           |
-| Typecheck                                               | Passed                                                                           |
-| Formatting                                              | Passed                                                                           |
-| Unit and component tests                                | 154 passed, 0 failed across 12 files; includes 29 AssistantPanel component tests |
-| Chrome production build                                 | Passed; 398.02 kB total output                                                   |
-| Edge production build                                   | Passed; 398.02 kB total output                                                   |
-| Chrome ZIP                                              | `leqadextension-0.1.0-chrome.zip`, 120.58 kB                                     |
-| Edge ZIP                                                | `leqadextension-0.1.0-edge.zip`, 120.58 kB                                       |
-| SHA-256 for both ZIPs                                   | `9867e28a882fb562a46d997c2f8eacaffcf535190248b8c002e69e9530f1dde5`               |
-| Local Playwright                                        | 5 passed, 0 failed, 1 skipped                                                    |
-| GitHub Actions Playwright on the pull request merge ref | 6 passed, 0 failed                                                               |
+| Concern                                      | Reproduced result and fix                                                                                                                                                                                                                                                            | Practical boundary                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edit permission inferred from controls       | Regressions reproduced a false editable result for a shared workspace with Part Studio and Sketch controls, including overriding read-only state. Removed the positive permission inference.                                                                                         | Part Studio can still be recognized. No positive permission observer or Onshape API is connected; workspace permission remains UNKNOWN in the production extension. Read-only routes/recognized indicators remain read-only.                                                                                                                      |
+| Top selection required during sketch editing | A constructed UI transition selected Top, entered sketch mode, and cleared selection. The old sketch check returned UNKNOWN solely because selection disappeared. The sketch step now checks current editing controls separately from the plane-selection step.                      | This verifies only supported current UI state in an already-confirmed editable context. Active/committed sketch plane association, geometry, and committed state remain UNKNOWN. Contradictory selected planes, stale evidence, and wrong context still block a pass. Whether this exact transition occurs in current Onshape remains unverified. |
+| Check required when no verifier exists       | Component and browser regressions reproduced the missing direct continuation on rectangle, dimensions, and finish steps. Panel and content script now share the two implemented observers; unsupported steps show a limitation explanation and direct Continue without verification. | Completion persists SELF_REPORTED with UNKNOWN verification; callbacks cannot generate PASS for unsupported steps. Pause/resume and the eight-step flow remain covered.                                                                                                                                                                           |
 
-The five local passes cover the Chrome and Edge MV3 manifests and three browser-fixture flows. The one local skip is the test that loads the unpacked production extension; the machine's Chromium policy blocks all unpacked extensions. GitHub Actions ran that test successfully against the controlled Onshape-like fixture. This is not a live Onshape result.
+No actual live integration failure has been reproduced. No new DOM selectors, screen coordinates, API capability assertions, Phase 2 functionality, or license were added. A separate code-review agent inspected the nine changed code/test files and reported no findings.
 
-The [GitHub Actions run for `db7b243`](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233) passed install, lint, typecheck, all 154 unit/component tests, formatting, Chrome and Edge builds, all six Playwright tests, packaging, and artifact upload. The `leqad-browser-packages` artifact is available from that run. Earlier reruns exposed two release issues: E2E rebuilt the output after packaging, and GitHub excluded ZIPs from the hidden `.output` directory. The workflow now packages after E2E and explicitly includes that ZIP-only path. A separate 30-second navigation timeout in the extension-load test was resolved by waiting for `DOMContentLoaded` and then asserting the panel mount; that test passed in the final hosted run.
+## Environment and automated results
 
-## Live Onshape results
+- Local system: Debian GNU/Linux 13; managed Chromium 154.0.8037.57.
+- Node.js 24.19.0; pnpm 11.25.0. Hosted CI: Ubuntu 24.04.5, Node.js 24.21.0, Chrome for Testing 156.0.8078.4.
+- Local Chromium policy: `ExtensionInstallBlocklist: ["*"]`; no supported unrestricted Chrome or Edge runtime is available.
+- Managed outbound policy does not allow `cad.onshape.com`; no authorized authenticated Onshape session was provided. No policy bypass was attempted.
 
-No real Onshape session was available, and the managed local browser policy disallows unpacked extensions. The live acceptance cases remain **blocked**, not passed:
+| Check                           | Compatibility result                                                                                                                                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frozen install                  | PASS: `CI=true pnpm install --frozen-lockfile`                                                                                                                                            |
+| Lint / typecheck / formatting   | PASS                                                                                                                                                                                      |
+| Unit/component tests            | PASS: 162 tests across 12 files, including 33 AssistantPanel tests; 8 new regressions. Baseline was 154.                                                                                  |
+| Browser regressions             | The new direct-continuation regression failed before the fix and passed afterward. All four panel-fixture flows pass.                                                                     |
+| Local complete Playwright suite | 6 PASS / 0 FAIL / 1 SKIPPED. The production extension load is skipped under the managed install policy. Baseline was 5 PASS / 1 SKIPPED.                                                  |
+| Chrome / Edge production build  | PASS: 398.44 kB each                                                                                                                                                                      |
+| Chrome / Edge ZIP packaging     | PASS: 120,728 bytes each                                                                                                                                                                  |
+| Hosted CI                       | PASS on run 38475535722, attempt 2: frozen install, lint, typecheck, 162 tests, formatting, Chrome/Edge builds, 7 browser tests with 0 failures or skips, packaging, and artifact upload. |
 
-- Extension mount, duplicate prevention, page navigation, read-only state, and supported-page detection in Onshape
-- Recognition of Top plane, Sketch, Rectangle, Dimension, and Finish Sketch against the current Onshape UI
-- Completion of all eight **Your First Sketch** steps in a real editable Part Studio
-- Wrong-plane and wrong-tool recovery, reload persistence, pause/resume, and document isolation
-- Highlight position, click-through, and panel reachability at 80%, 100%, 125%, and 150% browser zoom
-- Chrome and Edge runtime compatibility in normal supported browser installations
+The local browser results cover controlled HTML and manifests. They are not live Onshape acceptance results. The unit/component count increased while retaining the prior suites; tests for plane state and dimensions were updated to match the corrected separation and direct continuation behavior.
 
-No real Onshape selectors or accessible labels were observed during this validation. The only screenshot in the repository is explicitly labeled as a [controlled browser fixture](../../images/fixture-foundations-panel.png). It is not live Onshape evidence.
+## Compatibility packages
 
-## Defects and fixes
+The local ZIPs were rebuilt after the complete browser suite. Each has freshly measured SHA-256 `9f8203ebda3fe1a40b78d97edb3056d6f7b85caab6fcbfcfd3004897a6be68d4`:
 
-- The existing hardening branch contains fixes for evidence trust and lesson completion, context detection, per-document persistence, the complete eight-step lesson, page lifecycle, semantic recognition, panel positioning, and CI coverage. Regression tests cover these behaviors; see the branch history and `docs/implementation-progress.md`.
-- This validation found and fixed release workflow defects: package after the E2E rebuild and include the hidden `.output` ZIP path in artifact upload. Hosted Actions confirmed both ZIPs upload successfully.
-- The production-extension Playwright test now waits for DOM content and separately checks the Leqad mount, avoiding a full page-load wait that timed out under hosted CI load.
-- No live integration defect could be reproduced without an Onshape session. Do not infer live correctness from local fixtures.
+- `leqadextension-0.1.0-chrome.zip` — 120,728 bytes
+- `leqadextension-0.1.0-edge.zip` — 120,728 bytes
 
-## Security, documentation, and licensing
+The successful hosted artifact was downloaded and inspected. Both inner extension ZIPs are byte-for-byte identical to these local ZIPs, and both contain `manifest.json` at their root. These freshly verified inner package checksums differ from the earlier report's package checksum.
 
-The repository's dated security review records the current-source and available-history scan, minimal `storage` permission, absence of telemetry, and bounded local cursor data. It does not claim penetration testing or live Onshape security validation. Public setup, architecture, contribution, security, roadmap, and capability documentation are present.
+- Download: [leqad-browser-packages artifact 11854470815](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722/artifacts/11854470815)
+- Source: `f4450c4b3b6b53d1219294d187680d680223b9ab`; successful run 38475535722, attempt 2
+- Outer artifact archive: 241,714 bytes, SHA-256 `f6f1a713bcdeca4e52aaebac7b957cd9fc19708f3bc5be0f21539c1e74c93a4a`; downloaded bytes match GitHub's recorded digest
 
-Apache-2.0 remains a proposal in `docs/legal/apache-2.0-proposal.md`. There is no root `LICENSE` file. The owner must decide whether to apply it before the project is described as licensed open source.
+The outer archive digest identifies the downloaded bundle, while the inner ZIP checksums identify the actual extension packages. Any later artifact must be measured independently before reusing a checksum.
 
-## Compatibility conclusion and remaining actions
+## CI timeout observation
 
-Automated checks and both browser targets build successfully. Local fixtures and the hosted CI browser test pass, while the live Onshape acceptance requirement has not been exercised. Phase 1 therefore remains incomplete.
+Attempt 1 of run 38475535722 passed the 162 unit/component tests, static checks, both builds, and six browser tests, but the existing production-extension load test hit its 60-second test deadline. The log did not identify a failing API call. An unchanged attempt 2 passed all seven browser tests and uploaded both packages. This is an intermittent automated-test concern with an unverified cause, not a reproduced live Onshape defect. The initial failure is preserved here and in Actions history.
 
-To close the gate, use an unrestricted supported Chrome or Edge installation and an authorized Onshape session with a disposable document. Follow `docs/testing/live-setup.md` and `docs/testing/live-onshape.md`, record sanitized observations, and update this report. Keep licensing as a separate owner decision. Do not merge or announce Phase 1 completion while the live test gate remains blocked.
+## Real Onshape results
 
-## Phase 2 handoff
+[The ready-to-fill live report](phase1-live-acceptance.md) records **PASS 0 / FAIL 0 / BLOCKED 24**. It covers extension loading, one panel, Part Studio and read-only recognition, all five named controls, each of the eight lesson steps, wrong-plane/tool recovery, pause/reload, document switching, zoom, and separate Chrome/Edge runtime checks. Every row requires PASS, FAIL, or BLOCKED plus a short observed result.
 
-The Phase 1 contracts, evidence policy, and deterministic transitions are reusable foundations, but there is no Onshape API connection or production snapshot provider. Phase 2 depends on an approved authentication and least-privilege design, secure credential handling, and live model observations. Its first technical milestone should verify one committed extrusion and driving depth, then invalidate that verification after the feature changes or is deleted.
+No real Onshape labels or selectors have been observed. The repository screenshot remains explicitly labeled as a controlled fixture. No runtime compatibility claim is made from ZIP generation or browser fixtures.
+
+The owner can use the [download, extraction, and installation guide](../live-setup.md) in an unrestricted supported browser with an authorized disposable Part Studio. Workspaces currently show Limited observation until edit permission can be established by supported evidence. Steps 2–3 can continue unverified when that gate is unknown; steps 4–6 offer direct self-reported continuation.
+
+When sanitized observations arrive, reproduce each demonstrated failure, identify the cause, add a failing regression, fix only the affected integration, run the complete suite, retest in real Onshape, then commit and update PR #1. Keep the failing row FAIL or BLOCKED until its real retest passes.
+
+## Owner decisions and acceptance
+
+The [Apache-2.0 versus source-available comparison](../../legal/apache-2.0-proposal.md) is ready for the owner's commercial licensing decision. No root LICENSE exists and no license is approved.
+
+**Phase 1 acceptance has not passed.** Required real Chrome/Edge Onshape results and owner sign-off are outstanding. Keep PR #1 open and unmerged; do not publish a Phase 1 completion announcement while this gate remains incomplete.

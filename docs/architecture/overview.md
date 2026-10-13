@@ -41,6 +41,10 @@ Supported UI observations may complete UI-only steps. They cannot prove committe
 
 Routes identify document context, not editing permission or Part Studio type. Those capabilities stay unknown until supported UI or API evidence establishes them. Current semantic matching favors exact accessible labels and titles, rejects ambiguous/hidden/disabled/obscured controls, and has no unvalidated permanent Onshape selector table.
 
+Part Studio and Sketch controls do not establish editing permission. The current content script has no positive permission observer, so workspace permission remains UNKNOWN; read-only routes and supported read-only indicators remain conservative. The typed capability API accepts explicitly scoped observations, but no Onshape API provider is connected.
+
+The content script and panel use the same two-observer registry: current Top-plane selection and current sketch-editing controls. Sketch-mode evaluation does not require a plane to remain selected and does not reuse historical selection to claim plane association. Both observers still require an editable Part Studio context, matching identity, fresh evidence, and no contradictory selected reference plane. Rectangle creation, dimensions, and finished sketch state have no observer and offer direct continuation as SELF_REPORTED/UNKNOWN.
+
 ## Persistence
 
 Extension storage separates:

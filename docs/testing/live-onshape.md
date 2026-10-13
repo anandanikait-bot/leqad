@@ -26,9 +26,9 @@ Follow the [live setup guide](live-setup.md) to build and load the extension in 
 
 ## Context tests
 
-Record pass, fail, skipped, or blocked for each:
+Record PASS, FAIL, or BLOCKED plus a short observed result for each in the [acceptance report](results/phase1-live-acceptance.md):
 
-1. Workspace route begins unknown and claims editability/Part Studio only after a supported observation.
+1. Workspace permission begins UNKNOWN. A recognized Part Studio tab can identify element type, but visible Sketch/Part Studio controls alone never claim editability. A shared read-only workspace with those controls must stay UNKNOWN or read-only, never editable.
 2. Version and microversion routes remain read-only.
 3. Switching documents, workspaces, and elements replaces the prior panel state without duplicates.
 4. Browser back/forward and reload preserve the correct document identity.
@@ -40,11 +40,11 @@ Record pass, fail, skipped, or blocked for each:
 Run all eight steps without developer tools changing the page:
 
 1. Read and acknowledge the introduction.
-2. Use Show me for Top plane. Record whether recognition is correct, ambiguous, missing, or rejected. Select Top plane and check progress.
-3. Use Show me for Sketch, enter sketch editing, and check progress. Confirm plane selection and sketch editing are reported separately.
-4. Use Show me for Rectangle and draw a closed rectangle. Confirm tool recognition does not claim geometry exists.
+2. Use Show me for Top plane. Record whether recognition is correct, ambiguous, missing, or rejected. Select Top plane. If edit permission is unknown, expect a disabled Check progress and use direct unverified continuation.
+3. Use Show me for Sketch and enter sketch editing. Record whether plane selection disappears and whether editing controls are visible. Confirm earlier selection is not described as proof of actual sketch plane association. Use unverified continuation when the permission gate remains unknown.
+4. Use Show me for Rectangle and draw a closed rectangle. Confirm the limitation explanation and direct Continue without verification appear without requiring Check progress; completion stays self-reported.
 5. Add 40 mm and 30 mm dimensions. Confirm the values remain unknown without model evidence.
-6. Finish the sketch. Confirm leaving sketch mode is not described as verified committed geometry.
+6. Finish the sketch and continue without verification directly. Confirm leaving sketch mode is not described as verified committed geometry.
 7. Acknowledge the 2D sketch and extrusion explanation.
 8. Complete independent practice and confirm the outcome is labeled self-reported.
 
@@ -66,7 +66,7 @@ Repeat the smoke flow in a supported Chrome version and a supported Edge version
 
 Store a sanitized report under `docs/testing/results/` with:
 
-- Passed, failed, skipped, and blocked counts
+- PASS, FAIL, and BLOCKED counts, and a short observed result for every required test
 - Per-step observations and selector provenance
 - Screenshots labeled live Onshape only when genuinely captured there
 - Bugs discovered and the commit that fixes each

@@ -22,3 +22,18 @@ Apache-2.0 is a permissive open-source license. It generally allows use, modific
 For a future commercial startup, this supports an open-core or services business and broad adoption while allowing proprietary offerings around hosted services, enterprise features, content, or integrations. It also means competitors may legally use and commercialize the licensed code if they follow the license. Trademarks, hosted data, credentials, lesson content ownership, third-party dependencies, and any future proprietary components need separate treatment.
 
 This summary is operational guidance, not legal advice. The owner should confirm copyright ownership and obtain legal review appropriate to the planned company before approval.
+
+## Apache-2.0 versus source-available for a startup
+
+| Decision factor                  | Apache-2.0                                                                                                      | Source-available                                                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Commercial Leqad business        | Can sell the product, hosting, support, and proprietary additions.                                              | Can sell the product and licenses under the terms the owner selects.                                      |
+| Competitor reuse                 | Competitors may fork, host, and sell the licensed code while meeting notice requirements.                       | May restrict competing hosting or other commercial reuse if the chosen license explicitly does so.        |
+| Adoption and contributions       | Standard open-source terms support broad integration and contributor familiarity.                               | Visible code aids inspection, but restrictions can reduce adoption and exclude use by some companies.     |
+| Patent rights                    | Express contributor patent grant with a termination provision.                                                  | Depends on the exact license; there is no single source-available patent policy.                          |
+| Distribution and proprietary use | Does not require downstream proprietary code to be published.                                                   | Rights, restrictions, redistribution, and derivative-work terms depend on the selected text.              |
+| Future licensing                 | Existing Apache grants cannot simply be revoked from recipients; owned future code can be licensed differently. | Changes and any conversion to open source depend on the license and ownership. Prior grants still matter. |
+
+Choose Apache-2.0 if broad ecosystem adoption matters more than restricting competitors' use of this code. Choose a specific source-available license if commercial-use restrictions are part of the business model, then review its exact terms before granting rights. Source-available is not automatically open source, and it is not a license name.
+
+Either choice requires clear ownership of code, lesson content, and contributor rights. A later dual-license strategy requires rights to relicense relevant contributions. Trademark/brand protection and proprietary hosted services are separate decisions. **Owner decision remains pending; no LICENSE is added by this proposal.**

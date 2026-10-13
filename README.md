@@ -23,8 +23,9 @@ _Controlled browser fixture, not live Onshape compatibility evidence._
 
 ## Current limits
 
-- Live Onshape selectors and the complete lesson have not yet passed the Phase 0 live-validation gate. Fixture tests do not prove compatibility with Onshape.
+- Live Onshape selectors and the complete lesson have not yet passed the Phase 1 live acceptance gate. Fixture tests do not prove compatibility with Onshape.
 - Geometry, committed sketches, and the example 40 mm by 30 mm dimensions remain unknown without supported current model evidence.
+- Visible Part Studio and Sketch controls do not establish editing permission. Workspace permission stays unknown; unsupported verification steps offer direct self-reported continuation.
 - Model revision metadata and the Phase 2 verification backend are not connected.
 - Projects and Ask are labeled previews. Contextual AI, custom-part design, robotics projects, and printability guidance remain roadmap work.
 - Leqad currently requests only extension storage permission and does not include telemetry or a remote service.
@@ -74,8 +75,8 @@ pnpm test
 pnpm format:check
 pnpm build
 pnpm build:edge
-pnpm package:browsers
 pnpm test:e2e
+pnpm package:browsers
 ```
 
 Detailed setup and unpacked loading instructions are in [local setup](docs/development/local-setup.md).
@@ -88,6 +89,8 @@ Detailed setup and unpacked loading instructions are in [local setup](docs/devel
 - Live Onshape testing is a separate manual gate that requires an authorized account and disposable document.
 
 Use the [live setup guide](docs/testing/live-setup.md) and [Onshape test procedure](docs/testing/live-onshape.md) before recording any compatibility claim.
+
+Record PASS, FAIL, or BLOCKED plus a short observation in the [live acceptance checklist](docs/testing/results/phase1-live-acceptance.md). The [licensing comparison](docs/legal/apache-2.0-proposal.md) remains pending the owner's decision.
 
 See the [latest Phase 1 validation report](docs/testing/results/phase1-final-validation.md) for current test results and blockers.
 

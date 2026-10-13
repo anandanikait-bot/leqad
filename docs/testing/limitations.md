@@ -15,6 +15,8 @@ Leqad uses distinct test tracks because they establish different facts.
 - The managed local Chromium policy blocks unpacked extension installation, so the production-load test is skipped locally. It is not counted as passed.
 - No authenticated editable Onshape Part Studio is available in the current environment.
 - No supported API supplies current model revision, committed sketch geometry, or exact dimension values.
+- Visible Part Studio and Sketch controls do not establish edit access. Positive editing-permission evidence is not connected; the real extension keeps workspace permission UNKNOWN and offers self-reported continuation.
+- Only Top-plane selection and active sketch controls have UI observers. Rectangle creation, dimensions, and finished sketch state offer direct unverified continuation. Historical plane selection does not establish active or committed sketch plane association.
 
 ## Fixture policy
 
