@@ -8,7 +8,11 @@ import {
   parseOnshapePage,
 } from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
-import type { PanelPreferences } from '../src/services/progressStore';
+import { createEmptyLearningHistory } from '../src/services/progressStore';
+import type {
+  LearningHistory,
+  PanelPreferences,
+} from '../src/services/progressStore';
 import { createNavigationInitializationGuard } from '../src/services/navigationGuard';
 import {
   evaluateFoundationsSketchProgress,
@@ -23,6 +27,7 @@ import type {
   TargetHighlight,
 } from '../src/services/semanticTargets';
 import type { ModelIdentity } from '@leqad/contracts';
+import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 import '../src/styles/panel.css';
 
 export default defineContentScript({
@@ -73,9 +78,14 @@ export default defineContentScript({
         collapsed: false,
         position: null,
       };
+      let initialLearningHistory: LearningHistory =
+        createEmptyLearningHistory();
       if (identity) {
         try {
-          initialSession = await progressStore.restoreSession(identity, null);
+          initialSession = await progressStore.restoreSession(identity, null, {
+            lessonId: FOUNDATIONS_FIRST_SKETCH.id,
+            lessonVersion: FOUNDATIONS_FIRST_SKETCH.version,
+          });
         } catch {
           initialSession = null;
         }
@@ -84,6 +94,11 @@ export default defineContentScript({
         initialPanelPreferences = await progressStore.loadPanelPreferences();
       } catch {
         // Keep the usable in-memory defaults if extension storage is unavailable.
+      }
+      try {
+        initialLearningHistory = await progressStore.loadLearningHistory();
+      } catch {
+        // Keep an empty learning history if extension storage is unavailable.
       }
       if (!initializationGuard.isCurrent(currentGeneration) || ctx.isInvalid)
         return;
@@ -100,6 +115,7 @@ export default defineContentScript({
               page={page}
               initialSession={initialSession}
               initialPanelPreferences={initialPanelPreferences}
+              initialLearningHistory={initialLearningHistory}
               onShowTarget={(targetId: SemanticTargetId) => {
                 const target = findSemanticTarget(document, targetId);
                 clearHighlight();
@@ -123,6 +139,11 @@ export default defineContentScript({
               onPanelPreferencesChange={(preferences) => {
                 void progressStore
                   .savePanelPreferences(preferences)
+                  .catch(() => undefined);
+              }}
+              onLearningHistoryChange={(history) => {
+                void progressStore
+                  .saveLearningHistory(history)
                   .catch(() => undefined);
               }}
             />,

@@ -12,14 +12,23 @@ import {
   FOUNDATIONS_FIRST_SKETCH,
   advanceHint,
   createInitialLessonStepState,
+  createUnknownLessonModelState,
   transitionLessonStep,
 } from '@leqad/lesson-engine';
-import type { LessonSession, LessonStepState } from '@leqad/lesson-engine';
+import type {
+  LessonModelState,
+  LessonSession,
+  LessonStepState,
+} from '@leqad/lesson-engine';
 import { estimateCursorIntent } from '../../services/cursorIntent';
 import type { CursorSample } from '../../services/cursorIntent';
 import { unavailableFoundationsDecision } from '../../services/foundationsEvidence';
 import type { OnshapePageContext } from '../../services/onshapePage';
-import type { PanelPreferences } from '../../services/progressStore';
+import { createEmptyLearningHistory } from '../../services/progressStore';
+import type {
+  LearningHistory,
+  PanelPreferences,
+} from '../../services/progressStore';
 import {
   findSemanticTarget,
   isUsableSemanticTarget,
@@ -30,6 +39,7 @@ interface AssistantPanelProps {
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
+  initialLearningHistory?: LearningHistory;
   onShowTarget?: (targetId: SemanticTargetId) => boolean | void;
   onCheckStep?: (
     stepId: string,
@@ -37,6 +47,7 @@ interface AssistantPanelProps {
   ) => VerificationDecision;
   onSessionChange?: (session: LessonSession) => void;
   onPanelPreferencesChange?: (preferences: PanelPreferences) => void;
+  onLearningHistoryChange?: (history: LearningHistory) => void;
 }
 
 type PanelMode = 'Learn' | 'Projects' | 'Ask';
@@ -86,6 +97,7 @@ function makeSession(
   page: OnshapePageContext | undefined,
   stepState: LessonStepState,
   prior: LessonSession | null | undefined,
+  decision?: VerificationDecision,
 ): LessonSession | null {
   if (
     !page?.supported ||
@@ -102,6 +114,14 @@ function makeSession(
   };
   const stepId = FOUNDATIONS_FIRST_SKETCH.steps[0]?.id;
   if (!stepId) return null;
+  const priorModelState =
+    prior?.modelState ??
+    createUnknownLessonModelState(
+      'The current model revision is unknown; model-dependent progress must be checked again.',
+    );
+  const modelState = decision
+    ? modelStateWithDecision(priorModelState, stepId, decision)
+    : priorModelState;
 
   return {
     lessonId: FOUNDATIONS_FIRST_SKETCH.id,
@@ -109,8 +129,49 @@ function makeSession(
     currentStepId: stepId,
     modelIdentity: identity,
     modelRevision: null,
+    modelState,
     updatedAt: new Date().toISOString(),
     steps: { ...prior?.steps, [stepId]: stepState },
+  };
+}
+
+function modelStateWithDecision(
+  prior: LessonModelState,
+  stepId: string,
+  decision: VerificationDecision,
+): LessonModelState {
+  const evidenceIds = decision.evidence.map(({ id }) => id);
+  const observedUiStates = { ...prior.observedUiStates };
+  const verifiedModelStates = { ...prior.verifiedModelStates };
+
+  if (decision.evidenceLevel === 'UI_CONFIRMED' && decision.observedFact) {
+    observedUiStates[stepId] = {
+      fact: decision.observedFact,
+      observedAt: decision.observedAt,
+      expiresAt: decision.evidence[0]?.expiresAt ?? null,
+      evidenceIds,
+    };
+  }
+  if (decision.evidenceLevel === 'API_CONFIRMED' && decision.observedFact) {
+    verifiedModelStates[stepId] = {
+      status: decision.status,
+      observedAt: decision.observedAt,
+      revision: decision.revision,
+      evidenceIds,
+    };
+  }
+
+  return {
+    observedUiStates,
+    verifiedModelStates,
+    evidenceReferences: Array.from(
+      new Set([...prior.evidenceReferences, ...evidenceIds]),
+    ),
+    evidenceFreshness: evidenceIds.length > 0 ? 'current' : 'unknown',
+    uncertaintyReason:
+      decision.missingRequirements.length > 0
+        ? decision.missingRequirements.join('; ')
+        : null,
   };
 }
 
@@ -135,10 +196,12 @@ export function AssistantPanel({
   page,
   initialSession = null,
   initialPanelPreferences,
+  initialLearningHistory,
   onShowTarget,
   onCheckStep,
   onSessionChange,
   onPanelPreferencesChange,
+  onLearningHistoryChange,
 }: AssistantPanelProps) {
   const step = FOUNDATIONS_FIRST_SKETCH.steps[0];
   const [mode, setMode] = useState<PanelMode>('Learn');
@@ -163,6 +226,52 @@ export function AssistantPanel({
   const [cursorCue, setCursorCue] = useState('');
   const dragStart = useRef<DragStart | null>(null);
   const recentSamples = useRef<CursorSample[]>([]);
+  const sessionRef = useRef<LessonSession | null>(initialSession);
+  const learningHistoryRef = useRef<LearningHistory>(
+    initialLearningHistory ?? createEmptyLearningHistory(),
+  );
+
+  const recordLearningHistory = (
+    nextHintLevel: number,
+    practiceAttemptDelta = 0,
+  ) => {
+    if (!step) return;
+    const prior = learningHistoryRef.current;
+    const now = new Date().toISOString();
+    const priorVisit = prior.lessonsVisited[FOUNDATIONS_FIRST_SKETCH.id];
+    const practiceKey = `${FOUNDATIONS_FIRST_SKETCH.id}:${step.id}`;
+    const next: LearningHistory = {
+      lessonsVisited: {
+        ...prior.lessonsVisited,
+        [FOUNDATIONS_FIRST_SKETCH.id]: {
+          lessonVersion: FOUNDATIONS_FIRST_SKETCH.version,
+          firstVisitedAt: priorVisit?.firstVisitedAt ?? now,
+          lastVisitedAt: now,
+        },
+      },
+      conceptsIntroduced: Array.from(
+        new Set([
+          ...prior.conceptsIntroduced,
+          ...FOUNDATIONS_FIRST_SKETCH.objectives,
+        ]),
+      ),
+      hintUsage: {
+        ...prior.hintUsage,
+        [step.id]: Math.max(prior.hintUsage[step.id] ?? 0, nextHintLevel),
+      },
+      practiceAttempts: {
+        ...prior.practiceAttempts,
+        [practiceKey]:
+          (prior.practiceAttempts[practiceKey] ?? 0) + practiceAttemptDelta,
+      },
+    };
+    learningHistoryRef.current = next;
+    onLearningHistoryChange?.(next);
+  };
+
+  useEffect(() => {
+    recordLearningHistory(stepState.hintLevel);
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -229,10 +338,16 @@ export function AssistantPanel({
     page.elementType === 'part-studio',
   );
 
-  const updateStepState = (next: LessonStepState) => {
+  const updateStepState = (
+    next: LessonStepState,
+    decision?: VerificationDecision,
+  ) => {
     setStepState(next);
-    const session = makeSession(page, next, initialSession);
-    if (session) onSessionChange?.(session);
+    const session = makeSession(page, next, sessionRef.current, decision);
+    if (session) {
+      sessionRef.current = session;
+      onSessionChange?.(session);
+    }
   };
 
   const showTarget = () => {
@@ -263,7 +378,8 @@ export function AssistantPanel({
       evaluatedAt: new Date().toISOString(),
     });
     setVerificationStatus(decision.status);
-    updateStepState(next);
+    updateStepState(next, decision);
+    recordLearningHistory(stepState.hintLevel, 1);
     setShowRecovery(
       decision.status === 'FAIL' || decision.status === 'WARNING',
     );
@@ -271,10 +387,12 @@ export function AssistantPanel({
   };
 
   const advanceHintLevel = () => {
+    const nextHintLevel = advanceHint(stepState.hintLevel);
     updateStepState({
       ...stepState,
-      hintLevel: advanceHint(stepState.hintLevel),
+      hintLevel: nextHintLevel,
     });
+    recordLearningHistory(nextHintLevel);
     setShowRecovery(true);
   };
 

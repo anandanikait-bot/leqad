@@ -184,6 +184,59 @@ describe('AssistantPanel', () => {
     expect(screen.getByText(/Model geometry is not checked/)).toBeTruthy();
   });
 
+  it('persists observed UI facts separately from verified model facts', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onSessionChange = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('PASS')}
+        onSessionChange={onSessionChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+
+    expect(onSessionChange).toHaveBeenCalledTimes(1);
+    expect(onSessionChange.mock.calls[0]?.[0].modelState).toMatchObject({
+      observedUiStates: {
+        'enter-sketch': {
+          fact: {
+            topPlaneSelected: true,
+            sketchEditingAppearsActive: true,
+          },
+          evidenceIds: ['evidence-1'],
+        },
+      },
+      verifiedModelStates: {},
+      evidenceReferences: ['evidence-1'],
+      evidenceFreshness: 'current',
+    });
+  });
+
+  it('records lesson visits, concepts, hint usage, and practice attempts in learning history', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onLearningHistoryChange = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+        onLearningHistoryChange={onLearningHistoryChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+
+    const history = onLearningHistoryChange.mock.lastCall?.[0];
+    expect(history.lessonsVisited).toHaveProperty('foundations-first-sketch');
+    expect(history.conceptsIntroduced.length).toBeGreaterThan(0);
+    expect(history.hintUsage['enter-sketch']).toBe(1);
+    expect(
+      history.practiceAttempts['foundations-first-sketch:enter-sketch'],
+    ).toBe(1);
+  });
+
   it('reuses the current semantic target for repeated local cursor samples', async () => {
     const semanticTargets = await import('../../services/semanticTargets');
     const findTarget = vi.spyOn(semanticTargets, 'findSemanticTarget');

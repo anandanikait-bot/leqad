@@ -1,5 +1,17 @@
 import type { ModelIdentity } from '@leqad/contracts';
-import type { LessonSession, LessonStepState } from './types';
+import type { LessonModelState, LessonSession, LessonStepState } from './types';
+
+export function createUnknownLessonModelState(
+  uncertaintyReason: string,
+): LessonModelState {
+  return {
+    observedUiStates: {},
+    verifiedModelStates: {},
+    evidenceReferences: [],
+    evidenceFreshness: 'unknown',
+    uncertaintyReason,
+  };
+}
 
 function sameDocument(left: ModelIdentity, right: ModelIdentity): boolean {
   return (
@@ -50,11 +62,19 @@ export function reconcileSession(
         ]),
       )
     : session.steps;
+  const modelState = modelChanged
+    ? createUnknownLessonModelState(
+        currentRevision === null
+          ? 'The current model revision is unknown; model-dependent progress must be checked again.'
+          : 'Model-dependent progress needs to be checked against the current revision.',
+      )
+    : session.modelState;
 
   return {
     ...session,
     modelIdentity: currentIdentity,
     modelRevision: currentRevision,
+    modelState,
     updatedAt: now.toISOString(),
     steps,
   };

@@ -23,6 +23,28 @@ export interface LessonStepState {
   resumeState: LessonStepStatus | null;
 }
 
+export interface StoredUiObservation {
+  fact: Record<string, unknown>;
+  observedAt: string;
+  expiresAt: string | null;
+  evidenceIds: string[];
+}
+
+export interface StoredModelVerification {
+  status: VerificationStatus;
+  observedAt: string;
+  revision: string | null;
+  evidenceIds: string[];
+}
+
+export interface LessonModelState {
+  observedUiStates: Record<string, StoredUiObservation>;
+  verifiedModelStates: Record<string, StoredModelVerification>;
+  evidenceReferences: string[];
+  evidenceFreshness: 'current' | 'stale' | 'unknown';
+  uncertaintyReason: string | null;
+}
+
 export type LessonStepEvent =
   | { type: 'START' }
   | { type: 'BEGIN_STEP' }
@@ -45,6 +67,7 @@ export interface LessonSession {
   currentStepId: string;
   modelIdentity: ModelIdentity;
   modelRevision: string | null;
+  modelState: LessonModelState;
   updatedAt: string;
   steps: Record<string, LessonStepState>;
 }
