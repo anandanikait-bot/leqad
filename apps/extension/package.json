@@ -1,0 +1,23 @@
+{
+  "name": "@leqad/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wxt -b chrome",
+    "build": "wxt build -b chrome",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@leqad/contracts": "workspace:*",
+    "@leqad/lesson-engine": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@wxt-dev/module-react": "1.2.2",
+    "vite": "8.3.4",
+    "wxt": "0.21.4"
+  }
+}

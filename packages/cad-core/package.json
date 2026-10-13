@@ -1,0 +1,15 @@
+{
+  "name": "@leqad/cad-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@leqad/contracts": "workspace:*"
+  },
+  "scripts": {
+    "test": "vitest run --config ../../vitest.config.ts"
+  }
+}

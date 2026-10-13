@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mock Onshape workspace</title>
+    <style>
+      body {
+        font:
+          16px system-ui,
+          sans-serif;
+        padding: 24px;
+      }
+      #fixture-top-plane,
+      #host-control {
+        position: fixed;
+        left: 24px;
+        width: 140px;
+        height: 34px;
+      }
+      #fixture-top-plane {
+        top: 32px;
+      }
+      #host-control {
+        top: 80px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Mock Onshape workspace fixture</h1>
+    <button id="fixture-top-plane" aria-label="Top plane">Top plane</button>
+    <button id="host-control">Host page control</button>
+    <p>Host control clicks: <span id="host-click-count">0</span></p>
+    <script>
+      document
+        .querySelector('#fixture-top-plane')
+        ?.addEventListener('click', () => {
+          if (document.querySelector('[aria-label="Finish sketch"]')) return;
+          const finish = document.createElement('button');
+          finish.setAttribute('aria-label', 'Finish sketch');
+          finish.title = 'Finish sketch';
+          finish.textContent = 'Finish sketch';
+          document.body.append(finish);
+        });
+      document.querySelector('#host-control')?.addEventListener('click', () => {
+        const counter = document.querySelector('#host-click-count');
+        if (counter)
+          counter.textContent = String(Number(counter.textContent) + 1);
+      });
+    </script>
+    <script type="module" src="./fixture.tsx"></script>
+  </body>
+</html>
