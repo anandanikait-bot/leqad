@@ -1,8 +1,11 @@
 # Phase 1 final validation report
 
-**Report date:** 2026-10-13  
-**Candidate branch:** `phase1-hardening`  
-**Candidate commit:** `850aabe726313d87ff674122b19785153d7781da`  
+**Report date:** 2026-10-13
+
+**Candidate branch:** `phase1-hardening`
+
+**Candidate commit:** `db7b243ccaec0d02fb22f648e16ffc736a724d4c`
+
 **Phase 1 status:** **INCOMPLETE — live Onshape acceptance is blocked**
 
 ## Environment
@@ -33,7 +36,7 @@
 
 The five local passes cover the Chrome and Edge MV3 manifests and three browser-fixture flows. The one local skip is the test that loads the unpacked production extension; the machine's Chromium policy blocks all unpacked extensions. GitHub Actions ran that test successfully against the controlled Onshape-like fixture. This is not a live Onshape result.
 
-The GitHub Actions run for `850aabe` passed install, lint, typecheck, unit tests, formatting, Chrome and Edge builds, packaging, and all six Playwright tests. Artifact upload then failed because `pnpm test:e2e` rebuilt `.output` after packaging and removed the ZIPs. The workflow now packages after the E2E rebuild, and the run must be checked again on the updated pull request before CI can be reported green.
+The [GitHub Actions run for `db7b243`](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233) passed install, lint, typecheck, all 154 unit/component tests, formatting, Chrome and Edge builds, all six Playwright tests, packaging, and artifact upload. The `leqad-browser-packages` artifact is available from that run. Earlier reruns exposed two release issues: E2E rebuilt the output after packaging, and GitHub excluded ZIPs from the hidden `.output` directory. The workflow now packages after E2E and explicitly includes that ZIP-only path. A separate 30-second navigation timeout in the extension-load test was resolved by waiting for `DOMContentLoaded` and then asserting the panel mount; that test passed in the final hosted run.
 
 ## Live Onshape results
 
@@ -51,7 +54,8 @@ No real Onshape selectors or accessible labels were observed during this validat
 ## Defects and fixes
 
 - The existing hardening branch contains fixes for evidence trust and lesson completion, context detection, per-document persistence, the complete eight-step lesson, page lifecycle, semantic recognition, panel positioning, and CI coverage. Regression tests cover these behaviors; see the branch history and `docs/implementation-progress.md`.
-- This validation found a release workflow defect: packaging ran before Playwright rebuilt the output directory, so artifact upload could not find the ZIPs. The workflow order has been corrected; hosted CI must confirm the correction.
+- This validation found and fixed release workflow defects: package after the E2E rebuild and include the hidden `.output` ZIP path in artifact upload. Hosted Actions confirmed both ZIPs upload successfully.
+- The production-extension Playwright test now waits for DOM content and separately checks the Leqad mount, avoiding a full page-load wait that timed out under hosted CI load.
 - No live integration defect could be reproduced without an Onshape session. Do not infer live correctness from local fixtures.
 
 ## Security, documentation, and licensing

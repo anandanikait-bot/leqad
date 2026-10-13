@@ -79,7 +79,7 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 
 See [`docs/testing/results/phase1-final-validation.md`](testing/results/phase1-final-validation.md) for the complete report and [`docs/testing/live-setup.md`](testing/live-setup.md) for the owner-executable setup.
 
-- Local lint, typecheck, formatting, and all 154 unit/component tests pass on `850aabe`.
+- Local lint, typecheck, formatting, and all 154 unit/component tests pass on the final validation candidate `db7b243`.
 - Chrome and Edge MV3 builds and ZIP packages succeed. The local Playwright run reports five passes and one unpacked-extension skip under managed browser policy.
-- The pull request's hosted Playwright run passed all six tests, including loading the built extension against the controlled fixture. The first Actions run failed only at artifact upload because the E2E rebuild had cleared the earlier ZIPs. Packaging now runs after E2E; the updated PR check must confirm the fix.
+- The pull request's [hosted Actions run](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233) passed all checks, including six Playwright tests, both packages, and artifact upload. The hosted extension load used the controlled fixture; it is not live Onshape evidence.
 - Real Onshape validation and manual Chrome/Edge runtime checks remain blocked. Phase 1 is not signed off.
