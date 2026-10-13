@@ -3,9 +3,13 @@ import { browser } from 'wxt/browser';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { AssistantPanel } from '../src/components/panel/AssistantPanel';
-import { parseOnshapePage } from '../src/services/onshapePage';
+import {
+  observeOnshapeCapabilities,
+  parseOnshapePage,
+} from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
 import type { PanelPreferences } from '../src/services/progressStore';
+import { createNavigationInitializationGuard } from '../src/services/navigationGuard';
 import {
   evaluateFoundationsSketchProgress,
   unavailableFoundationsDecision,
@@ -30,7 +34,7 @@ export default defineContentScript({
     let activeUi: { remove(): void } | null = null;
     let activeHighlight: TargetHighlight | null = null;
     let highlightTimer: number | null = null;
-    let generation = 0;
+    const initializationGuard = createNavigationInitializationGuard();
 
     const clearHighlight = () => {
       if (highlightTimer !== null) window.clearTimeout(highlightTimer);
@@ -46,9 +50,12 @@ export default defineContentScript({
     };
 
     const mountForCurrentPage = async () => {
-      const currentGeneration = ++generation;
+      const currentGeneration = initializationGuard.begin();
       closePanel();
-      const page = parseOnshapePage(window.location.href);
+      const page = observeOnshapeCapabilities(
+        parseOnshapePage(window.location.href),
+        document,
+      );
       if (!page.supported) return;
 
       const identity: ModelIdentity | null =
@@ -78,7 +85,8 @@ export default defineContentScript({
       } catch {
         // Keep the usable in-memory defaults if extension storage is unavailable.
       }
-      if (currentGeneration !== generation || ctx.isInvalid) return;
+      if (!initializationGuard.isCurrent(currentGeneration) || ctx.isInvalid)
+        return;
 
       const ui = await createShadowRootUi(ctx, {
         name: 'leqad-assistant',
@@ -126,7 +134,7 @@ export default defineContentScript({
         },
       });
 
-      if (currentGeneration !== generation || ctx.isInvalid) {
+      if (!initializationGuard.isCurrent(currentGeneration) || ctx.isInvalid) {
         ui.remove();
         return;
       }
@@ -138,6 +146,9 @@ export default defineContentScript({
     ctx.addEventListener(window, 'wxt:locationchange', () => {
       void mountForCurrentPage();
     });
-    ctx.onInvalidated(closePanel);
+    ctx.onInvalidated(() => {
+      initializationGuard.invalidate();
+      closePanel();
+    });
   },
 });

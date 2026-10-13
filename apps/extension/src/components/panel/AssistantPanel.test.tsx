@@ -3,6 +3,21 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
+import type { OnshapePageContext } from '../../services/onshapePage';
+
+const confirmedPage: OnshapePageContext = {
+  supported: true,
+  documentId: 'document-a',
+  workspaceId: 'workspace-a',
+  versionId: null,
+  microversionId: null,
+  elementId: 'element-a',
+  modelType: 'workspace',
+  editability: 'editable',
+  elementType: 'part-studio',
+  capabilitySource: 'UI',
+  capabilityObservedAt: '2026-10-13T12:00:00.000Z',
+};
 
 function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
   const identity = {
@@ -59,6 +74,31 @@ describe('AssistantPanel', () => {
     expect(screen.queryByText('Connected')).toBeNull();
   });
 
+  it('limits operation guidance until editable Part Studio capability is confirmed', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+
+    render(
+      <AssistantPanel
+        page={{
+          ...confirmedPage,
+          editability: 'unknown',
+          elementType: 'unknown',
+          capabilitySource: null,
+          capabilityObservedAt: null,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/cannot confirm an editable Part Studio/),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole('button', { name: 'Check progress' })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
   it('lets a keyboard-accessible navigation control change the panel mode', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(<AssistantPanel />);
@@ -112,7 +152,12 @@ describe('AssistantPanel', () => {
 
   it('keeps lesson progress unverified when no UI evidence can be read', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    render(<AssistantPanel onCheckStep={() => uiDecision('UNKNOWN')} />);
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
@@ -124,7 +169,12 @@ describe('AssistantPanel', () => {
 
   it('explains UI-only sketch evidence without implying verified model geometry', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    render(<AssistantPanel onCheckStep={() => uiDecision('PASS')} />);
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('PASS')}
+      />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 

@@ -223,6 +223,11 @@ export function AssistantPanel({
   }, [step]);
 
   if (!step) return null;
+  const operationGuidanceAvailable = Boolean(
+    page?.supported &&
+    page.editability === 'editable' &&
+    page.elementType === 'part-studio',
+  );
 
   const updateStepState = (next: LessonStepState) => {
     setStepState(next);
@@ -396,10 +401,11 @@ export function AssistantPanel({
 
         {!collapsed && (
           <>
-            {page && !page.editable && (
+            {page && !operationGuidanceAvailable && (
               <p className="leqad-readonly-note">
-                This document view is read-only. Some lesson guidance may be
-                unavailable.
+                {page.editability === 'read-only'
+                  ? 'This document view is read-only. Editing guidance is unavailable.'
+                  : 'Leqad cannot confirm an editable Part Studio here. Informational guidance remains available.'}
               </p>
             )}
             <nav className="leqad-nav" aria-label="Leqad modes">
@@ -499,7 +505,8 @@ export function AssistantPanel({
                         onClick={checkProgress}
                         disabled={
                           stepState.status === 'COMPLETED' ||
-                          stepState.status === 'PAUSED'
+                          stepState.status === 'PAUSED' ||
+                          !operationGuidanceAvailable
                         }
                       >
                         Check progress

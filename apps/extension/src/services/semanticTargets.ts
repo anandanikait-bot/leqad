@@ -1,9 +1,20 @@
-export type SemanticTargetId = 'top-plane' | 'sketch' | 'finish-sketch';
+export type SemanticTargetId =
+  | 'top-plane'
+  | 'front-plane'
+  | 'right-plane'
+  | 'sketch'
+  | 'finish-sketch'
+  | 'part-studio-tab'
+  | 'read-only-indicator';
 
 const TARGET_LABELS: Record<SemanticTargetId, readonly string[]> = {
   'top-plane': ['top plane'],
+  'front-plane': ['front plane'],
+  'right-plane': ['right plane'],
   sketch: ['sketch', 'create sketch', 'start sketch'],
   'finish-sketch': ['finish sketch', 'exit sketch', 'close sketch'],
+  'part-studio-tab': ['part studio'],
+  'read-only-indicator': ['read only', 'view only'],
 };
 
 const CANDIDATE_SELECTOR = [
@@ -13,6 +24,8 @@ const CANDIDATE_SELECTOR = [
   '[role="menuitem"]',
   '[role="option"]',
   '[role="tab"]',
+  '[role="status"]',
+  '[role="note"]',
   'input',
   '[tabindex]:not([tabindex="-1"])',
   '[aria-label][data-qa]',
@@ -108,11 +121,12 @@ export function isUsableSemanticTarget(
   );
 }
 
-function findMatchingSemanticTarget(
+function findMatchingSemanticTargets(
   root: ParentNode,
   targetId: SemanticTargetId,
   isTargetMatch: (element: HTMLElement) => boolean = () => true,
-): HTMLElement | null {
+): HTMLElement[] {
+  const matches: HTMLElement[] = [];
   for (const candidate of root.querySelectorAll<HTMLElement>(
     CANDIDATE_SELECTOR,
   )) {
@@ -120,24 +134,31 @@ function findMatchingSemanticTarget(
       isUsableSemanticTarget(candidate, targetId) &&
       isTargetMatch(candidate)
     ) {
-      return candidate;
+      matches.push(candidate);
     }
   }
-  return null;
+  return matches;
+}
+
+export function findSemanticTargets(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+): HTMLElement[] {
+  return findMatchingSemanticTargets(root, targetId);
 }
 
 export function findSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement | null {
-  return findMatchingSemanticTarget(root, targetId);
+  return findSemanticTargets(root, targetId)[0] ?? null;
 }
 
-export function findSelectedSemanticTarget(
+export function findSelectedSemanticTargets(
   root: ParentNode,
   targetId: SemanticTargetId,
-): HTMLElement | null {
-  return findMatchingSemanticTarget(
+): HTMLElement[] {
+  return findMatchingSemanticTargets(
     root,
     targetId,
     (element) =>
@@ -145,6 +166,13 @@ export function findSelectedSemanticTarget(
       element.getAttribute('aria-pressed') === 'true' ||
       element.getAttribute('aria-checked') === 'true',
   );
+}
+
+export function findSelectedSemanticTarget(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+): HTMLElement | null {
+  return findSelectedSemanticTargets(root, targetId)[0] ?? null;
 }
 
 export interface TargetHighlight {

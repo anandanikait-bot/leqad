@@ -26,8 +26,9 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 - The CAD evaluator enforces explicit production and fixture evidence policies, specific feature identity, current document/revision, evidence expiry, exact units, explicit numerical tolerances, and contradictory-evidence handling.
 - Deterministic lesson transitions receive the complete decision and declared evidence requirement. A bare status, stale evidence, insufficient trust level, or mock evidence cannot complete a production step.
 - WXT Chrome Manifest V3 build, Onshape-only content entrypoint, React mounted in a Shadow DOM, and a branded draggable/collapsible Leqad panel.
-- Exact Onshape origin and document-route recognition; semantic target recognition and removable visual highlighting.
-- Foundations UI decisions distinguish selected-plane and visible sketch-control observations from unverified sketch-plane association, geometry, and committed model state. “Top view” is not treated as the Top plane.
+- Exact Onshape origin and workspace/version/microversion route recognition without inferring editability or element type from a workspace URL. Context-matched UI/API observations can identify editable, read-only, Part Studio, and other states; unknown remains explicit.
+- Foundations UI decisions use scoped, expiring observations that distinguish target recognition, plane selection, sketch controls, sketch-plane association, geometry, and committed state. Wrong-document, stale, ambiguous, hidden, disabled, and contradictory plane evidence remains unknown. “Top view” is not treated as the Top plane.
+- A shared navigation generation guard rejects stale asynchronous initialization after document, workspace, element, history, or content-context changes.
 - Cursor-intent tracking reuses the recognized target and retries discovery at most twice per second when no target is available.
 - Bounded local cursor-intent estimator and extension-storage persistence with document/revision recovery checks.
 - One Foundations sketch lesson with progressive hints and mistake recovery.
@@ -36,6 +37,7 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 ## Validation and limits
 
 - After Delivery 1, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (64 tests in 11 files), `pnpm format:check`, and `pnpm build` pass.
+- After Delivery 2, the focused regression suites pass 41 tests. The full suite passes 87 tests in 12 files; lint, typecheck, formatting, and build pass. Local Playwright reports three passed and one skipped because of the managed extension-install policy.
 - `pnpm test:e2e` builds the extension and reports three Chromium fixture/manifest tests passed. The direct unpacked-extension test is skipped because the managed browser policy blocks extension installs.
 - GitHub Actions run #2 on `main` completed successfully with 52 unit tests and all four Playwright tests passing. This is distinct from the local managed-browser skip.
 - This environment's managed Chromium policy at `/etc/chromium/policies/managed/extensions.json` blocks unpacked extensions (`ExtensionInstallBlocklist: ["*"]`). A direct built-extension load therefore cannot be completed here. The MV3 manifest and extension build can still be validated, and the browser fixture can still run.
@@ -46,5 +48,6 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 
 - Initial repository, source, test, history, secret, and missing-artifact audit: complete.
 - Delivery 1, verification correctness: complete and locally verified. It covers evidence trust boundaries, completion policy, current evidence, feature identity, unit/tolerance behavior, contradiction handling, and regression tests.
-- Deliveries 2 through 7: pending implementation and verification.
+- Delivery 2, environment correctness: complete and locally verified. It covers explicit context capability states, exact observation scoping, workspace/version/microversion routes, conservative Part Studio/editability detection, separated first-sketch UI observations, and stale initialization rejection.
+- Deliveries 3 through 7: pending implementation and verification.
 - Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
