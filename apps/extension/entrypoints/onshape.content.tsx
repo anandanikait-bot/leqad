@@ -4,8 +4,10 @@ import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { AssistantPanel } from '../src/components/panel/AssistantPanel';
 import {
+  createOnshapeCapabilityMonitor,
   observeOnshapeCapabilities,
   onshapePageContextKey,
+  onshapeUrlMatchesContextKey,
   parseOnshapePage,
 } from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
@@ -102,6 +104,11 @@ export default defineContentScript({
         // Keep an empty learning history if extension storage is unavailable.
       }
       if (!pageLifecycle.isCurrent(attempt) || ctx.isInvalid) return;
+      if (!onshapeUrlMatchesContextKey(window.location.href, contextKey)) {
+        pageLifecycle.abandon(attempt);
+        void mountForCurrentPage();
+        return;
+      }
 
       try {
         const ui = await createShadowRootUi(ctx, {
@@ -111,65 +118,96 @@ export default defineContentScript({
           zIndex: 2147483000,
           onMount(container) {
             const root = createRoot(container);
-            root.render(
-              <AssistantPanel
-                page={page}
-                initialSession={initialSession}
-                initialPanelPreferences={initialPanelPreferences}
-                initialLearningHistory={initialLearningHistory}
-                onShowTarget={(targetId: SemanticTargetId) => {
-                  const recognition = recognizeSemanticTarget(
-                    document,
-                    targetId,
-                  );
-                  clearHighlight();
-                  if (recognition.status !== 'FOUND' || !recognition.element) {
+            let currentPage = observeOnshapeCapabilities(routePage, document);
+            const renderPanel = () =>
+              root.render(
+                <AssistantPanel
+                  page={currentPage}
+                  initialSession={initialSession}
+                  initialPanelPreferences={initialPanelPreferences}
+                  initialLearningHistory={initialLearningHistory}
+                  onShowTarget={(targetId: SemanticTargetId) => {
+                    const recognition = recognizeSemanticTarget(
+                      document,
+                      targetId,
+                    );
+                    clearHighlight();
+                    if (
+                      recognition.status !== 'FOUND' ||
+                      !recognition.element
+                    ) {
+                      return recognition;
+                    }
+                    activeHighlight = createTargetHighlight(
+                      recognition.element,
+                    );
+                    highlightTimer = ctx.setTimeout(clearHighlight, 5000);
                     return recognition;
-                  }
-                  activeHighlight = createTargetHighlight(recognition.element);
-                  highlightTimer = ctx.setTimeout(clearHighlight, 5000);
-                  return recognition;
-                }}
-                onCheckStep={(_stepId, signal) => {
-                  if (signal === 'top-plane-selected') {
-                    return evaluateFoundationsPlaneProgress(page, document);
-                  }
-                  if (signal === 'sketch-editing') {
-                    return evaluateFoundationsSketchProgress(page, document);
-                  }
-                  return unavailableFoundationsDecision(
-                    page,
-                    'This lesson step does not have a supported observer.',
-                    [signal],
-                  );
-                }}
-                onSessionChange={(session) => {
-                  void progressStore
-                    .saveSession(session)
-                    .catch(() => undefined);
-                }}
-                onPanelPreferencesChange={(preferences) => {
-                  void progressStore
-                    .savePanelPreferences(preferences)
-                    .catch(() => undefined);
-                }}
-                onLearningHistoryChange={(history) => {
-                  void progressStore
-                    .saveLearningHistory(history)
-                    .catch(() => undefined);
-                }}
-              />,
+                  }}
+                  onCheckStep={(_stepId, signal) => {
+                    currentPage = capabilityMonitor.refresh();
+                    if (signal === 'top-plane-selected') {
+                      return evaluateFoundationsPlaneProgress(
+                        currentPage,
+                        document,
+                      );
+                    }
+                    if (signal === 'sketch-editing') {
+                      return evaluateFoundationsSketchProgress(
+                        currentPage,
+                        document,
+                      );
+                    }
+                    return unavailableFoundationsDecision(
+                      currentPage,
+                      'This lesson step does not have a supported observer.',
+                      [signal],
+                    );
+                  }}
+                  onSessionChange={(session) => {
+                    void progressStore
+                      .saveSession(session)
+                      .catch(() => undefined);
+                  }}
+                  onPanelPreferencesChange={(preferences) => {
+                    void progressStore
+                      .savePanelPreferences(preferences)
+                      .catch(() => undefined);
+                  }}
+                  onLearningHistoryChange={(history) => {
+                    void progressStore
+                      .saveLearningHistory(history)
+                      .catch(() => undefined);
+                  }}
+                />,
+              );
+            const capabilityMonitor = createOnshapeCapabilityMonitor(
+              routePage,
+              document,
+              (nextPage) => {
+                currentPage = nextPage;
+                renderPanel();
+              },
             );
-            return root;
+            currentPage = capabilityMonitor.current;
+            renderPanel();
+            return { root, capabilityMonitor };
           },
-          onRemove(root) {
-            root?.unmount();
+          onRemove(mounted) {
+            mounted?.capabilityMonitor.disconnect();
+            mounted?.root.unmount();
           },
         });
 
         if (ctx.isInvalid) {
           pageLifecycle.abandon(attempt);
           ui.remove();
+          return;
+        }
+        if (!onshapeUrlMatchesContextKey(window.location.href, contextKey)) {
+          pageLifecycle.abandon(attempt);
+          ui.remove();
+          void mountForCurrentPage();
           return;
         }
         if (!pageLifecycle.activate(attempt, ui)) return;
@@ -183,7 +221,6 @@ export default defineContentScript({
       }
     };
 
-    await mountForCurrentPage();
     ctx.addEventListener(window, 'wxt:locationchange', () => {
       void mountForCurrentPage();
     });
@@ -191,5 +228,6 @@ export default defineContentScript({
       pageLifecycle.invalidate();
       clearHighlight();
     });
+    await mountForCurrentPage();
   },
 });

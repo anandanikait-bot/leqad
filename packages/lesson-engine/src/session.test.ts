@@ -121,18 +121,39 @@ describe('reconcileSession', () => {
     },
   );
 
-  it('preserves completion when the document and revision are unchanged', async () => {
+  it('preserves completion when the document, revision, and evidence are current', async () => {
     const { reconcileSession } = await import('./session');
 
     const result = reconcileSession(
       session(),
       currentIdentity,
       'revision-a',
-      now,
+      new Date('2026-10-13T11:00:30.000Z'),
     );
 
     expect(result.steps.sketch).toEqual(completedStep);
     expect(result.modelState).toEqual(session().modelState);
+  });
+
+  it('invalidates UI-verified progress after its observation expires', async () => {
+    const { reconcileSession } = await import('./session');
+    const prior = session();
+    prior.steps.sketch = {
+      ...completedStep,
+      outcome: 'UI_VERIFIED',
+    };
+
+    const result = reconcileSession(prior, currentIdentity, 'revision-a', now);
+
+    expect(result.steps.sketch).toMatchObject({
+      status: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    });
+    expect(result.modelState.observedUiStates).toEqual({});
+    expect(result.modelState.evidenceReferences).toEqual(['api-evidence-1']);
+    expect(result.modelState.evidenceFreshness).toBe('stale');
+    expect(result.modelState.uncertaintyReason).toContain('expired');
   });
 
   it('preserves a paused session when its document and revision are unchanged', async () => {
@@ -149,5 +170,31 @@ describe('reconcileSession', () => {
     const result = reconcileSession(paused, currentIdentity, 'revision-a', now);
 
     expect(result.steps.sketch).toEqual(paused.steps.sketch);
+  });
+
+  it('preserves pause while invalidating its resumable model-dependent state', async () => {
+    const { reconcileSession } = await import('./session');
+    const paused = session();
+    paused.steps.sketch = {
+      ...completedStep,
+      status: 'PAUSED',
+      resumeState: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    };
+
+    const result = reconcileSession(
+      paused,
+      { ...currentIdentity, revision: null },
+      null,
+      now,
+    );
+
+    expect(result.steps.sketch).toMatchObject({
+      status: 'PAUSED',
+      resumeState: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    });
   });
 });

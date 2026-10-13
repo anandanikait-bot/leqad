@@ -163,6 +163,33 @@ describe('lesson step transitions', () => {
     expect(state.status).toBe('UNKNOWN');
   });
 
+  it('does not complete from evidence whose nested identity is stale', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = createInitialLessonStepState();
+    state = transitionLessonStep(state, { type: 'START' });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+    state = transitionLessonStep(state, { type: 'CHECK_PROGRESS' });
+    const stale = decision('PASS', 'API_CONFIRMED', 'API');
+    stale.evidence[0]!.identity = {
+      ...identity,
+      revision: 'stale-revision',
+    };
+
+    state = transitionLessonStep(state, {
+      type: 'VERIFICATION_RESULT',
+      decision: stale,
+      requiredEvidence: 'API_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
+    });
+
+    expect(state).toMatchObject({
+      status: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    });
+  });
+
   it('records informational acknowledgement without inventing verification', async () => {
     const { createInitialLessonStepState, transitionLessonStep } =
       await import('./transitions');

@@ -443,6 +443,33 @@ export function AssistantPanel({
     return () => window.removeEventListener('resize', onResize);
   });
 
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || !window.ResizeObserver) return;
+    const resizeObserver = new window.ResizeObserver(() => {
+      const rect = panel.getBoundingClientRect();
+      setPosition((current) => {
+        const next = clampPanelPosition(
+          current,
+          {
+            width:
+              rect.width > 0 ? rect.width : fallbackPanelSize(collapsed).width,
+            height:
+              rect.height > 0
+                ? rect.height
+                : fallbackPanelSize(collapsed).height,
+          },
+          { width: window.innerWidth, height: window.innerHeight },
+        );
+        return next.left === current.left && next.top === current.top
+          ? current
+          : next;
+      });
+    });
+    resizeObserver.observe(panel);
+    return () => resizeObserver.disconnect();
+  }, [collapsed]);
+
   useEffect(
     () => () => {
       dragStart.current = null;
@@ -511,6 +538,12 @@ export function AssistantPanel({
     page.editability === 'editable' &&
     page.elementType === 'part-studio',
   );
+  const canContinueUnverified =
+    step.allowUnverifiedContinuation &&
+    (stepState.status === 'UNKNOWN' ||
+      (step.completionMode === 'UI_VERIFICATION' &&
+        stepState.status === 'AWAITING_ACTION' &&
+        !operationGuidanceAvailable));
 
   const persistLesson = (
     nextStepId: string,
@@ -919,18 +952,17 @@ export function AssistantPanel({
                           I completed this practice
                         </button>
                       )}
-                      {step.allowUnverifiedContinuation &&
-                        stepState.status === 'UNKNOWN' && (
-                          <button
-                            type="button"
-                            className="leqad-button leqad-button--secondary"
-                            onClick={() =>
-                              completeWithoutEvidence('CONTINUE_UNVERIFIED')
-                            }
-                          >
-                            Continue without verification
-                          </button>
-                        )}
+                      {canContinueUnverified && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--secondary"
+                          onClick={() =>
+                            completeWithoutEvidence('CONTINUE_UNVERIFIED')
+                          }
+                        >
+                          Continue without verification
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="leqad-button leqad-button--text"

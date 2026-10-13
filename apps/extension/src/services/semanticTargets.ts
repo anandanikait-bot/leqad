@@ -183,21 +183,25 @@ function enabledState(element: HTMLElement): TargetEnabledState {
 }
 
 function visibilityState(element: HTMLElement): TargetVisibility {
-  if (
-    !element.isConnected ||
-    element.hidden ||
-    element.getAttribute('aria-hidden') === 'true'
-  ) {
-    return 'HIDDEN';
-  }
-
   const view = element.ownerDocument.defaultView;
-  if (view) {
-    const style = view.getComputedStyle(element);
+  for (
+    let current: HTMLElement | null = element;
+    current;
+    current = current.parentElement
+  ) {
     if (
-      style.display === 'none' ||
-      style.visibility === 'hidden' ||
-      style.opacity === '0'
+      !current.isConnected ||
+      current.hidden ||
+      current.getAttribute('aria-hidden') === 'true'
+    ) {
+      return 'HIDDEN';
+    }
+    const style = view?.getComputedStyle(current);
+    if (
+      style &&
+      (style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        style.opacity === '0')
     ) {
       return 'HIDDEN';
     }
@@ -407,6 +411,7 @@ export function createTargetHighlight(
   let removed = false;
   let frame: number | null = null;
   let mutationObserver: MutationObserver | null = null;
+  let ancestorMutationObserver: MutationObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
 
   const remove = () => {
@@ -415,6 +420,7 @@ export function createTargetHighlight(
     if (frame !== null) view?.cancelAnimationFrame(frame);
     frame = null;
     mutationObserver?.disconnect();
+    ancestorMutationObserver?.disconnect();
     resizeObserver?.disconnect();
     view?.removeEventListener('resize', scheduleRefresh);
     view?.removeEventListener('scroll', scheduleRefresh, true);
@@ -454,7 +460,7 @@ export function createTargetHighlight(
   view?.addEventListener('resize', scheduleRefresh);
   view?.addEventListener('scroll', scheduleRefresh, true);
   if (view?.MutationObserver) {
-    mutationObserver = new view.MutationObserver(() => {
+    const handleMutation = () => {
       if (
         !target.isConnected ||
         enabledState(target) !== 'ENABLED' ||
@@ -464,12 +470,27 @@ export function createTargetHighlight(
         return;
       }
       scheduleRefresh();
+    };
+    const observeAncestorAttributes = () => {
+      ancestorMutationObserver?.disconnect();
+      for (
+        let current: HTMLElement | null = target;
+        current;
+        current = current.parentElement
+      ) {
+        ancestorMutationObserver?.observe(current, { attributes: true });
+      }
+    };
+    mutationObserver = new view.MutationObserver(() => {
+      observeAncestorAttributes();
+      handleMutation();
     });
+    ancestorMutationObserver = new view.MutationObserver(handleMutation);
     mutationObserver.observe(document.body, {
       childList: true,
       subtree: true,
     });
-    mutationObserver.observe(target, { attributes: true });
+    observeAncestorAttributes();
   }
   if (view?.ResizeObserver) {
     resizeObserver = new view.ResizeObserver(scheduleRefresh);

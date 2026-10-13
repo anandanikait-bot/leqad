@@ -80,11 +80,32 @@ describe('per-document lesson persistence', () => {
       originalIdentity,
       'revision-a',
       { lessonId: 'foundations-first-sketch', lessonVersion: '2.0.0' },
-      new Date('2026-10-13T13:00:00.000Z'),
+      new Date('2026-10-13T12:00:15.000Z'),
     );
 
     expect(restored?.steps['enter-sketch']?.status).toBe('COMPLETED');
     expect(restored?.modelState.evidenceReferences).toEqual(['ui-1', 'api-1']);
+  });
+
+  it('does not restore UI-verified completion from expired observations', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const store = createLessonProgressStore(memoryStorage());
+    await store.saveSession(completedSession());
+
+    const restored = await store.restoreSession(
+      originalIdentity,
+      'revision-a',
+      { lessonId: 'foundations-first-sketch', lessonVersion: '2.0.0' },
+      new Date('2026-10-13T13:00:00.000Z'),
+    );
+
+    expect(restored?.steps['enter-sketch']).toMatchObject({
+      status: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    });
+    expect(restored?.modelState.observedUiStates).toEqual({});
+    expect(restored?.modelState.evidenceReferences).toEqual(['api-1']);
   });
 
   it('preserves learning state but invalidates model state when the revision is unknown', async () => {
@@ -316,5 +337,48 @@ describe('ordered writes', () => {
 
     const restored = await store.restoreSession(originalIdentity, 'revision-a');
     expect(restored?.steps['enter-sketch']?.hintLevel).toBe(4);
+  });
+
+  it('waits for an in-flight save before restoring the same context', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const base = memoryStorage();
+    let delayNextWrite = false;
+    let releaseWrite: (() => void) | undefined;
+    const storage: ExtensionStorageArea = {
+      get: base.get,
+      async set(entries) {
+        if (delayNextWrite) {
+          delayNextWrite = false;
+          await new Promise<void>((resolve) => {
+            releaseWrite = resolve;
+          });
+        }
+        await base.set(entries);
+      },
+    };
+    const store = createLessonProgressStore(storage);
+    await store.saveSession(
+      completedSession({ currentStepId: 'introduction' }),
+    );
+    const newest = completedSession({ currentStepId: 'draw-rectangle' });
+    delayNextWrite = true;
+
+    const save = store.saveSession(newest);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    let restoreSettled = false;
+    const restore = store
+      .restoreSession(originalIdentity, 'revision-a')
+      .then((session) => {
+        restoreSettled = true;
+        return session;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(restoreSettled).toBe(false);
+    releaseWrite?.();
+    await save;
+    await expect(restore).resolves.toMatchObject({
+      currentStepId: 'draw-rectangle',
+    });
   });
 });

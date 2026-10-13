@@ -94,6 +94,14 @@ export const EvidenceSchema = z
   })
   .strict()
   .superRefine((evidence, context) => {
+    if (evidence.identity.revision !== evidence.revision) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The evidence revision must match its document identity.',
+        path: ['revision'],
+      });
+    }
+
     const sourceLevel = {
       API: 'API_CONFIRMED',
       UI: 'UI_CONFIRMED',

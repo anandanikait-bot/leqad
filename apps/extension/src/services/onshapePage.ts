@@ -124,6 +124,13 @@ export function onshapePageContextKey(page: OnshapePageContext): string | null {
     .join('/');
 }
 
+export function onshapeUrlMatchesContextKey(
+  url: string | URL,
+  contextKey: string,
+): boolean {
+  return onshapePageContextKey(parseOnshapePage(url)) === contextKey;
+}
+
 function observationMatchesPage(
   page: OnshapePageContext,
   observation: OnshapeCapabilityObservation,
@@ -213,4 +220,98 @@ export function observeOnshapeCapabilities(
     source: 'UI',
     observedAt: now.toISOString(),
   });
+}
+
+export interface OnshapeCapabilityMonitor {
+  readonly current: OnshapePageContext;
+  refresh(): OnshapePageContext;
+  disconnect(): void;
+}
+
+function sameCapabilityState(
+  left: OnshapePageContext,
+  right: OnshapePageContext,
+): boolean {
+  return (
+    sameOnshapePageContext(left, right) &&
+    left.editability === right.editability &&
+    left.elementType === right.elementType &&
+    left.capabilitySource === right.capabilitySource
+  );
+}
+
+export function createOnshapeCapabilityMonitor(
+  routePage: OnshapePageContext,
+  root: ParentNode,
+  onChange: (page: OnshapePageContext) => void,
+): OnshapeCapabilityMonitor {
+  const rootNode = root as Node;
+  const document =
+    rootNode.nodeType === Node.DOCUMENT_NODE
+      ? (rootNode as Document)
+      : rootNode.ownerDocument;
+  const view = document?.defaultView;
+  let current = observeOnshapeCapabilities(routePage, root);
+  let frame: number | null = null;
+  let disconnected = false;
+
+  const refresh = () => {
+    if (disconnected) return current;
+    const next = observeOnshapeCapabilities(routePage, root);
+    const changed = !sameCapabilityState(current, next);
+    current = next;
+    if (changed) onChange(current);
+    return current;
+  };
+  const scheduleRefresh = () => {
+    if (disconnected || frame !== null) return;
+    if (view?.requestAnimationFrame) {
+      frame = view.requestAnimationFrame(() => {
+        frame = null;
+        refresh();
+      });
+    } else {
+      refresh();
+    }
+  };
+  const observer = view?.MutationObserver
+    ? new view.MutationObserver(scheduleRefresh)
+    : null;
+  const observationRoot =
+    rootNode.nodeType === Node.DOCUMENT_NODE
+      ? document?.documentElement
+      : rootNode;
+  if (observer && observationRoot) {
+    observer.observe(observationRoot, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+      attributeFilter: [
+        'aria-disabled',
+        'aria-label',
+        'aria-selected',
+        'class',
+        'data-tooltip',
+        'disabled',
+        'hidden',
+        'role',
+        'style',
+        'title',
+      ],
+    });
+  }
+
+  return {
+    get current() {
+      return current;
+    },
+    refresh,
+    disconnect() {
+      disconnected = true;
+      observer?.disconnect();
+      if (frame !== null) view?.cancelAnimationFrame(frame);
+      frame = null;
+    },
+  };
 }

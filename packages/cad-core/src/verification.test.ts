@@ -330,6 +330,23 @@ describe('evidenceSatisfiesRequirement', () => {
       ),
     ).toBe(false);
   });
+
+  it('rejects evidence whose nested identity is from a stale revision', async () => {
+    const { evidenceSatisfiesRequirement } = await import('./verification');
+    const staleIdentityDecision = decision('API_CONFIRMED', 'API');
+    staleIdentityDecision.evidence[0]!.identity = {
+      ...activeIdentity,
+      revision: 'stale-revision',
+    };
+
+    expect(
+      evidenceSatisfiesRequirement(
+        staleIdentityDecision,
+        'API_CONFIRMED',
+        currentTime,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('isEvidenceCurrent', () => {

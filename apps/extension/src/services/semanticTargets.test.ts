@@ -211,6 +211,29 @@ describe('createTargetHighlight', () => {
     highlight.remove();
   });
 
+  it('tracks ancestor layout changes and removes highlights hidden by an ancestor', async () => {
+    const ancestor = document.createElement('div');
+    const target = visibleButton('Top plane');
+    ancestor.append(target);
+    document.body.append(ancestor);
+    let left = 10;
+    target.getBoundingClientRect = () => new DOMRect(left, 20, 60, 25);
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body);
+
+    left = 100;
+    ancestor.style.transform = 'translateX(90px)';
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(highlight.element.style.left).toBe('97px');
+
+    ancestor.hidden = true;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(highlight.element.isConnected).toBe(false);
+  });
+
   it('disables highlight transitions when reduced motion is requested', async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = (() => ({

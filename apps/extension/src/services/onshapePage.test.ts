@@ -241,4 +241,48 @@ describe('Onshape capability observations', () => {
       onshapePageContextKey(parseOnshapePage('https://cad.onshape.com/')),
     ).toBeNull();
   });
+
+  it('detects when an initialization attempt no longer matches the live route', async () => {
+    const {
+      onshapePageContextKey,
+      onshapeUrlMatchesContextKey,
+      parseOnshapePage,
+    } = await import('./onshapePage');
+    const firstUrl =
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a';
+    const contextKey = onshapePageContextKey(parseOnshapePage(firstUrl))!;
+
+    expect(onshapeUrlMatchesContextKey(firstUrl, contextKey)).toBe(true);
+    expect(
+      onshapeUrlMatchesContextKey(
+        'https://cad.onshape.com/documents/document-b/w/workspace-b/e/element-b',
+        contextKey,
+      ),
+    ).toBe(false);
+  });
+
+  it('refreshes and revokes captured capabilities when the page UI changes', async () => {
+    const { createOnshapeCapabilityMonitor, parseOnshapePage } =
+      await import('./onshapePage');
+    visibleControl('Part Studio', 'tab', 'true');
+    visibleControl('Sketch', 'button');
+    const routePage = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+    const changes: string[] = [];
+    const monitor = createOnshapeCapabilityMonitor(
+      routePage,
+      document,
+      (page) => changes.push(page.editability),
+    );
+
+    expect(monitor.current.editability).toBe('editable');
+    visibleControl('View only', 'status');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(monitor.current.editability).toBe('read-only');
+    expect(changes).toContain('read-only');
+    monitor.disconnect();
+  });
 });

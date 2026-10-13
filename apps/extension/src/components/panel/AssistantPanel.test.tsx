@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -124,6 +130,7 @@ function restoredSession(currentStepId: string): LessonSession {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('AssistantPanel', () => {
@@ -165,6 +172,15 @@ describe('AssistantPanel', () => {
         .getByRole('button', { name: 'Check progress' })
         .hasAttribute('disabled'),
     ).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    );
+
+    expect(screen.getByText('Step 2 of 8 · Self-reported')).toBeTruthy();
   });
 
   it('reports UI guidance only after editable Part Studio capability is confirmed', async () => {
@@ -243,6 +259,39 @@ describe('AssistantPanel', () => {
     expect(Number.parseFloat(panel.style.top)).toBeLessThan(window.innerHeight);
     expect(Number.parseFloat(panel.style.left)).toBeGreaterThanOrEqual(8);
     expect(Number.parseFloat(panel.style.top)).toBeGreaterThanOrEqual(8);
+  });
+
+  it('reclamps the panel when expanding guidance changes its size', async () => {
+    let notifyResize: ResizeObserverCallback | undefined;
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const { container } = render(
+      <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: { left: 100, top: 250 },
+          onboardingComplete: true,
+        }}
+      />,
+    );
+    const panel = container.querySelector('[data-leqad-panel]') as HTMLElement;
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(100, 250, 360, 700),
+    );
+
+    act(() => notifyResize?.([], {} as ResizeObserver));
+
+    expect(Number.parseFloat(panel.style.top)).toBe(
+      window.innerHeight - 700 - 8,
+    );
   });
 
   it('lets a keyboard-accessible navigation control change the panel mode', async () => {

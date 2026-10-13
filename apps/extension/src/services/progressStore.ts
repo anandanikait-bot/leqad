@@ -309,6 +309,10 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
   const writeQueues = new Map<string, Promise<void>>();
   const writeSequences = new Map<string, number>();
 
+  const waitForQueuedWrite = async (key: string): Promise<void> => {
+    await writeQueues.get(key)?.catch(() => undefined);
+  };
+
   const enqueueWrite = async (
     key: string,
     value: (sequence: number) => unknown,
@@ -369,6 +373,7 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
       if (!parsedIdentity.success || !Number.isFinite(now.getTime()))
         return null;
       const key = modelProgressStorageKey(parsedIdentity.data);
+      await waitForQueuedWrite(key);
       const result = await storage.get(key);
       const stored = result[key];
       let session: LessonSession | null = null;
@@ -423,6 +428,7 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
     },
 
     async loadLearningHistory(): Promise<LearningHistory> {
+      await waitForQueuedWrite(LEARNING_HISTORY_KEY);
       const result = await storage.get(LEARNING_HISTORY_KEY);
       const envelope = result[LEARNING_HISTORY_KEY];
       if (
@@ -438,6 +444,7 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
     savePanelPreferences,
 
     async loadPanelPreferences(): Promise<PanelPreferences> {
+      await waitForQueuedWrite(PREFERENCES_KEY);
       const result = await storage.get(PREFERENCES_KEY);
       const envelope = result[PREFERENCES_KEY];
       if (
