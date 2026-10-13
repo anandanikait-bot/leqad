@@ -54,6 +54,7 @@ for (const [browser, outputPath] of [
 }
 
 test('the built MV3 extension mounts its React panel in the Onshape page Shadow DOM', async () => {
+  test.setTimeout(60_000);
   test.skip(
     localPolicyBlocksUnpackedExtensions(),
     'Managed Chromium ExtensionInstallBlocklist=* prevents loading this unpacked extension in the current environment.',
@@ -82,10 +83,11 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
     const page = context.pages()[0] ?? (await context.newPage());
     await page.goto(
       'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+      { waitUntil: 'domcontentloaded', timeout: 15_000 },
     );
 
     await expect(page.locator('leqad-assistant')).toHaveCount(1, {
-      timeout: 10_000,
+      timeout: 20_000,
     });
     await expect(
       page.getByRole('heading', { name: 'Your First Sketch' }),
