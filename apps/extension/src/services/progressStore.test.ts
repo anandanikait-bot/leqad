@@ -46,6 +46,7 @@ function completedSession(
         hintLevel: 2,
         verification: 'PASS',
         resumeState: null,
+        outcome: 'UI_VERIFIED',
       },
     },
     ...overrides,
@@ -146,6 +147,7 @@ describe('per-document lesson persistence', () => {
       hintLevel: 3,
       verification: null,
       resumeState: 'AWAITING_ACTION',
+      outcome: 'NONE',
     };
     await createLessonProgressStore(storage).saveSession(paused);
 
@@ -205,6 +207,8 @@ describe('versioned storage and migrations', () => {
     const storage = memoryStorage();
     const legacy = completedSession() as unknown as Record<string, unknown>;
     delete legacy.modelState;
+    const legacySteps = legacy.steps as Record<string, Record<string, unknown>>;
+    delete legacySteps['enter-sketch']?.outcome;
     storage.values.set('leqad:lesson-session', legacy);
     const store = createLessonProgressStore(storage);
 
@@ -215,6 +219,7 @@ describe('versioned storage and migrations', () => {
     );
 
     expect(restored?.steps['enter-sketch']?.status).toBe('UNKNOWN');
+    expect(restored?.steps['enter-sketch']?.outcome).toBe('UNABLE_TO_VERIFY');
     expect(
       storage.values.get(modelProgressStorageKey(originalIdentity)),
     ).toMatchObject({ schemaVersion: 2 });

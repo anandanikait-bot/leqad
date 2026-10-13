@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
+import type { LessonSession } from '@leqad/lesson-engine';
 import type { OnshapePageContext } from '../../services/onshapePage';
 
 const confirmedPage: OnshapePageContext = {
@@ -20,6 +21,7 @@ const confirmedPage: OnshapePageContext = {
 };
 
 function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
+  const observedAt = new Date().toISOString();
   const identity = {
     documentId: 'document-a',
     workspaceId: 'workspace-a',
@@ -38,7 +40,7 @@ function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
             source: 'UI' as const,
             identity,
             revision: null,
-            observedAt: '2020-01-01T00:00:00.000Z',
+            observedAt,
             detectorVersion: 'test/1.0.0',
             expiresAt: null,
             level: 'UI_CONFIRMED' as const,
@@ -51,7 +53,7 @@ function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
     evidenceLevel: status === 'PASS' ? 'UI_CONFIRMED' : 'UNKNOWN',
     observedFact: status === 'PASS' ? evidence[0]!.fact : null,
     identity,
-    observedAt: '2020-01-01T00:00:00.000Z',
+    observedAt,
     revision: null,
     explanation: status === 'PASS' ? 'UI state observed.' : 'Unavailable.',
     missingRequirements: status === 'PASS' ? [] : ['Supported UI evidence'],
@@ -60,7 +62,69 @@ function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
   };
 }
 
-afterEach(() => cleanup());
+function completeCurrentStep(): void {
+  const acknowledge = screen.queryByRole('button', { name: 'Got it' });
+  if (acknowledge) {
+    fireEvent.click(acknowledge);
+    return;
+  }
+  const selfReport = screen.queryByRole('button', {
+    name: 'I completed this practice',
+  });
+  if (selfReport) {
+    fireEvent.click(selfReport);
+    return;
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+  const continueButton = screen.queryByRole('button', {
+    name: 'Continue without verification',
+  });
+  if (continueButton) fireEvent.click(continueButton);
+}
+
+function advanceToStep(stepNumber: number): void {
+  for (let current = 1; current < stepNumber; current += 1) {
+    completeCurrentStep();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  }
+}
+
+function restoredSession(currentStepId: string): LessonSession {
+  return {
+    lessonId: 'foundations-first-sketch',
+    lessonVersion: '2.0.0',
+    currentStepId,
+    modelIdentity: {
+      documentId: 'document-a',
+      workspaceId: 'workspace-a',
+      elementId: 'element-a',
+      revision: null,
+    },
+    modelRevision: null,
+    modelState: {
+      observedUiStates: {},
+      verifiedModelStates: {},
+      evidenceReferences: [],
+      evidenceFreshness: 'unknown',
+      uncertaintyReason: 'Reloaded without current model evidence.',
+    },
+    updatedAt: '2026-10-13T12:00:00.000Z',
+    steps: {
+      [currentStepId]: {
+        status: 'AWAITING_ACTION',
+        hintLevel: 0,
+        verification: null,
+        resumeState: null,
+        outcome: 'NONE',
+      },
+    },
+  };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('AssistantPanel', () => {
   it('starts in limited access and never claims an unverified connection', async () => {
@@ -76,7 +140,6 @@ describe('AssistantPanel', () => {
 
   it('limits operation guidance until editable Part Studio capability is confirmed', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-
     render(
       <AssistantPanel
         page={{
@@ -86,8 +149,10 @@ describe('AssistantPanel', () => {
           capabilitySource: null,
           capabilityObservedAt: null,
         }}
+        onCheckStep={() => uiDecision('UNKNOWN')}
       />,
     );
+    advanceToStep(2);
 
     expect(
       screen.getByText(/cannot confirm an editable Part Studio/),
@@ -128,26 +193,132 @@ describe('AssistantPanel', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'apps/extension/src/styles/panel.css'),
       'utf8',
-    );
+    ).toLowerCase();
 
-    const normalizedCss = css.toLowerCase();
-
-    expect(normalizedCss).toContain('#0d1c43');
-    expect(normalizedCss).toContain('#793327');
-    expect(normalizedCss).toContain('#f5efe7');
+    expect(css).toContain('#0d1c43');
+    expect(css).toContain('#793327');
+    expect(css).toContain('#f5efe7');
   });
 
-  it('offers the first Foundations lesson and can request a semantic highlight', async () => {
+  it('offers all eight Foundations steps in order', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    const onShowTarget = vi.fn();
-    render(<AssistantPanel onShowTarget={onShowTarget} />);
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+
+    const goals = [
+      'Understand what you will build',
+      'Select the Top reference plane',
+      'Enter sketch-editing mode',
+      'Draw one rectangle',
+      'Set the rectangle to 40 mm by 30 mm',
+      'Finish sketch editing',
+      'Recognize what the sketch created',
+      'Repeat the workflow independently',
+    ];
+    for (const [index, goal] of goals.entries()) {
+      expect(screen.getByText(goal)).toBeTruthy();
+      expect(screen.getByText(`Step ${index + 1} of 8 · Visited`)).toBeTruthy();
+      if (index < goals.length - 1) {
+        completeCurrentStep();
+        fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      }
+    }
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'I completed this practice' }),
+    );
+    expect(screen.getByText('Step 8 of 8 · Self-reported')).toBeTruthy();
+  });
+
+  it('moves backward and restarts the whole lesson without retaining completion', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+    advanceToStep(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByText('Step 2 of 8 · Self-reported')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Restart lesson' }));
+
+    expect(screen.getByText('Step 1 of 8 · Visited')).toBeTruthy();
+    expect(screen.getByText('Understand what you will build')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled'),
+    ).toBe(true);
+  });
+
+  it('pauses and resumes the current lesson step', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(<AssistantPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(
+      screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+    ).toContain('Lesson paused');
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
 
     expect(
-      screen.getByRole('heading', { name: 'Your first sketch' }),
-    ).toBeTruthy();
+      screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+    ).toContain('Waiting for you');
+  });
+
+  it('restores the saved current step after reload', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+      />,
+    );
+
+    expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+    expect(screen.getByText('Draw one rectangle')).toBeTruthy();
+  });
+
+  it('requests semantic highlights only on steps with a target', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onShowTarget = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onShowTarget={onShowTarget}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
+    advanceToStep(2);
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
 
     expect(onShowTarget).toHaveBeenCalledWith('top-plane');
+  });
+
+  it('reveals ordered hints and recovery guidance', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(<AssistantPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
+    expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
+    expect(
+      screen.getByText('A sketch starts as geometry on one flat reference.'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
+
+    expect(screen.getByText(/Hint 2 of 5/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Reference planes provide stable places to begin a sketch.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('RECOVERY')).toBeTruthy();
   });
 
   it('keeps lesson progress unverified when no UI evidence can be read', async () => {
@@ -158,16 +329,41 @@ describe('AssistantPanel', () => {
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
     );
+    advanceToStep(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
     expect(
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
     ).toContain('Unable to verify');
-    expect(screen.queryByText('Verified in Onshape')).toBeNull();
+    expect(screen.getByText('Step 2 of 8 · Unable to verify')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    ).toBeTruthy();
   });
 
-  it('explains UI-only sketch evidence without implying verified model geometry', async () => {
+  it('records continued unknown progress as self-reported rather than verified', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+    advanceToStep(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    );
+
+    expect(screen.getByText('Step 2 of 8 · Self-reported')).toBeTruthy();
+    expect(
+      screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+    ).toContain('Continued without verification');
+  });
+
+  it('explains UI evidence without implying verified model geometry', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
@@ -175,13 +371,31 @@ describe('AssistantPanel', () => {
         onCheckStep={() => uiDecision('PASS')}
       />,
     );
+    advanceToStep(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
+    expect(screen.getByText('Step 2 of 8 · UI verified')).toBeTruthy();
     expect(
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
     ).toContain('Interface evidence confirms');
-    expect(screen.getByText(/Model geometry is not checked/)).toBeTruthy();
+    expect(screen.getByText(/Model geometry and feature values/)).toBeTruthy();
+  });
+
+  it('does not accept UI evidence for a step that requires model evidence', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('PASS')}
+      />,
+    );
+    advanceToStep(5);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+
+    expect(screen.getByText('Step 5 of 8 · Unable to verify')).toBeTruthy();
+    expect(screen.queryByText('Step 5 of 8 · UI verified')).toBeNull();
   });
 
   it('persists observed UI facts separately from verified model facts', async () => {
@@ -194,13 +408,15 @@ describe('AssistantPanel', () => {
         onSessionChange={onSessionChange}
       />,
     );
+    advanceToStep(2);
+    onSessionChange.mockClear();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
     expect(onSessionChange).toHaveBeenCalledTimes(1);
     expect(onSessionChange.mock.calls[0]?.[0].modelState).toMatchObject({
       observedUiStates: {
-        'enter-sketch': {
+        'select-reference-plane': {
           fact: {
             topPlaneSelected: true,
             sketchEditingAppearsActive: true,
@@ -214,7 +430,7 @@ describe('AssistantPanel', () => {
     });
   });
 
-  it('records lesson visits, concepts, hint usage, and practice attempts in learning history', async () => {
+  it('records lesson visits, hints, and practice attempts in learning history', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const onLearningHistoryChange = vi.fn();
     render(
@@ -224,6 +440,7 @@ describe('AssistantPanel', () => {
         onLearningHistoryChange={onLearningHistoryChange}
       />,
     );
+    advanceToStep(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
@@ -231,9 +448,11 @@ describe('AssistantPanel', () => {
     const history = onLearningHistoryChange.mock.lastCall?.[0];
     expect(history.lessonsVisited).toHaveProperty('foundations-first-sketch');
     expect(history.conceptsIntroduced.length).toBeGreaterThan(0);
-    expect(history.hintUsage['enter-sketch']).toBe(1);
+    expect(history.hintUsage['select-reference-plane']).toBe(1);
     expect(
-      history.practiceAttempts['foundations-first-sketch:enter-sketch'],
+      history.practiceAttempts[
+        'foundations-first-sketch:select-reference-plane'
+      ],
     ).toBe(1);
   });
 
@@ -247,7 +466,13 @@ describe('AssistantPanel', () => {
       [new DOMRect(20, 30, 80, 24)] as unknown as DOMRectList;
     document.body.append(target);
     const { AssistantPanel } = await import('./AssistantPanel');
-    render(<AssistantPanel />);
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+    advanceToStep(2);
 
     fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
     fireEvent.pointerMove(document, { clientX: 26, clientY: 36 });

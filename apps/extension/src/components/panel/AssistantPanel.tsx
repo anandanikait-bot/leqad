@@ -3,11 +3,7 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
-import type {
-  ModelIdentity,
-  VerificationDecision,
-  VerificationStatus,
-} from '@leqad/contracts';
+import type { ModelIdentity, VerificationDecision } from '@leqad/contracts';
 import {
   FOUNDATIONS_FIRST_SKETCH,
   advanceHint,
@@ -18,6 +14,7 @@ import {
 import type {
   LessonModelState,
   LessonSession,
+  LessonStepOutcome,
   LessonStepState,
 } from '@leqad/lesson-engine';
 import { estimateCursorIntent } from '../../services/cursorIntent';
@@ -62,18 +59,56 @@ interface DragStart extends Position {
   pointerY: number;
 }
 
-function getInitialStepState(
-  initialSession?: LessonSession | null,
-): LessonStepState {
-  const saved =
-    initialSession?.lessonId === FOUNDATIONS_FIRST_SKETCH.id
-      ? initialSession.steps[FOUNDATIONS_FIRST_SKETCH.steps[0]?.id ?? '']
-      : undefined;
-  if (saved) return saved;
+interface InitialLessonState {
+  currentStepIndex: number;
+  stepStates: Record<string, LessonStepState>;
+}
 
-  let state = createInitialLessonStepState();
-  state = transitionLessonStep(state, { type: 'START' });
-  return transitionLessonStep(state, { type: 'BEGIN_STEP' });
+function beginStep(state: LessonStepState): LessonStepState {
+  const started = transitionLessonStep(state, { type: 'START' });
+  return transitionLessonStep(started, { type: 'BEGIN_STEP' });
+}
+
+function createFreshLessonState(): InitialLessonState {
+  const stepStates = Object.fromEntries(
+    FOUNDATIONS_FIRST_SKETCH.steps.map(({ id }) => [
+      id,
+      createInitialLessonStepState(),
+    ]),
+  );
+  const firstStep = FOUNDATIONS_FIRST_SKETCH.steps[0];
+  if (firstStep)
+    stepStates[firstStep.id] = beginStep(stepStates[firstStep.id]!);
+  return { currentStepIndex: 0, stepStates };
+}
+
+function getInitialLessonState(
+  initialSession?: LessonSession | null,
+): InitialLessonState {
+  if (
+    initialSession?.lessonId !== FOUNDATIONS_FIRST_SKETCH.id ||
+    initialSession.lessonVersion !== FOUNDATIONS_FIRST_SKETCH.version
+  ) {
+    return createFreshLessonState();
+  }
+
+  const currentStepIndex = Math.max(
+    0,
+    FOUNDATIONS_FIRST_SKETCH.steps.findIndex(
+      ({ id }) => id === initialSession.currentStepId,
+    ),
+  );
+  const stepStates = Object.fromEntries(
+    FOUNDATIONS_FIRST_SKETCH.steps.map(({ id }) => [
+      id,
+      initialSession.steps[id] ?? createInitialLessonStepState(),
+    ]),
+  );
+  const currentStep = FOUNDATIONS_FIRST_SKETCH.steps[currentStepIndex];
+  if (currentStep) {
+    stepStates[currentStep.id] = beginStep(stepStates[currentStep.id]!);
+  }
+  return { currentStepIndex, stepStates };
 }
 
 function getInitialPosition(preferences?: PanelPreferences): Position {
@@ -90,48 +125,6 @@ function getInitialPosition(preferences?: PanelPreferences): Position {
       Math.max(8, position.top),
       Math.max(8, window.innerHeight - 100),
     ),
-  };
-}
-
-function makeSession(
-  page: OnshapePageContext | undefined,
-  stepState: LessonStepState,
-  prior: LessonSession | null | undefined,
-  decision?: VerificationDecision,
-): LessonSession | null {
-  if (
-    !page?.supported ||
-    !page.documentId ||
-    !page.workspaceId ||
-    !page.elementId
-  )
-    return null;
-  const identity: ModelIdentity = {
-    documentId: page.documentId,
-    workspaceId: page.workspaceId,
-    elementId: page.elementId,
-    revision: null,
-  };
-  const stepId = FOUNDATIONS_FIRST_SKETCH.steps[0]?.id;
-  if (!stepId) return null;
-  const priorModelState =
-    prior?.modelState ??
-    createUnknownLessonModelState(
-      'The current model revision is unknown; model-dependent progress must be checked again.',
-    );
-  const modelState = decision
-    ? modelStateWithDecision(priorModelState, stepId, decision)
-    : priorModelState;
-
-  return {
-    lessonId: FOUNDATIONS_FIRST_SKETCH.id,
-    lessonVersion: FOUNDATIONS_FIRST_SKETCH.version,
-    currentStepId: stepId,
-    modelIdentity: identity,
-    modelRevision: null,
-    modelState,
-    updatedAt: new Date().toISOString(),
-    steps: { ...prior?.steps, [stepId]: stepState },
   };
 }
 
@@ -152,7 +145,11 @@ function modelStateWithDecision(
       evidenceIds,
     };
   }
-  if (decision.evidenceLevel === 'API_CONFIRMED' && decision.observedFact) {
+  if (
+    decision.status === 'PASS' &&
+    decision.evidenceLevel === 'API_CONFIRMED' &&
+    decision.observedFact
+  ) {
     verifiedModelStates[stepId] = {
       status: decision.status,
       observedAt: decision.observedAt,
@@ -175,20 +172,79 @@ function modelStateWithDecision(
   };
 }
 
-function describeProgress(
-  status: LessonStepState['status'],
-  result: VerificationStatus | null,
-): string {
-  if (status === 'COMPLETED' && result === 'PASS') {
-    return 'Interface evidence confirms the selected Top plane and sketch mode. Model geometry is not checked.';
+function makeSession(
+  page: OnshapePageContext | undefined,
+  currentStepId: string,
+  stepStates: Record<string, LessonStepState>,
+  prior: LessonSession | null | undefined,
+  decision?: VerificationDecision,
+): LessonSession | null {
+  if (
+    !page?.supported ||
+    !page.documentId ||
+    !page.workspaceId ||
+    !page.elementId
+  ) {
+    return null;
   }
-  if (status === 'UNKNOWN' || result === 'UNKNOWN') {
-    return 'Unable to verify. I could not confirm the selected Top plane and sketch mode from the current interface.';
+  const identity: ModelIdentity = {
+    documentId: page.documentId,
+    workspaceId: page.workspaceId,
+    elementId: page.elementId,
+    revision: null,
+  };
+  const priorModelState =
+    prior?.modelState ??
+    createUnknownLessonModelState(
+      'The current model revision is unknown; model-dependent progress must be checked again.',
+    );
+
+  return {
+    lessonId: FOUNDATIONS_FIRST_SKETCH.id,
+    lessonVersion: FOUNDATIONS_FIRST_SKETCH.version,
+    currentStepId,
+    modelIdentity: identity,
+    modelRevision: null,
+    modelState: decision
+      ? modelStateWithDecision(priorModelState, currentStepId, decision)
+      : priorModelState,
+    updatedAt: new Date().toISOString(),
+    steps: stepStates,
+  };
+}
+
+function outcomeLabel(outcome: LessonStepOutcome): string {
+  const labels: Record<LessonStepOutcome, string> = {
+    NONE: 'Visited',
+    ACKNOWLEDGED: 'Acknowledged',
+    UI_VERIFIED: 'UI verified',
+    MODEL_VERIFIED: 'Model verified',
+    SELF_REPORTED: 'Self-reported',
+    UNABLE_TO_VERIFY: 'Unable to verify',
+  };
+  return labels[outcome];
+}
+
+function describeProgress(state: LessonStepState): string {
+  if (state.status === 'PAUSED') return 'Lesson paused.';
+  if (state.outcome === 'ACKNOWLEDGED') {
+    return 'Acknowledged. This informational step does not claim CAD verification.';
   }
-  if (status === 'NEEDS_CORRECTION') {
+  if (state.outcome === 'UI_VERIFIED') {
+    return 'Interface evidence confirms the supported UI state for this step. Model geometry and feature values are not checked.';
+  }
+  if (state.outcome === 'MODEL_VERIFIED') {
+    return 'Current model evidence confirms this step.';
+  }
+  if (state.outcome === 'SELF_REPORTED') {
+    return 'Continued without verification. This step is recorded as self-reported.';
+  }
+  if (state.status === 'UNKNOWN' || state.outcome === 'UNABLE_TO_VERIFY') {
+    return 'Unable to verify. Leqad could not obtain the required current evidence.';
+  }
+  if (state.status === 'NEEDS_CORRECTION') {
     return 'Needs correction. Review the recovery guidance and try again.';
   }
-  if (status === 'PAUSED') return 'Lesson paused.';
   return 'Waiting for you to try the guided action.';
 }
 
@@ -203,7 +259,7 @@ export function AssistantPanel({
   onPanelPreferencesChange,
   onLearningHistoryChange,
 }: AssistantPanelProps) {
-  const step = FOUNDATIONS_FIRST_SKETCH.steps[0];
+  const initialLesson = useRef(getInitialLessonState(initialSession));
   const [mode, setMode] = useState<PanelMode>('Learn');
   const [collapsed, setCollapsed] = useState(
     initialPanelPreferences?.collapsed ?? false,
@@ -211,15 +267,12 @@ export function AssistantPanel({
   const [position, setPosition] = useState(() =>
     getInitialPosition(initialPanelPreferences),
   );
-  const [stepState, setStepState] = useState(() =>
-    getInitialStepState(initialSession),
+  const [currentStepIndex, setCurrentStepIndex] = useState(
+    initialLesson.current.currentStepIndex,
   );
-  const [verificationStatus, setVerificationStatus] =
-    useState<VerificationStatus | null>(
-      initialSession?.lessonId === FOUNDATIONS_FIRST_SKETCH.id
-        ? (initialSession.steps[step?.id ?? '']?.verification ?? null)
-        : null,
-    );
+  const [stepStates, setStepStates] = useState(
+    initialLesson.current.stepStates,
+  );
   const [showReason, setShowReason] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [guidanceMessage, setGuidanceMessage] = useState('');
@@ -230,16 +283,18 @@ export function AssistantPanel({
   const learningHistoryRef = useRef<LearningHistory>(
     initialLearningHistory ?? createEmptyLearningHistory(),
   );
+  const step = FOUNDATIONS_FIRST_SKETCH.steps[currentStepIndex];
+  const stepState = step ? stepStates[step.id] : undefined;
 
   const recordLearningHistory = (
+    stepId: string,
     nextHintLevel: number,
     practiceAttemptDelta = 0,
   ) => {
-    if (!step) return;
     const prior = learningHistoryRef.current;
     const now = new Date().toISOString();
     const priorVisit = prior.lessonsVisited[FOUNDATIONS_FIRST_SKETCH.id];
-    const practiceKey = `${FOUNDATIONS_FIRST_SKETCH.id}:${step.id}`;
+    const practiceKey = `${FOUNDATIONS_FIRST_SKETCH.id}:${stepId}`;
     const next: LearningHistory = {
       lessonsVisited: {
         ...prior.lessonsVisited,
@@ -257,7 +312,7 @@ export function AssistantPanel({
       ),
       hintUsage: {
         ...prior.hintUsage,
-        [step.id]: Math.max(prior.hintUsage[step.id] ?? 0, nextHintLevel),
+        [stepId]: Math.max(prior.hintUsage[stepId] ?? 0, nextHintLevel),
       },
       practiceAttempts: {
         ...prior.practiceAttempts,
@@ -270,7 +325,7 @@ export function AssistantPanel({
   };
 
   useEffect(() => {
-    recordLearningHistory(stepState.hintLevel);
+    if (step && stepState) recordLearningHistory(step.id, stepState.hintLevel);
   }, []);
 
   useEffect(() => {
@@ -282,84 +337,105 @@ export function AssistantPanel({
   }, [collapsed, position, onPanelPreferencesChange]);
 
   useEffect(() => {
-    if (!step) return;
+    if (
+      !step?.semanticTarget ||
+      !stepState ||
+      mode !== 'Learn' ||
+      collapsed ||
+      stepState.status === 'PAUSED'
+    ) {
+      recentSamples.current = [];
+      setCursorCue((value) => (value ? '' : value));
+      return;
+    }
+    const targetId = step.semanticTarget as SemanticTargetId;
     let intentTarget: HTMLElement | null = null;
     let nextTargetLookupAt = Number.NEGATIVE_INFINITY;
     const onPointerMove = (event: PointerEvent) => {
       const now = performance.now();
-      if (
-        intentTarget &&
-        !isUsableSemanticTarget(
-          intentTarget,
-          step.semanticTarget as SemanticTargetId,
-        )
-      ) {
+      if (intentTarget && !isUsableSemanticTarget(intentTarget, targetId)) {
         intentTarget = null;
         recentSamples.current = [];
       }
       if (!intentTarget && now >= nextTargetLookupAt) {
         nextTargetLookupAt = now + 500;
-        intentTarget = findSemanticTarget(
-          document,
-          step.semanticTarget as SemanticTargetId,
-        );
+        intentTarget = findSemanticTarget(document, targetId);
       }
       if (!intentTarget) {
         recentSamples.current = [];
-        setCursorCue('');
+        setCursorCue((value) => (value ? '' : value));
         return;
       }
 
-      const target = intentTarget;
-      const rect = target.getBoundingClientRect();
+      const rect = intentTarget.getBoundingClientRect();
       const samples = recentSamples.current;
-      samples.push({
-        x: event.clientX,
-        y: event.clientY,
-        at: now,
-      });
+      samples.push({ x: event.clientX, y: event.clientY, at: now });
       if (samples.length > 20) samples.shift();
       const intent = estimateCursorIntent(samples, rect);
-      setCursorCue(
+      const nextCue =
         intent.cue === 'NONE'
           ? ''
-          : 'Local cue: you are near the Top plane control.',
-      );
+          : `Local cue: you are near the ${step.goal.toLocaleLowerCase()} control.`;
+      setCursorCue((value) => (value === nextCue ? value : nextCue));
     };
 
     document.addEventListener('pointermove', onPointerMove, { passive: true });
     return () => document.removeEventListener('pointermove', onPointerMove);
-  }, [step]);
+  }, [collapsed, currentStepIndex, mode, step, stepState]);
 
-  if (!step) return null;
+  if (!step || !stepState) return null;
   const operationGuidanceAvailable = Boolean(
     page?.supported &&
     page.editability === 'editable' &&
     page.elementType === 'part-studio',
   );
 
-  const updateStepState = (
-    next: LessonStepState,
+  const persistLesson = (
+    nextStepId: string,
+    nextStates: Record<string, LessonStepState>,
     decision?: VerificationDecision,
   ) => {
-    setStepState(next);
-    const session = makeSession(page, next, sessionRef.current, decision);
+    setStepStates(nextStates);
+    const session = makeSession(
+      page,
+      nextStepId,
+      nextStates,
+      sessionRef.current,
+      decision,
+    );
     if (session) {
       sessionRef.current = session;
       onSessionChange?.(session);
     }
   };
 
+  const updateCurrentStep = (
+    next: LessonStepState,
+    decision?: VerificationDecision,
+  ) => {
+    persistLesson(step.id, { ...stepStates, [step.id]: next }, decision);
+  };
+
+  const resetTransientGuidance = () => {
+    setShowReason(false);
+    setShowRecovery(false);
+    setGuidanceMessage('');
+    setCursorCue('');
+    recentSamples.current = [];
+  };
+
   const showTarget = () => {
+    if (!step.semanticTarget) return;
     const found = onShowTarget?.(step.semanticTarget as SemanticTargetId);
     setGuidanceMessage(
       found === false
-        ? 'I could not recognize the Top plane control on this page. You can still follow the lesson manually.'
-        : 'Looking for the Top plane control. The highlight follows the current interface layout.',
+        ? 'I could not recognize that control on this page. You can still follow the lesson manually.'
+        : 'The highlight follows the recognized control in the current interface layout.',
     );
   };
 
   const checkProgress = () => {
+    if (!step.requiredEvidence) return;
     const checking = transitionLessonStep(stepState, {
       type: 'CHECK_PROGRESS',
     });
@@ -377,46 +453,73 @@ export function AssistantPanel({
       requiredEvidence: step.requiredEvidence,
       evaluatedAt: new Date().toISOString(),
     });
-    setVerificationStatus(decision.status);
-    updateStepState(next, decision);
-    recordLearningHistory(stepState.hintLevel, 1);
+    updateCurrentStep(next, decision);
+    recordLearningHistory(step.id, stepState.hintLevel, 1);
     setShowRecovery(
       decision.status === 'FAIL' || decision.status === 'WARNING',
     );
     setGuidanceMessage('');
   };
 
+  const completeWithoutEvidence = (
+    event: 'ACKNOWLEDGE' | 'SELF_REPORT' | 'CONTINUE_UNVERIFIED',
+  ) => {
+    const next = transitionLessonStep(stepState, { type: event });
+    updateCurrentStep(next);
+    if (event === 'SELF_REPORT') {
+      recordLearningHistory(step.id, stepState.hintLevel, 1);
+    }
+  };
+
   const advanceHintLevel = () => {
     const nextHintLevel = advanceHint(stepState.hintLevel);
-    updateStepState({
-      ...stepState,
-      hintLevel: nextHintLevel,
-    });
-    recordLearningHistory(nextHintLevel);
+    updateCurrentStep({ ...stepState, hintLevel: nextHintLevel });
+    recordLearningHistory(step.id, nextHintLevel);
     setShowRecovery(true);
   };
 
   const pauseOrResume = () => {
-    const next = transitionLessonStep(
-      stepState,
-      stepState.status === 'PAUSED' ? { type: 'RESUME' } : { type: 'PAUSE' },
+    updateCurrentStep(
+      transitionLessonStep(
+        stepState,
+        stepState.status === 'PAUSED' ? { type: 'RESUME' } : { type: 'PAUSE' },
+      ),
     );
-    updateStepState(next);
   };
 
   const retryStep = () => {
-    const next = transitionLessonStep(stepState, { type: 'RETRY' });
-    updateStepState(next);
-    setVerificationStatus(null);
+    updateCurrentStep(transitionLessonStep(stepState, { type: 'RETRY' }));
     setShowRecovery(false);
+  };
+
+  const goToStep = (nextIndex: number) => {
+    const nextStep = FOUNDATIONS_FIRST_SKETCH.steps[nextIndex];
+    if (!nextStep) return;
+    const nextState = beginStep(stepStates[nextStep.id]!);
+    const nextStates = { ...stepStates, [nextStep.id]: nextState };
+    setCurrentStepIndex(nextIndex);
+    persistLesson(nextStep.id, nextStates);
+    recordLearningHistory(nextStep.id, nextState.hintLevel);
+    resetTransientGuidance();
+  };
+
+  const restartLesson = () => {
+    const fresh = createFreshLessonState();
+    const firstStep = FOUNDATIONS_FIRST_SKETCH.steps[0];
+    if (!firstStep) return;
+    sessionRef.current = null;
+    setCurrentStepIndex(0);
+    persistLesson(firstStep.id, fresh.stepStates);
+    resetTransientGuidance();
   };
 
   const beginDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (
       event.button !== 0 ||
       (event.target instanceof Element && event.target.closest('button'))
-    )
+    ) {
       return;
+    }
     dragStart.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
@@ -439,10 +542,6 @@ export function AssistantPanel({
         Math.max(8, window.innerHeight - 100),
       ),
     });
-  };
-
-  const endDrag = () => {
-    dragStart.current = null;
   };
 
   const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -470,6 +569,9 @@ export function AssistantPanel({
   const panelStyle = { left: `${position.left}px`, top: `${position.top}px` };
   const visibleHint =
     stepState.hintLevel > 0 ? step.hints[stepState.hintLevel - 1] : null;
+  const canGoNext =
+    stepState.status === 'COMPLETED' &&
+    currentStepIndex < FOUNDATIONS_FIRST_SKETCH.steps.length - 1;
 
   return (
     <div data-leqad-root>
@@ -485,8 +587,8 @@ export function AssistantPanel({
           tabIndex={0}
           onPointerDown={beginDrag}
           onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
+          onPointerUp={() => (dragStart.current = null)}
+          onPointerCancel={() => (dragStart.current = null)}
           onKeyDown={moveWithKeyboard}
         >
           <div className="leqad-wordmark" aria-label="Leqad">
@@ -547,9 +649,14 @@ export function AssistantPanel({
                   className="leqad-lesson"
                 >
                   <p className="leqad-eyebrow">FOUNDATIONS · LESSON 01</p>
-                  <h2>Your first sketch</h2>
+                  <h2>{FOUNDATIONS_FIRST_SKETCH.title}</h2>
                   <p className="leqad-intro">
                     {FOUNDATIONS_FIRST_SKETCH.description}
+                  </p>
+                  <p className="leqad-step-count">
+                    Step {currentStepIndex + 1} of{' '}
+                    {FOUNDATIONS_FIRST_SKETCH.steps.length} ·{' '}
+                    {outcomeLabel(stepState.outcome)}
                   </p>
 
                   <div className="leqad-step-card">
@@ -558,13 +665,15 @@ export function AssistantPanel({
                     <p className="leqad-eyebrow">NEXT ACTION</p>
                     <p>{step.action}</p>
                     <div className="leqad-help-row">
-                      <button
-                        type="button"
-                        className="leqad-button leqad-button--secondary"
-                        onClick={showTarget}
-                      >
-                        Show me
-                      </button>
+                      {step.semanticTarget && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--secondary"
+                          onClick={showTarget}
+                        >
+                          Show me
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="leqad-button leqad-button--text"
@@ -576,6 +685,7 @@ export function AssistantPanel({
                         type="button"
                         className="leqad-button leqad-button--text"
                         onClick={advanceHintLevel}
+                        disabled={stepState.status === 'PAUSED'}
                       >
                         I’m stuck
                       </button>
@@ -617,22 +727,64 @@ export function AssistantPanel({
                       </p>
                     )}
                     <div className="leqad-step-footer">
-                      <button
-                        type="button"
-                        className="leqad-button leqad-button--primary"
-                        onClick={checkProgress}
-                        disabled={
-                          stepState.status === 'COMPLETED' ||
-                          stepState.status === 'PAUSED' ||
-                          !operationGuidanceAvailable
-                        }
-                      >
-                        Check progress
-                      </button>
+                      {step.completionMode === 'ACKNOWLEDGEMENT' && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--primary"
+                          onClick={() => completeWithoutEvidence('ACKNOWLEDGE')}
+                          disabled={
+                            stepState.status === 'COMPLETED' ||
+                            stepState.status === 'PAUSED'
+                          }
+                        >
+                          Got it
+                        </button>
+                      )}
+                      {step.completionMode === 'UI_VERIFICATION' && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--primary"
+                          onClick={checkProgress}
+                          disabled={
+                            stepState.status === 'COMPLETED' ||
+                            stepState.status === 'PAUSED' ||
+                            stepState.status === 'UNKNOWN' ||
+                            !operationGuidanceAvailable
+                          }
+                        >
+                          Check progress
+                        </button>
+                      )}
+                      {step.completionMode === 'SELF_REPORT' && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--primary"
+                          onClick={() => completeWithoutEvidence('SELF_REPORT')}
+                          disabled={
+                            stepState.status === 'COMPLETED' ||
+                            stepState.status === 'PAUSED'
+                          }
+                        >
+                          I completed this practice
+                        </button>
+                      )}
+                      {step.allowUnverifiedContinuation &&
+                        stepState.status === 'UNKNOWN' && (
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--secondary"
+                            onClick={() =>
+                              completeWithoutEvidence('CONTINUE_UNVERIFIED')
+                            }
+                          >
+                            Continue without verification
+                          </button>
+                        )}
                       <button
                         type="button"
                         className="leqad-button leqad-button--text"
                         onClick={pauseOrResume}
+                        disabled={stepState.status === 'COMPLETED'}
                       >
                         {stepState.status === 'PAUSED' ? 'Resume' : 'Pause'}
                       </button>
@@ -652,8 +804,33 @@ export function AssistantPanel({
                       role="status"
                       aria-label="Lesson progress"
                     >
-                      {describeProgress(stepState.status, verificationStatus)}
+                      {describeProgress(stepState)}
                     </p>
+                    <div className="leqad-step-navigation">
+                      <button
+                        type="button"
+                        className="leqad-button leqad-button--text"
+                        onClick={() => goToStep(currentStepIndex - 1)}
+                        disabled={currentStepIndex === 0}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        className="leqad-button leqad-button--secondary"
+                        onClick={() => goToStep(currentStepIndex + 1)}
+                        disabled={!canGoNext}
+                      >
+                        Next
+                      </button>
+                      <button
+                        type="button"
+                        className="leqad-button leqad-button--text"
+                        onClick={restartLesson}
+                      >
+                        Restart lesson
+                      </button>
+                    </div>
                   </div>
                   <p className="leqad-footnote">
                     Leqad will not click or change your model. A click alone

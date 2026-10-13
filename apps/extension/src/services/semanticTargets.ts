@@ -3,6 +3,8 @@ export type SemanticTargetId =
   | 'front-plane'
   | 'right-plane'
   | 'sketch'
+  | 'rectangle'
+  | 'dimension'
   | 'finish-sketch'
   | 'part-studio-tab'
   | 'read-only-indicator';
@@ -12,6 +14,8 @@ const TARGET_LABELS: Record<SemanticTargetId, readonly string[]> = {
   'front-plane': ['front plane'],
   'right-plane': ['right plane'],
   sketch: ['sketch', 'create sketch', 'start sketch'],
+  rectangle: ['rectangle', 'corner rectangle', 'center point rectangle'],
+  dimension: ['dimension', 'sketch dimension'],
   'finish-sketch': ['finish sketch', 'exit sketch', 'close sketch'],
   'part-studio-tab': ['part studio'],
   'read-only-indicator': ['read only', 'view only'],

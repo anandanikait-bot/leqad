@@ -16,11 +16,20 @@ export type LessonStepStatus =
   | 'UNKNOWN'
   | 'PAUSED';
 
+export type LessonStepOutcome =
+  | 'NONE'
+  | 'ACKNOWLEDGED'
+  | 'UI_VERIFIED'
+  | 'MODEL_VERIFIED'
+  | 'SELF_REPORTED'
+  | 'UNABLE_TO_VERIFY';
+
 export interface LessonStepState {
   status: LessonStepStatus;
   hintLevel: number;
   verification: VerificationStatus | null;
   resumeState: LessonStepStatus | null;
+  outcome: LessonStepOutcome;
 }
 
 export interface StoredUiObservation {
@@ -51,6 +60,9 @@ export type LessonStepEvent =
   | { type: 'ACTION_OBSERVED' }
   | { type: 'CHECK_PROGRESS' }
   | { type: 'VERIFY' }
+  | { type: 'ACKNOWLEDGE' }
+  | { type: 'CONTINUE_UNVERIFIED' }
+  | { type: 'SELF_REPORT' }
   | {
       type: 'VERIFICATION_RESULT';
       decision: VerificationDecision;
@@ -77,9 +89,11 @@ export interface LessonStepDefinition {
   goal: string;
   action: string;
   explanation: string;
-  semanticTarget: string;
+  semanticTarget: string | null;
   completionSignal: string;
-  requiredEvidence: EvidenceRequirement;
+  requiredEvidence: EvidenceRequirement | null;
+  completionMode: 'ACKNOWLEDGEMENT' | 'UI_VERIFICATION' | 'SELF_REPORT';
+  allowUnverifiedContinuation: boolean;
   hints: readonly [string, string, string, string, string];
   commonErrors: readonly string[];
   recoveryActions: readonly string[];

@@ -15,6 +15,7 @@ import type {
 } from '../src/services/progressStore';
 import { createNavigationInitializationGuard } from '../src/services/navigationGuard';
 import {
+  evaluateFoundationsPlaneProgress,
   evaluateFoundationsSketchProgress,
   unavailableFoundationsDecision,
 } from '../src/services/foundationsEvidence';
@@ -124,15 +125,19 @@ export default defineContentScript({
                 highlightTimer = ctx.setTimeout(clearHighlight, 5000);
                 return true;
               }}
-              onCheckStep={(_stepId, signal) =>
-                signal === 'finish-sketch'
-                  ? evaluateFoundationsSketchProgress(page, document)
-                  : unavailableFoundationsDecision(
-                      page,
-                      'This lesson step does not have a supported observer.',
-                      [signal],
-                    )
-              }
+              onCheckStep={(_stepId, signal) => {
+                if (signal === 'top-plane-selected') {
+                  return evaluateFoundationsPlaneProgress(page, document);
+                }
+                if (signal === 'sketch-editing') {
+                  return evaluateFoundationsSketchProgress(page, document);
+                }
+                return unavailableFoundationsDecision(
+                  page,
+                  'This lesson step does not have a supported observer.',
+                  [signal],
+                );
+              }}
               onSessionChange={(session) => {
                 void progressStore.saveSession(session).catch(() => undefined);
               }}

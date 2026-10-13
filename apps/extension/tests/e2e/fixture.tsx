@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import {
+  evaluateFoundationsPlaneProgress,
   evaluateFoundationsSketchProgress,
   unavailableFoundationsDecision,
 } from '../../src/services/foundationsEvidence';
@@ -49,29 +50,31 @@ reactRoot.render(
       highlight = createTargetHighlight(target);
       return true;
     }}
-    onCheckStep={(_stepId, signal) =>
-      signal === 'finish-sketch'
-        ? evaluateFoundationsSketchProgress(
-            {
-              supported: true,
-              documentId: 'fixture-document',
-              workspaceId: 'fixture-workspace',
-              versionId: null,
-              microversionId: null,
-              elementId: 'fixture-part-studio',
-              modelType: 'workspace',
-              editability: 'editable',
-              elementType: 'part-studio',
-              capabilitySource: 'UI',
-              capabilityObservedAt: new Date().toISOString(),
-            },
-            document,
-          )
-        : unavailableFoundationsDecision(
-            undefined,
-            'This fixture has no observer for the requested signal.',
-            [signal],
-          )
-    }
+    onCheckStep={(_stepId, signal) => {
+      const page = {
+        supported: true as const,
+        documentId: 'fixture-document',
+        workspaceId: 'fixture-workspace',
+        versionId: null,
+        microversionId: null,
+        elementId: 'fixture-part-studio',
+        modelType: 'workspace' as const,
+        editability: 'editable' as const,
+        elementType: 'part-studio' as const,
+        capabilitySource: 'UI' as const,
+        capabilityObservedAt: new Date().toISOString(),
+      };
+      if (signal === 'top-plane-selected') {
+        return evaluateFoundationsPlaneProgress(page, document);
+      }
+      if (signal === 'sketch-editing') {
+        return evaluateFoundationsSketchProgress(page, document);
+      }
+      return unavailableFoundationsDecision(
+        page,
+        'This fixture has no observer for the requested signal.',
+        [signal],
+      );
+    }}
   />,
 );

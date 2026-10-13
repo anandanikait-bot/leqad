@@ -13,6 +13,7 @@ const completedStep: LessonStepState = {
   hintLevel: 2,
   verification: 'PASS',
   resumeState: null,
+  outcome: 'MODEL_VERIFIED',
 };
 
 function session(): LessonSession {
@@ -97,6 +98,29 @@ describe('reconcileSession', () => {
     expect(result.modelState.uncertaintyReason).toContain('unknown');
   });
 
+  it.each(['ACKNOWLEDGED', 'SELF_REPORTED'] as const)(
+    'preserves %s learning progress when model evidence is invalidated',
+    async (outcome) => {
+      const { reconcileSession } = await import('./session');
+      const prior = session();
+      prior.steps.sketch = {
+        ...completedStep,
+        verification: outcome === 'ACKNOWLEDGED' ? null : 'UNKNOWN',
+        outcome,
+      };
+
+      const result = reconcileSession(
+        prior,
+        { ...currentIdentity, revision: null },
+        null,
+        now,
+      );
+
+      expect(result.steps.sketch).toEqual(prior.steps.sketch);
+      expect(result.modelState.evidenceReferences).toEqual([]);
+    },
+  );
+
   it('preserves completion when the document and revision are unchanged', async () => {
     const { reconcileSession } = await import('./session');
 
@@ -119,6 +143,7 @@ describe('reconcileSession', () => {
       status: 'PAUSED',
       resumeState: 'AWAITING_ACTION',
       verification: null,
+      outcome: 'NONE',
     };
 
     const result = reconcileSession(paused, currentIdentity, 'revision-a', now);

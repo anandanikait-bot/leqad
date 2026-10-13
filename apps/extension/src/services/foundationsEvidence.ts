@@ -190,9 +190,10 @@ export function observeFoundationsSketchUi(
   };
 }
 
-export function evaluateFoundationsSketchObservation(
+function evaluateFoundationsObservation(
   page: OnshapePageContext,
   observation: FoundationsSketchUiObservation,
+  requireSketchEditing: boolean,
   now: Date = new Date(),
 ): VerificationDecision {
   const activeIdentity = identityForPage(page);
@@ -251,7 +252,7 @@ export function evaluateFoundationsSketchObservation(
   if (observation.selectedOtherPlanes.length > 0) {
     missingRequirements.push('No contradictory selected reference plane');
   }
-  if (!observation.sketchEditingAppearsActive) {
+  if (requireSketchEditing && !observation.sketchEditingAppearsActive) {
     missingRequirements.push('Recognized active sketch-editing controls');
   }
 
@@ -268,8 +269,9 @@ export function evaluateFoundationsSketchObservation(
       explanation:
         'The current interface does not expose one unambiguous supported UI state for this step.',
       missingRequirements,
-      recoveryAction:
-        'Select only the intended Top plane and enter sketch editing, then check progress again.',
+      recoveryAction: requireSketchEditing
+        ? 'Select only the intended Top plane and enter sketch editing, then check progress again.'
+        : 'Select only the intended Top plane, then check progress again.',
       evidence: observation.evidence,
     });
   }
@@ -281,12 +283,41 @@ export function evaluateFoundationsSketchObservation(
     identity: activeIdentity,
     observedAt: observation.observedAt,
     revision: activeIdentity.revision,
-    explanation:
-      'The interface confirms one selected Top plane control and active sketch-editing controls. This supported UI state does not verify the active sketch plane association, sketch geometry, or committed model state.',
+    explanation: requireSketchEditing
+      ? 'The interface confirms one selected Top plane control and active sketch-editing controls. This supported UI state does not verify the active sketch plane association, sketch geometry, or committed model state.'
+      : 'The interface confirms one selected Top plane control with no contradictory selected reference plane. This does not claim that sketch editing has started.',
     missingRequirements: [],
     recoveryAction: null,
     evidence: observation.evidence,
   });
+}
+
+export function evaluateFoundationsPlaneObservation(
+  page: OnshapePageContext,
+  observation: FoundationsSketchUiObservation,
+  now: Date = new Date(),
+): VerificationDecision {
+  return evaluateFoundationsObservation(page, observation, false, now);
+}
+
+export function evaluateFoundationsSketchObservation(
+  page: OnshapePageContext,
+  observation: FoundationsSketchUiObservation,
+  now: Date = new Date(),
+): VerificationDecision {
+  return evaluateFoundationsObservation(page, observation, true, now);
+}
+
+export function evaluateFoundationsPlaneProgress(
+  page: OnshapePageContext,
+  root: ParentNode,
+  now: Date = new Date(),
+): VerificationDecision {
+  return evaluateFoundationsPlaneObservation(
+    page,
+    observeFoundationsSketchUi(page, root, now),
+    now,
+  );
 }
 
 export function evaluateFoundationsSketchProgress(

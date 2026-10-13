@@ -58,6 +58,14 @@ const STEP_STATUSES = new Set([
   'PAUSED',
 ]);
 const VERIFICATION_STATUSES = new Set(['PASS', 'WARNING', 'FAIL', 'UNKNOWN']);
+const STEP_OUTCOMES = new Set([
+  'NONE',
+  'ACKNOWLEDGED',
+  'UI_VERIFIED',
+  'MODEL_VERIFIED',
+  'SELF_REPORTED',
+  'UNABLE_TO_VERIFY',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -86,7 +94,9 @@ function isLessonStepState(value: unknown): value is LessonStepState {
         VERIFICATION_STATUSES.has(value.verification))) &&
     (value.resumeState === null ||
       (typeof value.resumeState === 'string' &&
-        STEP_STATUSES.has(value.resumeState)))
+        STEP_STATUSES.has(value.resumeState))) &&
+    typeof value.outcome === 'string' &&
+    STEP_OUTCOMES.has(value.outcome)
   );
 }
 
@@ -248,10 +258,30 @@ function isModelProgressEnvelope(
 function migrateLegacySession(value: unknown): LessonSession | null {
   const candidate =
     isRecord(value) && value.schemaVersion === 1 ? value.session : value;
-  if (!isLessonSessionBase(candidate)) return null;
+  if (!isRecord(candidate) || !isRecord(candidate.steps)) return null;
+  const upgraded = {
+    ...candidate,
+    steps: Object.fromEntries(
+      Object.entries(candidate.steps).map(([stepId, step]) => [
+        stepId,
+        isRecord(step) && typeof step.outcome === 'string'
+          ? step
+          : isRecord(step) && step.status === 'COMPLETED'
+            ? {
+                ...step,
+                status: 'UNKNOWN',
+                verification: 'UNKNOWN',
+                resumeState: null,
+                outcome: 'UNABLE_TO_VERIFY',
+              }
+            : { ...(isRecord(step) ? step : {}), outcome: 'NONE' },
+      ]),
+    ),
+  };
+  if (!isLessonSessionBase(upgraded)) return null;
 
   return {
-    ...candidate,
+    ...upgraded,
     modelRevision: null,
     modelState: createUnknownLessonModelState(
       'Legacy progress did not include current evidence and must be checked again.',

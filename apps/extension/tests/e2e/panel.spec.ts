@@ -7,12 +7,14 @@ test('the browser panel highlights a fixture control and confirms Top-plane sket
 
   await expect(page.locator('leqad-e2e-host')).toHaveCount(1);
   await expect(
-    page.getByRole('heading', { name: 'Your first sketch' }),
+    page.getByRole('heading', { name: 'Your First Sketch' }),
   ).toBeVisible();
   await expect(
     page.getByRole('status', { name: 'Connection status' }),
   ).toHaveText('Limited access');
 
+  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Show me' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toBeVisible();
 
@@ -23,7 +25,7 @@ test('the browser panel highlights a fixture control and confirms Top-plane sket
   ).toContainText('Interface evidence confirms');
   await expect(
     page.getByRole('status', { name: 'Lesson progress' }),
-  ).toContainText('Model geometry is not checked');
+  ).toContainText('Model geometry and feature values are not checked');
 
   await page.locator('#host-control').click();
   await expect(page.locator('#host-click-count')).toHaveText('1');

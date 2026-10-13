@@ -196,6 +196,13 @@
   font-size: 13px;
 }
 
+.leqad-step-count {
+  margin: 0 0 8px;
+  color: #454d61;
+  font-size: 11px;
+  font-weight: 650;
+}
+
 .leqad-step-card {
   padding: 13px;
   background: #fffaf3;
@@ -214,12 +221,18 @@
 }
 
 .leqad-help-row,
-.leqad-step-footer {
+.leqad-step-footer,
+.leqad-step-navigation {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 7px;
   margin-top: 10px;
+}
+
+.leqad-step-navigation {
+  padding-top: 9px;
+  border-top: 1px solid rgba(13, 28, 67, 0.14);
 }
 
 .leqad-button {

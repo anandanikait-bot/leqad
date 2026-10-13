@@ -80,7 +80,7 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
       timeout: 10_000,
     });
     await expect(
-      page.getByRole('heading', { name: 'Your first sketch' }),
+      page.getByRole('heading', { name: 'Your First Sketch' }),
     ).toBeVisible();
     await expect(
       page.getByRole('status', { name: 'Connection status' }),

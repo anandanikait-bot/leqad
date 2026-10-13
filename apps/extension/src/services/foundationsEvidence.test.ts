@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { OnshapePageContext } from './onshapePage';
 import {
+  evaluateFoundationsPlaneProgress,
   evaluateFoundationsSketchObservation,
   evaluateFoundationsSketchProgress,
   observeFoundationsSketchUi,
@@ -42,6 +43,25 @@ function evaluateNow(page: OnshapePageContext = editablePage) {
 }
 
 describe('Foundations sketch UI observations', () => {
+  it('verifies Top-plane selection without implying that sketch editing started', () => {
+    visibleControl('Top plane', 'option', 'true');
+
+    const decision = evaluateFoundationsPlaneProgress(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    expect(decision.status).toBe('PASS');
+    expect(decision.observedFact).toMatchObject({
+      topPlaneSelected: true,
+      sketchEditingAppearsActive: false,
+    });
+    expect(decision.explanation).toContain(
+      'does not claim that sketch editing has started',
+    );
+  });
+
   it('keeps Top plane visible but unselected distinct from selected state', () => {
     visibleControl('Top plane', 'option', 'false');
     visibleControl('Finish sketch', 'button');

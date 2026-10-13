@@ -82,6 +82,7 @@ describe('lesson step transitions', () => {
     });
 
     expect(state.status).toBe('COMPLETED');
+    expect(state.outcome).toBe('UI_VERIFIED');
   });
 
   it('keeps a step unknown when verification is unavailable', async () => {
@@ -101,6 +102,7 @@ describe('lesson step transitions', () => {
     });
 
     expect(state.status).toBe('UNKNOWN');
+    expect(state.outcome).toBe('UNABLE_TO_VERIFY');
   });
 
   it('does not complete from a passing decision below the required evidence level', async () => {
@@ -120,6 +122,7 @@ describe('lesson step transitions', () => {
 
     expect(state.status).toBe('UNKNOWN');
     expect(state.verification).toBe('UNKNOWN');
+    expect(state.outcome).toBe('UNABLE_TO_VERIFY');
   });
 
   it('does not let explicit mock fixture evidence complete a production transition', async () => {
@@ -158,6 +161,40 @@ describe('lesson step transitions', () => {
     });
 
     expect(state.status).toBe('UNKNOWN');
+  });
+
+  it('records informational acknowledgement without inventing verification', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = transitionLessonStep(createInitialLessonStepState(), {
+      type: 'START',
+    });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+
+    state = transitionLessonStep(state, { type: 'ACKNOWLEDGE' });
+
+    expect(state).toMatchObject({
+      status: 'COMPLETED',
+      outcome: 'ACKNOWLEDGED',
+      verification: null,
+    });
+  });
+
+  it('records continue-without-verification as self-reported unknown', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = transitionLessonStep(createInitialLessonStepState(), {
+      type: 'START',
+    });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+
+    state = transitionLessonStep(state, { type: 'CONTINUE_UNVERIFIED' });
+
+    expect(state).toMatchObject({
+      status: 'COMPLETED',
+      outcome: 'SELF_REPORTED',
+      verification: 'UNKNOWN',
+    });
   });
 
   it('allows an explicit progress check without claiming that an action was observed', async () => {
