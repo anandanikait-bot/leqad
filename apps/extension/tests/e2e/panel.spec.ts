@@ -45,3 +45,31 @@ test('the Shadow DOM panel supports real-browser navigation and collapse', async
     page.getByRole('button', { name: 'Expand Leqad panel' }),
   ).toBeVisible();
 });
+
+test('the browser panel reaches all eight lesson steps without inventing verification', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+
+  for (let step = 1; step <= 8; step += 1) {
+    await expect(page.getByText(`Step ${step} of 8 · Visited`)).toBeVisible();
+    if (step === 8) break;
+    const acknowledge = page.getByRole('button', { name: 'Got it' });
+    if (await acknowledge.isVisible()) {
+      await acknowledge.click();
+    } else {
+      await page.getByRole('button', { name: 'Check progress' }).click();
+      const continueUnverified = page.getByRole('button', {
+        name: 'Continue without verification',
+      });
+      if (await continueUnverified.isVisible()) {
+        await continueUnverified.click();
+      }
+    }
+    await page.getByRole('button', { name: 'Next' }).click();
+  }
+
+  await page.getByRole('button', { name: 'I completed this practice' }).click();
+  await expect(page.getByText('Step 8 of 8 · Self-reported')).toBeVisible();
+  await expect(page.getByText(/recorded as self-reported/)).toBeVisible();
+});

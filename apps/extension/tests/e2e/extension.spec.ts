@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 
 const extensionPath = resolve('apps/extension/.output/chrome-mv3');
+const edgeExtensionPath = resolve('apps/extension/.output/edge-mv3');
 const systemChromium = '/usr/bin/chromium';
 const localChromiumPolicyPath =
   '/etc/chromium/policies/managed/extensions.json';
@@ -28,22 +29,29 @@ function localPolicyBlocksUnpackedExtensions(): boolean {
   }
 }
 
-test('the production package is a Manifest V3 extension for supported Onshape documents', () => {
-  const manifestPath = resolve(extensionPath, 'manifest.json');
-  expect(existsSync(manifestPath)).toBe(true);
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-    manifest_version: number;
-    permissions: string[];
-    content_scripts: Array<{ matches: string[]; js: string[] }>;
-  };
+for (const [browser, outputPath] of [
+  ['Chrome', extensionPath],
+  ['Edge', edgeExtensionPath],
+] as const) {
+  test(`the ${browser} production package is a minimal Manifest V3 extension`, () => {
+    const manifestPath = resolve(outputPath, 'manifest.json');
+    expect(existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      manifest_version: number;
+      permissions: string[];
+      host_permissions?: string[];
+      content_scripts: Array<{ matches: string[]; js: string[] }>;
+    };
 
-  expect(manifest.manifest_version).toBe(3);
-  expect(manifest.permissions).toContain('storage');
-  expect(manifest.content_scripts[0]).toMatchObject({
-    matches: ['https://cad.onshape.com/documents/*'],
-    js: ['content-scripts/onshape.js'],
+    expect(manifest.manifest_version).toBe(3);
+    expect(manifest.permissions).toEqual(['storage']);
+    expect(manifest.host_permissions ?? []).toEqual([]);
+    expect(manifest.content_scripts[0]).toMatchObject({
+      matches: ['https://cad.onshape.com/documents/*'],
+      js: ['content-scripts/onshape.js'],
+    });
   });
-});
+}
 
 test('the built MV3 extension mounts its React panel in the Onshape page Shadow DOM', async () => {
   test.skip(

@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "build": "pnpm --recursive --if-present run build",
-    "test:e2e": "pnpm --filter @leqad/extension build && playwright test",
+    "build:edge": "pnpm --filter @leqad/extension run build:edge",
+    "package:browsers": "pnpm --filter @leqad/extension run package:browsers",
+    "test:e2e": "pnpm --filter @leqad/extension run build:browsers && playwright test",
     "format:check": "prettier --check ."
   },
   "devDependencies": {

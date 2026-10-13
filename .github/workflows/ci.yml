@@ -24,6 +24,14 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm format:check
       - run: pnpm build
+      - run: pnpm build:edge
+      - run: pnpm package:browsers
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: leqad-browser-packages
+          path: apps/extension/.output/*.zip
+          if-no-files-found: error
