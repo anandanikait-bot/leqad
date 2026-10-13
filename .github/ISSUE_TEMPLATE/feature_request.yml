@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a learner-facing improvement
+title: '[Feature]: '
+labels: [enhancement]
+body:
+  - type: textarea
+    id: learner_problem
+    attributes:
+      label: Learner problem
+      description: Describe the CAD-learning problem and when it occurs.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Explain what Leqad should do and what remains under learner control.
+    validations:
+      required: true
+  - type: dropdown
+    id: roadmap
+    attributes:
+      label: Likely scope
+      options:
+        - Phase 1 Foundations
+        - Phase 2 model verification
+        - Later custom-design or AI assistance
+        - Documentation or contributor experience
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Verification needs
+      description: What UI or model evidence would be required to claim success honestly?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

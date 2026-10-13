@@ -39,6 +39,9 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 - Local cursor intent is capped at 20 samples, analyzed at most 20 times per second, limited to active lesson targets, stopped during pause/inactive modes/unmount, and never used as verification evidence.
 - Panel positioning uses measured dimensions with viewport clamping, resize correction, pointer cancellation, keyboard movement, accessible status text, Phase 1 preview labels, and first-run onboarding.
 - A page lifecycle coordinator keys each mount to the full Onshape route identity, rejects delayed stale initialization, prevents duplicate mounts for repeated context events, and disposes the prior React root before context changes.
+- Public project documentation now covers architecture, local development, Chrome/Edge loading, test-track limits, live Onshape validation, contribution and conduct rules, security reporting/review, the product roadmap, and a newly created evidence-labeled Onshape capability matrix. The reported Phase 0 originals remain explicitly unavailable.
+- A genuine Chromium screenshot of the controlled fixture is published with a fixture label. No screenshot is represented as live Onshape.
+- Apache-2.0 is prepared as a documented proposal. No root license has been added because the assignment requires explicit owner approval for the final license decision.
 - Chromium fixture tests against an Onshape-like page. These verify the fixture behavior only.
 
 ## Validation and limits
@@ -64,5 +67,5 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 - Delivery 4, lesson correctness and completion: complete and locally verified. It covers all eight ordered Foundations steps, progressive assistance, navigation and restart, reload recovery, honest evidence outcomes, unverified continuation, separate Top-plane and sketch-mode observations, and model-dependent dimension verification boundaries.
 - Delivery 5, UI and guidance: complete and locally verified. It covers typed target recognition, ambiguity and rejection behavior, bounded highlights, local cursor intent, measured panel positioning, accessibility, accurate capability messaging, preview labels, structured errors, and first-run onboarding.
 - Delivery 6, stability and testing: complete and locally verified. It covers lifecycle deduplication and cleanup, delayed storage/navigation races, bounded observers and cursor analysis, the full eight-step browser fixture, minimal-permission Chrome and Edge manifests, reproducible zip packages, and CI checks for frozen install, lint, typecheck, unit tests, formatting, both builds, browser tests, and uploaded artifacts.
-- Delivery 7: pending implementation and verification.
+- Delivery 7, open-source preparation: complete pending the owner's separate license decision. It covers the expanded README, contribution/community/security files, issue and pull-request templates, architecture/setup/testing documentation, roadmap, proposed Apache-2.0 implications, repeated current/history secret scans, manifest/telemetry/execution review, and an honestly labeled fixture screenshot.
 - Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
