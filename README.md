@@ -87,7 +87,9 @@ Detailed setup and unpacked loading instructions are in [local setup](docs/devel
 - The unpacked Chrome extension test loads the production package when browser policy permits. A skip is reported as skipped.
 - Live Onshape testing is a separate manual gate that requires an authorized account and disposable document.
 
-Follow the [live Onshape procedure](docs/testing/live-onshape.md) before recording any compatibility claim.
+Use the [live setup guide](docs/testing/live-setup.md) and [Onshape test procedure](docs/testing/live-onshape.md) before recording any compatibility claim.
+
+See the [latest Phase 1 validation report](docs/testing/results/phase1-final-validation.md) for current test results and blockers.
 
 ## Security and privacy
 

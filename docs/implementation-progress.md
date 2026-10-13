@@ -74,3 +74,12 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 - Delivery 7, open-source preparation: complete pending the owner's separate license decision. It covers the expanded README, contribution/community/security files, issue and pull-request templates, architecture/setup/testing documentation, roadmap, proposed Apache-2.0 implications, repeated current/history secret scans, manifest/telemetry/execution review, and an honestly labeled fixture screenshot.
 - Independent final review: complete with no critical findings. All important findings were corrected with regressions covering embedded evidence revisions, initialization/navigation races, live capability revocation, unavailable-verification continuation, persistence read/write ordering, expired UI evidence, content-size panel clamping, and ancestor-driven highlight movement. The reported pause-on-reload issue was also corrected.
 - Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
+
+## Final validation snapshot — 2026-10-13
+
+See [`docs/testing/results/phase1-final-validation.md`](testing/results/phase1-final-validation.md) for the complete report and [`docs/testing/live-setup.md`](testing/live-setup.md) for the owner-executable setup.
+
+- Local lint, typecheck, formatting, and all 154 unit/component tests pass on `850aabe`.
+- Chrome and Edge MV3 builds and ZIP packages succeed. The local Playwright run reports five passes and one unpacked-extension skip under managed browser policy.
+- The pull request's hosted Playwright run passed all six tests, including loading the built extension against the controlled fixture. The first Actions run failed only at artifact upload because the E2E rebuild had cleared the earlier ZIPs. Packaging now runs after E2E; the updated PR check must confirm the fix.
+- Real Onshape validation and manual Chrome/Edge runtime checks remain blocked. Phase 1 is not signed off.

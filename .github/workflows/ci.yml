@@ -27,9 +27,9 @@ jobs:
       - run: pnpm format:check
       - run: pnpm build
       - run: pnpm build:edge
-      - run: pnpm package:browsers
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - run: pnpm package:browsers
       - uses: actions/upload-artifact@v4
         with:
           name: leqad-browser-packages

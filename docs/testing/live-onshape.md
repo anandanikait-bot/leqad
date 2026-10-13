@@ -22,12 +22,7 @@ This is the final Phase 1 gate. It requires explicit authorization, an unrestric
 
 ## Setup
 
-1. Build the target package with `pnpm build` or `pnpm build:edge`.
-2. Load the unpacked directory using [local setup](../development/local-setup.md).
-3. Create a disposable Onshape document with an empty Part Studio.
-4. Open the Part Studio workspace route.
-5. Confirm exactly one `leqad-assistant` host and one visible Leqad panel.
-6. Confirm the panel remains reachable and does not cover essential controls after resize, zoom, collapse/expand, and keyboard repositioning.
+Follow the [live setup guide](live-setup.md) to build and load the extension in Chrome or Edge and create the disposable `Leqad Phase 1 Validation` document. Then use the test groups below.
 
 ## Context tests
 
