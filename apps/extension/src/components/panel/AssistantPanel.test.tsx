@@ -151,7 +151,7 @@ describe('AssistantPanel', () => {
       );
 
       expect(
-        screen.getByText(/cannot verify this step in this version/),
+        screen.getByText(/Leqad cannot check it automatically/),
       ).toBeTruthy();
       expect(
         screen.queryByRole('button', { name: 'Check progress' }),
