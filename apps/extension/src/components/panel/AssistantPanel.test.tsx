@@ -2,6 +2,48 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { VerificationDecision } from '@leqad/contracts';
+
+function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
+  const identity = {
+    documentId: 'document-a',
+    workspaceId: 'workspace-a',
+    elementId: 'element-a',
+    revision: null,
+  };
+  const evidence =
+    status === 'PASS'
+      ? [
+          {
+            id: 'evidence-1',
+            fact: {
+              topPlaneSelected: true,
+              sketchEditingAppearsActive: true,
+            },
+            source: 'UI' as const,
+            identity,
+            revision: null,
+            observedAt: '2020-01-01T00:00:00.000Z',
+            detectorVersion: 'test/1.0.0',
+            expiresAt: null,
+            level: 'UI_CONFIRMED' as const,
+          },
+        ]
+      : [];
+
+  return {
+    status,
+    evidenceLevel: status === 'PASS' ? 'UI_CONFIRMED' : 'UNKNOWN',
+    observedFact: status === 'PASS' ? evidence[0]!.fact : null,
+    identity,
+    observedAt: '2020-01-01T00:00:00.000Z',
+    revision: null,
+    explanation: status === 'PASS' ? 'UI state observed.' : 'Unavailable.',
+    missingRequirements: status === 'PASS' ? [] : ['Supported UI evidence'],
+    recoveryAction: status === 'PASS' ? null : 'Try again.',
+    evidence,
+  };
+}
 
 afterEach(() => cleanup());
 
@@ -70,7 +112,7 @@ describe('AssistantPanel', () => {
 
   it('keeps lesson progress unverified when no UI evidence can be read', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    render(<AssistantPanel onCheckStep={() => 'UNKNOWN'} />);
+    render(<AssistantPanel onCheckStep={() => uiDecision('UNKNOWN')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
@@ -82,7 +124,7 @@ describe('AssistantPanel', () => {
 
   it('explains UI-only sketch evidence without implying verified model geometry', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    render(<AssistantPanel onCheckStep={() => 'PASS'} />);
+    render(<AssistantPanel onCheckStep={() => uiDecision('PASS')} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 

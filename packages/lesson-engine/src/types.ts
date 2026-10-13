@@ -1,4 +1,9 @@
-import type { ModelIdentity, VerificationStatus } from '@leqad/contracts';
+import type {
+  EvidenceRequirement,
+  ModelIdentity,
+  VerificationDecision,
+  VerificationStatus,
+} from '@leqad/contracts';
 
 export type LessonStepStatus =
   | 'NOT_STARTED'
@@ -24,7 +29,12 @@ export type LessonStepEvent =
   | { type: 'ACTION_OBSERVED' }
   | { type: 'CHECK_PROGRESS' }
   | { type: 'VERIFY' }
-  | { type: 'VERIFICATION_RESULT'; status: VerificationStatus }
+  | {
+      type: 'VERIFICATION_RESULT';
+      decision: VerificationDecision;
+      requiredEvidence: EvidenceRequirement;
+      evaluatedAt: string;
+    }
   | { type: 'RETRY' }
   | { type: 'PAUSE' }
   | { type: 'RESUME' };
@@ -46,7 +56,7 @@ export interface LessonStepDefinition {
   explanation: string;
   semanticTarget: string;
   completionSignal: string;
-  requiredEvidence: 'UI_CONFIRMED' | 'API_CONFIRMED';
+  requiredEvidence: EvidenceRequirement;
   hints: readonly [string, string, string, string, string];
   commonErrors: readonly string[];
   recoveryActions: readonly string[];

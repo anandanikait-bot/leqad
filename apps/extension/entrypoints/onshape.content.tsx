@@ -6,7 +6,10 @@ import { AssistantPanel } from '../src/components/panel/AssistantPanel';
 import { parseOnshapePage } from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
 import type { PanelPreferences } from '../src/services/progressStore';
-import { evaluateFoundationsSketchProgress } from '../src/services/foundationsEvidence';
+import {
+  evaluateFoundationsSketchProgress,
+  unavailableFoundationsDecision,
+} from '../src/services/foundationsEvidence';
 import {
   createTargetHighlight,
   findSemanticTarget,
@@ -15,7 +18,7 @@ import type {
   SemanticTargetId,
   TargetHighlight,
 } from '../src/services/semanticTargets';
-import type { ModelIdentity, VerificationStatus } from '@leqad/contracts';
+import type { ModelIdentity } from '@leqad/contracts';
 import '../src/styles/panel.css';
 
 export default defineContentScript({
@@ -97,10 +100,14 @@ export default defineContentScript({
                 highlightTimer = ctx.setTimeout(clearHighlight, 5000);
                 return true;
               }}
-              onCheckStep={(_stepId, signal): VerificationStatus =>
+              onCheckStep={(_stepId, signal) =>
                 signal === 'finish-sketch'
                   ? evaluateFoundationsSketchProgress(page, document)
-                  : 'UNKNOWN'
+                  : unavailableFoundationsDecision(
+                      page,
+                      'This lesson step does not have a supported observer.',
+                      [signal],
+                    )
               }
               onSessionChange={(session) => {
                 void progressStore.saveSession(session).catch(() => undefined);

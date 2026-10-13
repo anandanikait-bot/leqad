@@ -3,6 +3,7 @@ import type {
   LessonStepState,
   LessonStepStatus,
 } from './types';
+import { evidenceSatisfiesRequirement } from '@leqad/cad-core';
 
 export function createInitialLessonStepState(): LessonStepState {
   return {
@@ -64,17 +65,23 @@ export function transitionLessonStep(
     };
   }
   if (event.type === 'VERIFICATION_RESULT' && state.status === 'VERIFYING') {
+    const evidenceSatisfied = evidenceSatisfiesRequirement(
+      event.decision,
+      event.requiredEvidence,
+      new Date(event.evaluatedAt),
+    );
+    const verification = evidenceSatisfied ? event.decision.status : 'UNKNOWN';
     const status: LessonStepStatus =
-      event.status === 'PASS'
+      verification === 'PASS'
         ? 'COMPLETED'
-        : event.status === 'FAIL' || event.status === 'WARNING'
+        : verification === 'FAIL' || verification === 'WARNING'
           ? 'NEEDS_CORRECTION'
           : 'UNKNOWN';
 
     return {
       ...state,
       status,
-      verification: event.status,
+      verification,
     };
   }
 

@@ -3,7 +3,11 @@ import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { ModelIdentity, VerificationStatus } from '@leqad/contracts';
+import type {
+  ModelIdentity,
+  VerificationDecision,
+  VerificationStatus,
+} from '@leqad/contracts';
 import {
   FOUNDATIONS_FIRST_SKETCH,
   advanceHint,
@@ -13,6 +17,7 @@ import {
 import type { LessonSession, LessonStepState } from '@leqad/lesson-engine';
 import { estimateCursorIntent } from '../../services/cursorIntent';
 import type { CursorSample } from '../../services/cursorIntent';
+import { unavailableFoundationsDecision } from '../../services/foundationsEvidence';
 import type { OnshapePageContext } from '../../services/onshapePage';
 import type { PanelPreferences } from '../../services/progressStore';
 import {
@@ -29,7 +34,7 @@ interface AssistantPanelProps {
   onCheckStep?: (
     stepId: string,
     completionSignal: string,
-  ) => VerificationStatus;
+  ) => VerificationDecision;
   onSessionChange?: (session: LessonSession) => void;
   onPanelPreferencesChange?: (preferences: PanelPreferences) => void;
 }
@@ -239,14 +244,24 @@ export function AssistantPanel({
       type: 'CHECK_PROGRESS',
     });
     if (checking.status !== 'VERIFYING') return;
-    const result = onCheckStep?.(step.id, step.completionSignal) ?? 'UNKNOWN';
+    const decision =
+      onCheckStep?.(step.id, step.completionSignal) ??
+      unavailableFoundationsDecision(
+        page,
+        'No supported progress observation is available for this step.',
+        [step.completionSignal],
+      );
     const next = transitionLessonStep(checking, {
       type: 'VERIFICATION_RESULT',
-      status: result,
+      decision,
+      requiredEvidence: step.requiredEvidence,
+      evaluatedAt: new Date().toISOString(),
     });
-    setVerificationStatus(result);
+    setVerificationStatus(decision.status);
     updateStepState(next);
-    setShowRecovery(result === 'FAIL' || result === 'WARNING');
+    setShowRecovery(
+      decision.status === 'FAIL' || decision.status === 'WARNING',
+    );
     setGuidanceMessage('');
   };
 

@@ -1,6 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
-import { evaluateFoundationsSketchProgress } from '../../src/services/foundationsEvidence';
+import {
+  evaluateFoundationsSketchProgress,
+  unavailableFoundationsDecision,
+} from '../../src/services/foundationsEvidence';
 import styles from '../../src/styles/panel.css?inline';
 import { findSemanticTarget } from '../../src/services/semanticTargets';
 import { createTargetHighlight } from '../../src/services/semanticTargets';
@@ -54,7 +57,11 @@ reactRoot.render(
             },
             document,
           )
-        : 'UNKNOWN'
+        : unavailableFoundationsDecision(
+            undefined,
+            'This fixture has no observer for the requested signal.',
+            [signal],
+          )
     }
   />,
 );

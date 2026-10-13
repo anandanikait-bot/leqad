@@ -1,18 +1,41 @@
 import {
+  EvidenceRequirementSchema,
   EvidenceSchema,
   FeatureConditionSchema,
+  ModelIdentitySchema,
   ModelSnapshotSchema,
+  VerificationDecisionSchema,
+  VerificationResultSchema,
   type Evidence,
   type EvidenceLevel,
+  type EvidenceRequirement,
+  type ExpectedFeatureParameter,
   type FeatureCondition,
   type FeatureParameter,
   type ModelIdentity,
   type ModelSnapshot,
   type NormalizedFeature,
+  type VerificationDecision,
   type VerificationResult,
 } from '@leqad/contracts';
 
-const DETECTOR_VERSION = 'leqad-cad-core/0.1.0';
+const DETECTOR_VERSION = 'leqad-cad-core/0.2.0';
+
+export interface EvidencePolicy {
+  allowMockEvidence: boolean;
+}
+
+export const PRODUCTION_EVIDENCE_POLICY: Readonly<EvidencePolicy> = {
+  allowMockEvidence: false,
+};
+
+const ACCEPTED_LEVELS: Readonly<
+  Record<EvidenceRequirement, ReadonlySet<EvidenceLevel>>
+> = {
+  API_CONFIRMED: new Set(['API_CONFIRMED']),
+  UI_CONFIRMED: new Set(['UI_CONFIRMED']),
+  INFERRED: new Set(['API_CONFIRMED', 'UI_CONFIRMED', 'INFERRED']),
+};
 
 function sameDocument(left: ModelIdentity, right: ModelIdentity): boolean {
   return (
@@ -22,85 +45,212 @@ function sameDocument(left: ModelIdentity, right: ModelIdentity): boolean {
   );
 }
 
-function unknownResult(
-  expected: FeatureCondition,
-  explanation: string,
-  evidence: Evidence[] = [],
-): VerificationResult {
-  return {
-    status: 'UNKNOWN',
-    expected,
-    actual: null,
-    explanation,
-    recoveryAction: 'Refresh the model snapshot and retry verification.',
-    evidence,
-  };
+function evidenceLevelForSnapshot(snapshot: ModelSnapshot): EvidenceLevel {
+  if (snapshot.source === 'API') return 'API_CONFIRMED';
+  if (snapshot.source === 'UI') return 'UI_CONFIRMED';
+  return 'INFERRED';
 }
 
-function evidenceFor(
+function evidenceForFact(
   snapshot: ModelSnapshot,
-  feature: NormalizedFeature,
+  evidenceId: string,
+  fact: Record<string, unknown>,
 ): Evidence {
-  const level: EvidenceLevel =
-    snapshot.source === 'API'
-      ? 'API_CONFIRMED'
-      : snapshot.source === 'UI'
-        ? 'UI_CONFIRMED'
-        : 'INFERRED';
-
   return EvidenceSchema.parse({
-    id: `${feature.id}:${snapshot.identity.revision ?? 'unversioned'}:${snapshot.observedAt}`,
-    fact: {
-      featureId: feature.id,
-      featureType: feature.type,
-      committed: feature.committed,
-      parameters: feature.parameters,
-    },
+    id: `${evidenceId}:${snapshot.identity.revision ?? 'unversioned'}:${snapshot.observedAt}`,
+    fact,
     source: snapshot.source,
     identity: snapshot.identity,
     revision: snapshot.identity.revision,
     observedAt: snapshot.observedAt,
     detectorVersion: DETECTOR_VERSION,
     expiresAt: snapshot.validUntil,
-    level,
+    level: evidenceLevelForSnapshot(snapshot),
   });
 }
 
+function featureFact(feature: NormalizedFeature): Record<string, unknown> {
+  return {
+    featureId: feature.id,
+    featureType: feature.type,
+    committed: feature.committed,
+    parameters: feature.parameters,
+  };
+}
+
+function evidenceForFeature(
+  snapshot: ModelSnapshot,
+  feature: NormalizedFeature,
+): Evidence {
+  return evidenceForFact(snapshot, feature.id, featureFact(feature));
+}
+
+function supportingEvidenceSatisfies(
+  evidence: readonly Evidence[],
+  evidenceLevel: EvidenceLevel,
+  requiredEvidence: EvidenceRequirement,
+  policy: EvidencePolicy,
+): boolean {
+  if (!ACCEPTED_LEVELS[requiredEvidence].has(evidenceLevel)) return false;
+
+  return evidence.some(
+    (item) =>
+      item.level === evidenceLevel &&
+      (policy.allowMockEvidence || item.source !== 'MOCK'),
+  );
+}
+
+export function evidenceSatisfiesRequirement(
+  decisionInput: VerificationDecision,
+  requirementInput: EvidenceRequirement,
+  evaluatedAt: Date,
+  policy: EvidencePolicy = PRODUCTION_EVIDENCE_POLICY,
+): boolean {
+  const decision = VerificationDecisionSchema.safeParse(decisionInput);
+  const requirement = EvidenceRequirementSchema.safeParse(requirementInput);
+  if (!decision.success || !requirement.success) return false;
+  if (!Number.isFinite(evaluatedAt.getTime())) return false;
+
+  const currentEvidence = decision.data.evidence.filter(
+    (evidence) =>
+      Date.parse(evidence.observedAt) <= evaluatedAt.getTime() &&
+      (evidence.expiresAt === null ||
+        Date.parse(evidence.expiresAt) > evaluatedAt.getTime()),
+  );
+
+  return supportingEvidenceSatisfies(
+    currentEvidence,
+    decision.data.evidenceLevel,
+    requirement.data,
+    policy,
+  );
+}
+
+interface ResultDetails {
+  status: VerificationResult['status'];
+  evidenceLevel?: EvidenceLevel;
+  observedFact?: Record<string, unknown> | null;
+  explanation: string;
+  missingRequirements?: string[];
+  recoveryAction: string | null;
+  evidence?: Evidence[];
+  actual?: FeatureParameter | null;
+}
+
+function resultFor(
+  snapshot: ModelSnapshot,
+  expected: FeatureCondition,
+  details: ResultDetails,
+): VerificationResult {
+  return VerificationResultSchema.parse({
+    status: details.status,
+    evidenceLevel: details.evidenceLevel ?? 'UNKNOWN',
+    observedFact: details.observedFact ?? null,
+    identity: expected.identity,
+    observedAt: snapshot.observedAt,
+    revision: expected.identity.revision,
+    explanation: details.explanation,
+    missingRequirements: details.missingRequirements ?? [],
+    recoveryAction: details.recoveryAction,
+    evidence: details.evidence ?? [],
+    expected,
+    actual: details.actual ?? null,
+  });
+}
+
+function unknownResult(
+  snapshot: ModelSnapshot,
+  expected: FeatureCondition,
+  explanation: string,
+  missingRequirements: string[],
+  evidence: Evidence[] = [],
+  observedFact: Record<string, unknown> | null = null,
+): VerificationResult {
+  return resultFor(snapshot, expected, {
+    status: 'UNKNOWN',
+    evidenceLevel: evidence[0]?.level ?? 'UNKNOWN',
+    observedFact,
+    explanation,
+    missingRequirements,
+    recoveryAction: 'Refresh the relevant evidence and retry verification.',
+    evidence,
+  });
+}
+
+function evidenceRequirementLabel(requirement: EvidenceRequirement): string {
+  return `${requirement} evidence from a production source`;
+}
+
+type ParameterComparison = 'MATCH' | 'MISMATCH' | 'UNKNOWN';
+
 function parameterComparison(
   actual: FeatureParameter | undefined,
-  expected: FeatureParameter,
-): 'MATCH' | 'MISMATCH' | 'UNKNOWN' {
+  expected: ExpectedFeatureParameter,
+): ParameterComparison {
   if (!actual) return 'UNKNOWN';
-  if (expected.unit !== undefined && actual.unit === undefined)
-    return 'UNKNOWN';
-  if (expected.unit !== undefined && actual.unit !== expected.unit)
-    return 'UNKNOWN';
+  if (actual.unit !== expected.unit) return 'UNKNOWN';
+
+  if (typeof actual.value === 'number' && typeof expected.value === 'number') {
+    const tolerance = expected.tolerance ?? 0;
+    return Math.abs(actual.value - expected.value) <= tolerance
+      ? 'MATCH'
+      : 'MISMATCH';
+  }
 
   return Object.is(actual.value, expected.value) ? 'MATCH' : 'MISMATCH';
+}
+
+interface CandidateEvaluation {
+  feature: NormalizedFeature;
+  outcome: ParameterComparison;
+  firstMismatch: FeatureParameter | null;
+}
+
+function evaluateCandidate(
+  feature: NormalizedFeature,
+  condition: FeatureCondition,
+): CandidateEvaluation {
+  let outcome: ParameterComparison = 'MATCH';
+  let firstMismatch: FeatureParameter | null = null;
+
+  for (const [parameterName, expected] of Object.entries(
+    condition.parameters,
+  )) {
+    const actual = feature.parameters[parameterName];
+    const comparison = parameterComparison(actual, expected);
+    if (comparison === 'UNKNOWN') outcome = 'UNKNOWN';
+    if (comparison === 'MISMATCH' && outcome !== 'UNKNOWN') {
+      outcome = 'MISMATCH';
+      firstMismatch ??= actual ?? null;
+    }
+  }
+
+  return { feature, outcome, firstMismatch };
+}
+
+function combinedObservedFact(
+  candidates: readonly CandidateEvaluation[],
+): Record<string, unknown> | null {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return featureFact(candidates[0]!.feature);
+  return { candidates: candidates.map(({ feature }) => featureFact(feature)) };
 }
 
 export function evaluateFeatureCondition(
   snapshotInput: ModelSnapshot,
   conditionInput: FeatureCondition,
   now: Date = new Date(),
+  policy: EvidencePolicy = PRODUCTION_EVIDENCE_POLICY,
 ): VerificationResult {
-  const parsedSnapshot = ModelSnapshotSchema.safeParse(snapshotInput);
-  const parsedCondition = FeatureConditionSchema.safeParse(conditionInput);
-
-  if (!parsedSnapshot.success || !parsedCondition.success) {
-    return unknownResult(
-      conditionInput,
-      'The model snapshot or condition is not valid normalized data.',
-    );
-  }
-
-  const snapshot = parsedSnapshot.data;
-  const condition = parsedCondition.data;
+  const snapshot = ModelSnapshotSchema.parse(snapshotInput);
+  const condition = FeatureConditionSchema.parse(conditionInput);
 
   if (!sameDocument(snapshot.identity, condition.identity)) {
     return unknownResult(
+      snapshot,
       condition,
       'The model snapshot belongs to a different document context.',
+      ['Evidence for the active document context'],
     );
   }
   if (
@@ -109,98 +259,165 @@ export function evaluateFeatureCondition(
     snapshot.identity.revision !== condition.identity.revision
   ) {
     return unknownResult(
+      snapshot,
       condition,
       'The model snapshot does not match the active model revision.',
+      ['Evidence for the active model revision'],
     );
   }
   if (Date.parse(snapshot.observedAt) > now.getTime()) {
     return unknownResult(
+      snapshot,
       condition,
       'The model snapshot timestamp is in the future.',
+      ['A current observation timestamp'],
     );
   }
   if (
     snapshot.validUntil !== null &&
     Date.parse(snapshot.validUntil) <= now.getTime()
   ) {
-    return unknownResult(condition, 'The model snapshot has expired.');
+    return unknownResult(
+      snapshot,
+      condition,
+      'The model snapshot has expired.',
+      ['Current, unexpired evidence'],
+    );
   }
 
-  const matchingFeatures = snapshot.features.filter(
+  const sameType = snapshot.features.filter(
     (feature) => feature.type === condition.featureType && feature.committed,
   );
+  const matchingFeatures =
+    condition.featureId === null
+      ? sameType
+      : sameType.filter((feature) => feature.id === condition.featureId);
+
   if (matchingFeatures.length === 0) {
-    if (snapshot.capabilities.completeFeatureList) {
-      return {
-        status: 'FAIL',
-        expected: condition,
-        actual: null,
-        explanation: `No committed ${condition.featureType} feature was found in the complete feature list.`,
-        recoveryAction:
-          'Create and commit the required feature, then verify again.',
-        evidence: [],
-      };
+    if (!snapshot.capabilities.completeFeatureList) {
+      return unknownResult(
+        snapshot,
+        condition,
+        'The feature list is incomplete, so the required feature cannot be confirmed.',
+        ['A complete feature list'],
+      );
     }
+
+    const fact = {
+      requestedFeatureId: condition.featureId,
+      requestedFeatureType: condition.featureType,
+      featurePresent: false,
+      completeFeatureList: true,
+    };
+    const evidence = [evidenceForFact(snapshot, 'feature-list', fact)];
+    const level = evidence[0]!.level;
+    if (
+      !supportingEvidenceSatisfies(
+        evidence,
+        level,
+        condition.requiredEvidence,
+        policy,
+      )
+    ) {
+      return unknownResult(
+        snapshot,
+        condition,
+        'The available feature-list evidence does not satisfy the required evidence policy.',
+        [evidenceRequirementLabel(condition.requiredEvidence)],
+        evidence,
+        fact,
+      );
+    }
+
+    return resultFor(snapshot, condition, {
+      status: 'FAIL',
+      evidenceLevel: level,
+      observedFact: fact,
+      explanation: `No committed ${condition.featureType} feature with the required identity was found in the complete feature list.`,
+      recoveryAction:
+        'Create and commit the intended feature, then verify it again.',
+      evidence,
+    });
+  }
+
+  const candidates = matchingFeatures.map((feature) =>
+    evaluateCandidate(feature, condition),
+  );
+  const evidence = candidates.map(({ feature }) =>
+    evidenceForFeature(snapshot, feature),
+  );
+  const evidenceLevel = evidence[0]!.level;
+  const observedFact = combinedObservedFact(candidates);
+
+  if (
+    !supportingEvidenceSatisfies(
+      evidence,
+      evidenceLevel,
+      condition.requiredEvidence,
+      policy,
+    )
+  ) {
     return unknownResult(
+      snapshot,
       condition,
-      'The feature list is incomplete, so the required feature cannot be confirmed.',
+      'The observed feature does not satisfy the required evidence policy.',
+      [evidenceRequirementLabel(condition.requiredEvidence)],
+      evidence,
+      observedFact,
     );
   }
 
-  const candidateEvidence = matchingFeatures.map((feature) =>
-    evidenceFor(snapshot, feature),
-  );
-  let sawUnknown = false;
-  let firstMismatch: FeatureParameter | null = null;
-
-  for (const feature of matchingFeatures) {
-    let allMatch = true;
-
-    for (const [parameterName, expected] of Object.entries(
-      condition.parameters,
-    )) {
-      const actual = feature.parameters[parameterName];
-      const comparison = parameterComparison(actual, expected);
-
-      if (comparison === 'UNKNOWN') {
-        sawUnknown = true;
-        allMatch = false;
-      } else if (comparison === 'MISMATCH') {
-        firstMismatch ??= actual ?? null;
-        allMatch = false;
-      }
-    }
-
-    if (allMatch) {
-      return {
-        status: 'PASS',
-        expected: condition,
-        actual: null,
-        explanation: `A committed ${condition.featureType} feature matches all supported expected parameters.`,
-        recoveryAction: null,
-        evidence: [evidenceFor(snapshot, feature)],
-      };
-    }
+  const outcomes = new Set(candidates.map(({ outcome }) => outcome));
+  if (
+    condition.featureId === null &&
+    candidates.length > 1 &&
+    outcomes.size > 1
+  ) {
+    return unknownResult(
+      snapshot,
+      condition,
+      'Multiple same-type features provide contradictory or incomplete evidence; identify the intended feature before completing the condition.',
+      ['The identity of the intended feature'],
+      evidence,
+      observedFact,
+    );
   }
 
-  if (sawUnknown) {
+  if (outcomes.has('UNKNOWN')) {
     return unknownResult(
+      snapshot,
       condition,
       'At least one expected feature parameter is unavailable or uses an unsupported unit.',
-      candidateEvidence,
+      ['Comparable values in the same supported unit'],
+      evidence,
+      observedFact,
     );
   }
 
-  return {
+  if (outcomes.size === 1 && outcomes.has('MATCH')) {
+    return resultFor(snapshot, condition, {
+      status: 'PASS',
+      evidenceLevel,
+      observedFact,
+      explanation: `The committed ${condition.featureType} feature matches all supported expected parameters.`,
+      recoveryAction: null,
+      evidence,
+    });
+  }
+
+  return resultFor(snapshot, condition, {
     status: 'FAIL',
-    expected: condition,
-    actual: firstMismatch,
+    evidenceLevel,
+    observedFact,
     explanation:
       'The supported feature parameters do not match the expected values.',
     recoveryAction:
-      'Review the feature dimensions and try the verification again.',
-    evidence: candidateEvidence,
-  };
+      'Review the intended feature dimensions and try the verification again.',
+    evidence,
+    actual:
+      candidates.find(({ firstMismatch }) => firstMismatch !== null)
+        ?.firstMismatch ?? null,
+  });
 }
 
 export function isEvidenceCurrent(
@@ -210,12 +427,20 @@ export function isEvidenceCurrent(
   now: Date = new Date(),
 ): boolean {
   const parsedEvidence = EvidenceSchema.safeParse(evidenceInput);
-  if (!parsedEvidence.success || currentRevision === null) return false;
+  const parsedIdentity = ModelIdentitySchema.safeParse(identityInput);
+  if (
+    !parsedEvidence.success ||
+    !parsedIdentity.success ||
+    currentRevision === null
+  ) {
+    return false;
+  }
 
   const evidence = parsedEvidence.data;
-  if (!sameDocument(evidence.identity, identityInput)) return false;
+  const identity = parsedIdentity.data;
+  if (!sameDocument(evidence.identity, identity)) return false;
   if (
-    identityInput.revision !== currentRevision ||
+    identity.revision !== currentRevision ||
     evidence.revision !== currentRevision ||
     evidence.identity.revision !== currentRevision
   ) {
@@ -225,8 +450,9 @@ export function isEvidenceCurrent(
   if (
     evidence.expiresAt !== null &&
     Date.parse(evidence.expiresAt) <= now.getTime()
-  )
+  ) {
     return false;
+  }
 
   return true;
 }

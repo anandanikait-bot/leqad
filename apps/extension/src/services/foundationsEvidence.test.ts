@@ -31,8 +31,12 @@ describe('evaluateFoundationsSketchProgress', () => {
     visibleControl('Finish sketch', 'button');
     visibleControl('Top plane', 'option', 'false');
 
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'UNKNOWN',
+    const decision = evaluateFoundationsSketchProgress(editablePage, document);
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.evidenceLevel).toBe('UI_CONFIRMED');
+    expect(decision.missingRequirements).toContain(
+      'A selected Top plane control',
     );
   });
 
@@ -40,29 +44,49 @@ describe('evaluateFoundationsSketchProgress', () => {
     visibleControl('Top plane', 'option', 'true');
     visibleControl('Finish sketch', 'button');
 
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'PASS',
-    );
+    const decision = evaluateFoundationsSketchProgress(editablePage, document);
+
+    expect(decision).toMatchObject({
+      status: 'PASS',
+      evidenceLevel: 'UI_CONFIRMED',
+      identity: {
+        documentId: 'doc-1',
+        workspaceId: 'workspace-1',
+        elementId: 'part-1',
+        revision: null,
+      },
+      revision: null,
+      missingRequirements: [],
+      observedFact: {
+        topPlaneSelected: true,
+        sketchEditingAppearsActive: true,
+      },
+    });
+    expect(decision.evidence).toHaveLength(2);
   });
 
   it('does not confirm progress on a read-only Onshape document', () => {
     visibleControl('Top plane', 'option', 'true');
     visibleControl('Finish sketch', 'button');
 
-    expect(
-      evaluateFoundationsSketchProgress(
-        { ...editablePage, editable: false, workspaceId: null },
-        document,
-      ),
-    ).toBe('UNKNOWN');
+    const decision = evaluateFoundationsSketchProgress(
+      { ...editablePage, editable: false, workspaceId: null },
+      document,
+    );
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.identity).toBeNull();
+    expect(decision.missingRequirements).toContain(
+      'A confirmed editable workspace context',
+    );
   });
 
   it('does not mistake a Top view control for the Top plane', () => {
     visibleControl('Top view', 'button', 'true');
     visibleControl('Finish sketch', 'button');
 
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'UNKNOWN',
-    );
+    expect(
+      evaluateFoundationsSketchProgress(editablePage, document).status,
+    ).toBe('UNKNOWN');
   });
 });

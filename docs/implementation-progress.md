@@ -22,11 +22,12 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 ## Implemented
 
 - Reproducible pnpm workspace, strict TypeScript, lint, test, browser fixture, and CI configuration.
-- Zod contracts for model identity, normalized features, snapshots, evidence, and verification results; pure evidence helpers cover matches, mismatches, unknown facts, and stale evidence.
-- Deterministic lesson state transitions that do not equate a click or UI action with verified CAD progress.
+- Validated evidence and verification-decision contracts expose trust level, observed fact, document identity, observation time, revision, missing requirements, explanation, and recovery. Source/level mismatches are rejected.
+- The CAD evaluator enforces explicit production and fixture evidence policies, specific feature identity, current document/revision, evidence expiry, exact units, explicit numerical tolerances, and contradictory-evidence handling.
+- Deterministic lesson transitions receive the complete decision and declared evidence requirement. A bare status, stale evidence, insufficient trust level, or mock evidence cannot complete a production step.
 - WXT Chrome Manifest V3 build, Onshape-only content entrypoint, React mounted in a Shadow DOM, and a branded draggable/collapsible Leqad panel.
 - Exact Onshape origin and document-route recognition; semantic target recognition and removable visual highlighting.
-- Foundations progress stays unknown unless an editable workspace shows an explicitly selected accessible Top-plane control and sketch-mode controls. “Top view” is not treated as the Top plane.
+- Foundations UI decisions distinguish selected-plane and visible sketch-control observations from unverified sketch-plane association, geometry, and committed model state. “Top view” is not treated as the Top plane.
 - Cursor-intent tracking reuses the recognized target and retries discovery at most twice per second when no target is available.
 - Bounded local cursor-intent estimator and extension-storage persistence with document/revision recovery checks.
 - One Foundations sketch lesson with progressive hints and mistake recovery.
@@ -34,7 +35,7 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 
 ## Validation and limits
 
-- `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (52 tests), `pnpm format:check`, and `pnpm build` pass.
+- After Delivery 1, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (64 tests in 11 files), `pnpm format:check`, and `pnpm build` pass.
 - `pnpm test:e2e` builds the extension and reports three Chromium fixture/manifest tests passed. The direct unpacked-extension test is skipped because the managed browser policy blocks extension installs.
 - GitHub Actions run #2 on `main` completed successfully with 52 unit tests and all four Playwright tests passing. This is distinct from the local managed-browser skip.
 - This environment's managed Chromium policy at `/etc/chromium/policies/managed/extensions.json` blocks unpacked extensions (`ExtensionInstallBlocklist: ["*"]`). A direct built-extension load therefore cannot be completed here. The MV3 manifest and extension build can still be validated, and the browser fixture can still run.
@@ -44,5 +45,6 @@ The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Ma
 ## Current repair status
 
 - Initial repository, source, test, history, secret, and missing-artifact audit: complete.
-- Deliveries 1 through 7: pending implementation and verification.
+- Delivery 1, verification correctness: complete and locally verified. It covers evidence trust boundaries, completion policy, current evidence, feature identity, unit/tolerance behavior, contradiction handling, and regression tests.
+- Deliveries 2 through 7: pending implementation and verification.
 - Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.

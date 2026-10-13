@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@leqad/cad-core": "workspace:*",
     "@leqad/contracts": "workspace:*"
   },
   "scripts": {
