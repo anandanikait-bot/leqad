@@ -1,10 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
-import {
-  evaluateFoundationsPlaneProgress,
-  evaluateFoundationsSketchProgress,
-  unavailableFoundationsDecision,
-} from '../../src/services/foundationsEvidence';
+import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
 import styles from '../../src/styles/panel.css?inline';
 import { recognizeSemanticTarget } from '../../src/services/semanticTargets';
 import { createTargetHighlight } from '../../src/services/semanticTargets';
@@ -67,17 +63,7 @@ reactRoot.render(
         capabilitySource: 'UI' as const,
         capabilityObservedAt: new Date().toISOString(),
       };
-      if (signal === 'top-plane-selected') {
-        return evaluateFoundationsPlaneProgress(page, document);
-      }
-      if (signal === 'sketch-editing') {
-        return evaluateFoundationsSketchProgress(page, document);
-      }
-      return unavailableFoundationsDecision(
-        page,
-        'This fixture has no observer for the requested signal.',
-        [signal],
-      );
+      return evaluateFoundationsStepProgress(page, document, signal);
     }}
   />,
 );

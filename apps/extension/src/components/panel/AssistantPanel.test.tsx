@@ -81,7 +81,8 @@ function completeCurrentStep(): void {
     fireEvent.click(selfReport);
     return;
   }
-  fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
+  const check = screen.queryByRole('button', { name: 'Check progress' });
+  if (check && !check.hasAttribute('disabled')) fireEvent.click(check);
   const continueButton = screen.queryByRole('button', {
     name: 'Continue without verification',
   });
@@ -134,6 +135,64 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it.each(['draw-rectangle', 'apply-dimensions', 'finish-sketch'])(
+    'offers direct unverified continuation for %s without running a nonexistent verifier',
+    async (stepId) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      const onCheckStep = vi.fn(() => uiDecision('PASS'));
+      const onSessionChange = vi.fn();
+      render(
+        <AssistantPanel
+          page={confirmedPage}
+          initialSession={restoredSession(stepId)}
+          onCheckStep={onCheckStep}
+          onSessionChange={onSessionChange}
+        />,
+      );
+
+      expect(
+        screen.getByText(/cannot verify this step in this version/),
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole('button', { name: 'Check progress' }),
+      ).toBeNull();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Continue without verification' }),
+      );
+
+      const session = onSessionChange.mock.lastCall?.[0];
+      expect(session.steps[stepId]).toMatchObject({
+        status: 'COMPLETED',
+        verification: 'UNKNOWN',
+        outcome: 'SELF_REPORTED',
+      });
+      expect(session.modelState.verifiedModelStates).toEqual({});
+      expect(onCheckStep).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+      ).toContain('recorded as self-reported');
+    },
+  );
+
+  it('preserves pause and resume for direct unverified continuation', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(
+      screen.queryByRole('button', { name: 'Continue without verification' }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    );
+    expect(screen.getByText('Step 4 of 8 · Self-reported')).toBeTruthy();
+  });
+
   it('reports an unsupported document and never claims an unverified connection', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
 
@@ -515,7 +574,7 @@ describe('AssistantPanel', () => {
     expect(screen.getByText(/Model geometry and feature values/)).toBeTruthy();
   });
 
-  it('does not accept UI evidence for a step that requires model evidence', async () => {
+  it('keeps dimensions unverified even when a callback offers UI evidence', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
@@ -525,9 +584,11 @@ describe('AssistantPanel', () => {
     );
     advanceToStep(5);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
-
-    expect(screen.getByText('Step 5 of 8 · Unable to verify')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check progress' })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue without verification' }),
+    );
+    expect(screen.getByText('Step 5 of 8 · Self-reported')).toBeTruthy();
     expect(screen.queryByText('Step 5 of 8 · UI verified')).toBeNull();
   });
 

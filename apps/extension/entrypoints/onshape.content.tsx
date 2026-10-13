@@ -17,11 +17,7 @@ import type {
   PanelPreferences,
 } from '../src/services/progressStore';
 import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
-import {
-  evaluateFoundationsPlaneProgress,
-  evaluateFoundationsSketchProgress,
-  unavailableFoundationsDecision,
-} from '../src/services/foundationsEvidence';
+import { evaluateFoundationsStepProgress } from '../src/services/foundationsEvidence';
 import {
   createTargetHighlight,
   recognizeSemanticTarget,
@@ -146,22 +142,10 @@ export default defineContentScript({
                   }}
                   onCheckStep={(_stepId, signal) => {
                     currentPage = capabilityMonitor.refresh();
-                    if (signal === 'top-plane-selected') {
-                      return evaluateFoundationsPlaneProgress(
-                        currentPage,
-                        document,
-                      );
-                    }
-                    if (signal === 'sketch-editing') {
-                      return evaluateFoundationsSketchProgress(
-                        currentPage,
-                        document,
-                      );
-                    }
-                    return unavailableFoundationsDecision(
+                    return evaluateFoundationsStepProgress(
                       currentPage,
-                      'This lesson step does not have a supported observer.',
-                      [signal],
+                      document,
+                      signal,
                     );
                   }}
                   onSessionChange={(session) => {

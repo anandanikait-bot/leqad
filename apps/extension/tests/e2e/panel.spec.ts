@@ -1,5 +1,39 @@
 import { expect, test } from '@playwright/test';
 
+test('unimplemented checks offer direct self-reported continuation in the browser', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.locator('#fixture-top-plane').click();
+  for (const step of [2, 3]) {
+    await expect(page.getByText(`Step ${step} of 8 · Visited`)).toBeVisible();
+    await page.getByRole('button', { name: 'Check progress' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+  }
+
+  for (const step of [4, 5, 6]) {
+    await expect(page.getByText(`Step ${step} of 8 · Visited`)).toBeVisible();
+    await expect(
+      page.getByText(/cannot verify this step in this version/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Check progress' }),
+    ).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Continue without verification' })
+      .click();
+    await expect(
+      page.getByText(`Step ${step} of 8 · Self-reported`),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('status', { name: 'Lesson progress' }),
+    ).toContainText('recorded as self-reported');
+    await page.getByRole('button', { name: 'Next' }).click();
+  }
+});
+
 test('the browser panel highlights a fixture control and confirms Top-plane sketch UI evidence', async ({
   page,
 }) => {
@@ -58,7 +92,8 @@ test('the browser panel reaches all eight lesson steps without inventing verific
     if (await acknowledge.isVisible()) {
       await acknowledge.click();
     } else {
-      await page.getByRole('button', { name: 'Check progress' }).click();
+      const check = page.getByRole('button', { name: 'Check progress' });
+      if (await check.isVisible()) await check.click();
       const continueUnverified = page.getByRole('button', {
         name: 'Continue without verification',
       });

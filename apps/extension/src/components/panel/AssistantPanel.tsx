@@ -22,7 +22,10 @@ import {
   estimateCursorIntent,
 } from '../../services/cursorIntent';
 import type { CursorSample } from '../../services/cursorIntent';
-import { unavailableFoundationsDecision } from '../../services/foundationsEvidence';
+import {
+  hasFoundationsStepObserver,
+  unavailableFoundationsDecision,
+} from '../../services/foundationsEvidence';
 import type { OnshapePageContext } from '../../services/onshapePage';
 import { createEmptyLearningHistory } from '../../services/progressStore';
 import type {
@@ -538,12 +541,17 @@ export function AssistantPanel({
     page.editability === 'editable' &&
     page.elementType === 'part-studio',
   );
+  const stepObserverAvailable = Boolean(
+    onCheckStep && hasFoundationsStepObserver(step.completionSignal),
+  );
+  const verificationUnavailable =
+    step.completionMode === 'UI_VERIFICATION' && !stepObserverAvailable;
   const canContinueUnverified =
     step.allowUnverifiedContinuation &&
     (stepState.status === 'UNKNOWN' ||
       (step.completionMode === 'UI_VERIFICATION' &&
         stepState.status === 'AWAITING_ACTION' &&
-        !operationGuidanceAvailable));
+        (!operationGuidanceAvailable || verificationUnavailable)));
 
   const persistLesson = (
     nextStepId: string,
@@ -595,7 +603,7 @@ export function AssistantPanel({
   };
 
   const checkProgress = () => {
-    if (!step.requiredEvidence) return;
+    if (!step.requiredEvidence || !stepObserverAvailable) return;
     const checking = transitionLessonStep(stepState, {
       type: 'CHECK_PROGRESS',
     });
@@ -910,6 +918,13 @@ export function AssistantPanel({
                         {cursorCue}
                       </p>
                     )}
+                    {verificationUnavailable && (
+                      <p className="leqad-guidance" aria-live="polite">
+                        Leqad cannot verify this step in this version. Continue
+                        without verification records your progress as
+                        self-reported; the CAD result remains unknown.
+                      </p>
+                    )}
                     <div className="leqad-step-footer">
                       {step.completionMode === 'ACKNOWLEDGEMENT' && (
                         <button
@@ -924,21 +939,22 @@ export function AssistantPanel({
                           Got it
                         </button>
                       )}
-                      {step.completionMode === 'UI_VERIFICATION' && (
-                        <button
-                          type="button"
-                          className="leqad-button leqad-button--primary"
-                          onClick={checkProgress}
-                          disabled={
-                            stepState.status === 'COMPLETED' ||
-                            stepState.status === 'PAUSED' ||
-                            stepState.status === 'UNKNOWN' ||
-                            !operationGuidanceAvailable
-                          }
-                        >
-                          Check progress
-                        </button>
-                      )}
+                      {step.completionMode === 'UI_VERIFICATION' &&
+                        stepObserverAvailable && (
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--primary"
+                            onClick={checkProgress}
+                            disabled={
+                              stepState.status === 'COMPLETED' ||
+                              stepState.status === 'PAUSED' ||
+                              stepState.status === 'UNKNOWN' ||
+                              !operationGuidanceAvailable
+                            }
+                          >
+                            Check progress
+                          </button>
+                        )}
                       {step.completionMode === 'SELF_REPORT' && (
                         <button
                           type="button"

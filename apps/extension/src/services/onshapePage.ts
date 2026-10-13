@@ -199,13 +199,10 @@ export function observeOnshapeCapabilities(
 
   const partStudioTab = findSelectedSemanticTarget(root, 'part-studio-tab');
   const readOnlyIndicator = findSemanticTarget(root, 'read-only-indicator');
-  const sketchCommand = findSemanticTarget(root, 'sketch');
   const elementType = partStudioTab ? 'part-studio' : undefined;
-  const editability = readOnlyIndicator
-    ? 'read-only'
-    : page.modelType === 'workspace' && partStudioTab && sketchCommand
-      ? 'editable'
-      : undefined;
+  // Visible commands identify UI controls, not the current user's permission.
+  // No supported positive editing-permission observation is implemented yet.
+  const editability = readOnlyIndicator ? 'read-only' : undefined;
 
   if (!elementType && !editability) return page;
 

@@ -12,7 +12,7 @@ import {
   findSemanticTargets,
 } from './semanticTargets';
 
-const DETECTOR_VERSION = 'leqad-foundations-ui/0.3.0';
+const DETECTOR_VERSION = 'leqad-foundations-ui/0.4.0';
 const UI_EVIDENCE_LIFETIME_MS = 5_000;
 
 export interface FoundationsSketchUiObservation {
@@ -240,14 +240,16 @@ function evaluateFoundationsObservation(
   }
 
   const missingRequirements: string[] = [];
-  if (observation.topPlaneControlCount === 0) {
-    missingRequirements.push('A recognized Top plane control');
-  }
-  if (observation.topPlaneControlCount > 1) {
-    missingRequirements.push('One unambiguous Top plane control');
-  }
-  if (!observation.topPlaneSelected) {
-    missingRequirements.push('A selected Top plane control');
+  if (!requireSketchEditing) {
+    if (observation.topPlaneControlCount === 0) {
+      missingRequirements.push('A recognized Top plane control');
+    }
+    if (observation.topPlaneControlCount > 1) {
+      missingRequirements.push('One unambiguous Top plane control');
+    }
+    if (!observation.topPlaneSelected) {
+      missingRequirements.push('A selected Top plane control');
+    }
   }
   if (observation.selectedOtherPlanes.length > 0) {
     missingRequirements.push('No contradictory selected reference plane');
@@ -284,7 +286,7 @@ function evaluateFoundationsObservation(
     observedAt: observation.observedAt,
     revision: activeIdentity.revision,
     explanation: requireSketchEditing
-      ? 'The interface confirms one selected Top plane control and active sketch-editing controls. This supported UI state does not verify the active sketch plane association, sketch geometry, or committed model state.'
+      ? 'The interface confirms current active sketch-editing controls. Top-plane selection is a separate observation and may no longer be visible. This supported UI state does not verify the active sketch plane association, sketch geometry, or committed model state.'
       : 'The interface confirms one selected Top plane control with no contradictory selected reference plane. This does not claim that sketch editing has started.',
     missingRequirements: [],
     recoveryAction: null,
@@ -329,5 +331,37 @@ export function evaluateFoundationsSketchProgress(
     page,
     observeFoundationsSketchUi(page, root, now),
     now,
+  );
+}
+
+type FoundationsStepObserver = (
+  page: OnshapePageContext,
+  root: ParentNode,
+  now?: Date,
+) => VerificationDecision;
+
+const foundationsStepObservers = new Map<string, FoundationsStepObserver>([
+  ['top-plane-selected', evaluateFoundationsPlaneProgress],
+  ['sketch-editing', evaluateFoundationsSketchProgress],
+]);
+
+export function hasFoundationsStepObserver(completionSignal: string): boolean {
+  return foundationsStepObservers.has(completionSignal);
+}
+
+export function evaluateFoundationsStepProgress(
+  page: OnshapePageContext,
+  root: ParentNode,
+  completionSignal: string,
+  now: Date = new Date(),
+): VerificationDecision {
+  return (
+    foundationsStepObservers.get(completionSignal)?.(page, root, now) ??
+    unavailableFoundationsDecision(
+      page,
+      'This lesson step does not have a supported observer.',
+      [completionSignal],
+      now,
+    )
   );
 }

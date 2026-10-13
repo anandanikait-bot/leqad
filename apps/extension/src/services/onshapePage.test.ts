@@ -155,7 +155,7 @@ describe('Onshape capability observations', () => {
     expect(observed).toEqual(page);
   });
 
-  it('detects a confirmed Part Studio and enabled edit command from supported UI states', async () => {
+  it('recognizes Part Studio without inferring permission from an enabled Sketch command', async () => {
     const { observeOnshapeCapabilities, parseOnshapePage } =
       await import('./onshapePage');
     visibleControl('Part Studio', 'tab', 'true');
@@ -171,7 +171,7 @@ describe('Onshape capability observations', () => {
     );
 
     expect(observed).toMatchObject({
-      editability: 'editable',
+      editability: 'unknown',
       elementType: 'part-studio',
       capabilitySource: 'UI',
     });
@@ -191,6 +191,40 @@ describe('Onshape capability observations', () => {
 
     expect(observed.editability).toBe('read-only');
     expect(observed.elementType).toBe('part-studio');
+  });
+
+  it('keeps permission unknown for a shared read-only workspace that displays Part Studio and Sketch controls', async () => {
+    const { observeOnshapeCapabilities, parseOnshapePage } =
+      await import('./onshapePage');
+    // These controls can be visible in a shared workspace without edit access.
+    // There is no supported permission observation in this fixture.
+    visibleControl('Part Studio', 'tab', 'true');
+    visibleControl('Sketch', 'button');
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/shared-document/w/shared-workspace/e/part-studio',
+    );
+
+    expect(observeOnshapeCapabilities(page, document)).toMatchObject({
+      editability: 'unknown',
+      elementType: 'part-studio',
+    });
+  });
+
+  it('does not override a context-matched read-only observation with visible edit controls', async () => {
+    const { observeOnshapeCapabilities, parseOnshapePage } =
+      await import('./onshapePage');
+    visibleControl('Part Studio', 'tab', 'true');
+    visibleControl('Sketch', 'button');
+    const page = {
+      ...parseOnshapePage(
+        'https://cad.onshape.com/documents/shared-document/w/shared-workspace/e/part-studio',
+      ),
+      editability: 'read-only' as const,
+    };
+
+    expect(observeOnshapeCapabilities(page, document).editability).toBe(
+      'read-only',
+    );
   });
 
   it('distinguishes document, workspace, and element navigation contexts', async () => {
@@ -276,13 +310,17 @@ describe('Onshape capability observations', () => {
       (page) => changes.push(page.editability),
     );
 
-    expect(monitor.current.editability).toBe('editable');
-    visibleControl('View only', 'status');
+    expect(monitor.current.editability).toBe('unknown');
+    const readOnly = visibleControl('View only', 'status');
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
     expect(monitor.current.editability).toBe('read-only');
     expect(changes).toContain('read-only');
+    readOnly.remove();
+    monitor.refresh();
+    expect(monitor.current.editability).toBe('unknown');
+    expect(changes).toContain('unknown');
     monitor.disconnect();
   });
 });
