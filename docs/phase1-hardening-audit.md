@@ -24,9 +24,11 @@ place.
   unpacked-extension test. The host's managed Chromium policy blocks all
   extension installation, so the skipped test is not a successful extension
   load.
-- The most recent GitHub Actions results could not be inspected. Both the
-  GitHub CLI and the public GitHub API returned HTTP 403 from this environment.
-  Local checks are recorded separately and are not presented as CI results.
+- GitHub Actions run #2 on `main` completed successfully with 52 unit tests and
+  all four Playwright tests passing. The run API could not be queried from this
+  environment because both the GitHub CLI and public API returned HTTP 403, so
+  this run result was supplied by the repository owner. Local checks are
+  recorded separately and are not presented as CI results.
 
 ## Confirmed defects
 
