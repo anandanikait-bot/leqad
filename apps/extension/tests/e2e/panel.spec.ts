@@ -22,7 +22,7 @@ test('unimplemented checks offer direct self-reported continuation in the browse
       page.getByRole('button', { name: 'Check progress' }),
     ).toHaveCount(0);
     await page
-      .getByRole('button', { name: "I've finished this step" })
+      .getByRole('button', { name: 'I\'ve finished this step' })
       .click();
     await expect(
       page.getByText(`Step ${step} of 8 · Marked done`),
@@ -95,7 +95,7 @@ test('the browser panel reaches all eight lesson steps without inventing verific
       const check = page.getByRole('button', { name: 'Check progress' });
       if (await check.isVisible()) await check.click();
       const continueUnverified = page.getByRole('button', {
-        name: "I've finished this step",
+        name: 'I\'ve finished this step',
       });
       if (await continueUnverified.isVisible()) {
         await continueUnverified.click();
@@ -104,7 +104,7 @@ test('the browser panel reaches all eight lesson steps without inventing verific
     await page.getByRole('button', { name: 'Next' }).click();
   }
 
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'I\'ve finished this step' }).click();
   await expect(page.getByText('Step 8 of 8 · Marked done')).toBeVisible();
   await expect(page.getByText(/has not verified your CAD work/)).toBeVisible();
 });
