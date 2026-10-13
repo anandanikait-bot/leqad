@@ -4,7 +4,7 @@ This guide prepares Leqad for the separate live Onshape procedure. A successful 
 
 ## Download and extract the tested build
 
-1. Open the [tested browser package download](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722/artifacts/11854470815) from successful [compatibility Actions run 38475535722, attempt 2](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722). Its source commit is `f4450c4b3b6b53d1219294d187680d680223b9ab`; a newer PR commit may be a documentation follow-up. The [final validation report](results/phase1-final-validation.md) records the independently verified package and archive checksums.
+1. Open the [tested browser package download](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346/artifacts/11854411254) from successful [final tested-head Actions run 38476549346, attempt 1](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346). Its source commit is `c3a0346a1d4089e421984f7b3c17ccad68fa2105`; a newer PR commit may be a documentation follow-up. The [final validation report](results/phase1-final-validation.md) records the independently verified package and archive checksums.
 2. Sign in to GitHub if the artifact download requires it. Under **Artifacts**, download **leqad-browser-packages**. The download is an outer ZIP containing two extension ZIPs, not a ready-to-load extension directory.
 3. Extract the outer ZIP to a new folder. It contains `leqadextension-0.1.0-chrome.zip` and `leqadextension-0.1.0-edge.zip`.
 4. For Chrome, extract the Chrome ZIP into a folder such as `Leqad-Chrome`. For Edge, extract the Edge ZIP into `Leqad-Edge`.

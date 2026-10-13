@@ -99,3 +99,5 @@ Compatibility fixes are committed as `f4450c4b3b6b53d1219294d187680d680223b9ab` 
 - [Exact download and installation procedure](testing/live-setup.md) and [licensing comparison](legal/apache-2.0-proposal.md) are prepared. Licensing and merge require owner approval after the live gate; no license is added and PR #1 remains unmerged.
 
 The [final validation report](testing/results/phase1-final-validation.md) pins code/build provenance separately from documentation-only PR follow-ups. Phase 1 acceptance has not passed.
+
+The independently tested PR head at this report update is `c3a0346a1d4089e421984f7b3c17ccad68fa2105`, a documentation follow-up with unchanged runtime code. [Run 38476549346](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346) passed on attempt 1 with 162 unit/component tests and all 7 browser tests. Its downloaded artifact `11854411254` has a freshly verified outer archive digest and inner browser ZIPs identical to the compatibility packages. The final report and installation guide now pin this newer tested build; their own later reporting commit is distinct from that package's source.
