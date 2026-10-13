@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Phase 1 implementation is present in the repository: a WXT Manifest V3 extension with a Shadow DOM React panel, local Foundations guidance, Onshape route and semantic-target services, bounded local cursor intent, local progress persistence, and basic CAD evidence contracts. The final local checks pass; GitHub publication and external browser/Onshape validation are the remaining tasks.
+The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Manifest V3 foundation remains buildable, and the required repository audit is recorded in `docs/phase1-hardening-audit.md`. The audit confirmed critical gaps in evidence enforcement, Onshape capability detection, per-document persistence, the eight-step Foundations experience, guidance lifecycle, and public documentation. These deliveries are being repaired in the assignment's required order before live validation.
 
 ## Product sources
 
@@ -13,9 +13,9 @@ Phase 1 implementation is present in the repository: a WXT Manifest V3 extension
 ## Repository and environment
 
 - Intended repository: `anandanikait-bot/leqad`.
-- Local branch: `main`.
+- Local repair branch: `phase1-hardening`, created from `origin/main` at `afce72a3fa6ddf0f48d7503c7cc1ca1ee7eb8e04`.
 - Configured origin: `https://github.com/anandanikait-bot/leqad.git`.
-- The GitHub remote was empty before implementation. `main` has now been pushed without force; the final remote SHA will be checked again after this status update is committed.
+- The GitHub remote contains the baseline on `main`. Repair commits will be pushed to `phase1-hardening` without force and proposed through a pull request.
 - Runtime: Node 24.19.0, pnpm 11.25.0, Chromium at `/usr/bin/chromium`.
 - The workspace uses WXT 0.21.4 and `@wxt-dev/module-react` 1.2.2 with React and TypeScript. CRXJS had only been initialized, so WXT is the selected framework. There is no Phase 2 API shell.
 
@@ -40,6 +40,8 @@ Phase 1 implementation is present in the repository: a WXT Manifest V3 extension
 - No live Onshape session or authenticated editable Part Studio is available. Onshape DOM recognition, actual highlights, lesson flow, and reload behavior still need live browser validation; fixture results are not compatibility claims.
 - The complete Phase 2 model-verification backend and live Onshape API integration remain deferred.
 
-## Remaining Phase 1 work
+## Current repair status
 
-The implementation and local checks are committed. Phase 1 still needs direct extension loading in an unrestricted browser and live testing in an editable Onshape document. The current managed browser policy blocks the first check, and no live Onshape account/session is available for the second.
+- Initial repository, source, test, history, secret, and missing-artifact audit: complete.
+- Deliveries 1 through 7: pending implementation and verification.
+- Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
