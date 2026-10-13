@@ -15,7 +15,10 @@ import { estimateCursorIntent } from '../../services/cursorIntent';
 import type { CursorSample } from '../../services/cursorIntent';
 import type { OnshapePageContext } from '../../services/onshapePage';
 import type { PanelPreferences } from '../../services/progressStore';
-import { findSemanticTarget } from '../../services/semanticTargets';
+import {
+  findSemanticTarget,
+  isUsableSemanticTarget,
+} from '../../services/semanticTargets';
 import type { SemanticTargetId } from '../../services/semanticTargets';
 
 interface AssistantPanelProps {
@@ -111,10 +114,10 @@ function describeProgress(
   result: VerificationStatus | null,
 ): string {
   if (status === 'COMPLETED' && result === 'PASS') {
-    return 'Verified in Onshape interface. This confirms sketch mode, not a committed feature.';
+    return 'Interface evidence confirms the selected Top plane and sketch mode. Model geometry is not checked.';
   }
   if (status === 'UNKNOWN' || result === 'UNKNOWN') {
-    return 'Unable to verify. I could not confirm sketch mode from the current interface.';
+    return 'Unable to verify. I could not confirm the selected Top plane and sketch mode from the current interface.';
   }
   if (status === 'NEEDS_CORRECTION') {
     return 'Needs correction. Review the recovery guidance and try again.';
@@ -166,18 +169,40 @@ export function AssistantPanel({
 
   useEffect(() => {
     if (!step) return;
+    let intentTarget: HTMLElement | null = null;
+    let nextTargetLookupAt = Number.NEGATIVE_INFINITY;
     const onPointerMove = (event: PointerEvent) => {
-      const target = findSemanticTarget(
-        document,
-        step.semanticTarget as SemanticTargetId,
-      );
-      if (!target) return;
+      const now = performance.now();
+      if (
+        intentTarget &&
+        !isUsableSemanticTarget(
+          intentTarget,
+          step.semanticTarget as SemanticTargetId,
+        )
+      ) {
+        intentTarget = null;
+        recentSamples.current = [];
+      }
+      if (!intentTarget && now >= nextTargetLookupAt) {
+        nextTargetLookupAt = now + 500;
+        intentTarget = findSemanticTarget(
+          document,
+          step.semanticTarget as SemanticTargetId,
+        );
+      }
+      if (!intentTarget) {
+        recentSamples.current = [];
+        setCursorCue('');
+        return;
+      }
+
+      const target = intentTarget;
       const rect = target.getBoundingClientRect();
       const samples = recentSamples.current;
       samples.push({
         x: event.clientX,
         y: event.clientY,
-        at: performance.now(),
+        at: now,
       });
       if (samples.length > 20) samples.shift();
       const intent = estimateCursorIntent(samples, rect);

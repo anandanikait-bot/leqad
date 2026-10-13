@@ -6,6 +6,7 @@ import { AssistantPanel } from '../src/components/panel/AssistantPanel';
 import { parseOnshapePage } from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
 import type { PanelPreferences } from '../src/services/progressStore';
+import { evaluateFoundationsSketchProgress } from '../src/services/foundationsEvidence';
 import {
   createTargetHighlight,
   findSemanticTarget,
@@ -97,9 +98,8 @@ export default defineContentScript({
                 return true;
               }}
               onCheckStep={(_stepId, signal): VerificationStatus =>
-                signal === 'finish-sketch' &&
-                findSemanticTarget(document, 'finish-sketch')
-                  ? 'PASS'
+                signal === 'finish-sketch'
+                  ? evaluateFoundationsSketchProgress(page, document)
                   : 'UNKNOWN'
               }
               onSessionChange={(session) => {

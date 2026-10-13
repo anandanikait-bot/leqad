@@ -80,7 +80,7 @@ describe('AssistantPanel', () => {
     expect(screen.queryByText('Verified in Onshape')).toBeNull();
   });
 
-  it('explains the UI-only sketch signal without implying a committed CAD feature', async () => {
+  it('explains UI-only sketch evidence without implying verified model geometry', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(<AssistantPanel onCheckStep={() => 'PASS'} />);
 
@@ -88,10 +88,26 @@ describe('AssistantPanel', () => {
 
     expect(
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
-    ).toContain('Verified in Onshape');
-    expect(
-      screen.getByText(/This confirms sketch mode, not a committed feature/),
-    ).toBeTruthy();
+    ).toContain('Interface evidence confirms');
+    expect(screen.getByText(/Model geometry is not checked/)).toBeTruthy();
+  });
+
+  it('reuses the current semantic target for repeated local cursor samples', async () => {
+    const semanticTargets = await import('../../services/semanticTargets');
+    const findTarget = vi.spyOn(semanticTargets, 'findSemanticTarget');
+    const target = document.createElement('button');
+    target.setAttribute('aria-label', 'Top plane');
+    target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    target.getClientRects = () =>
+      [new DOMRect(20, 30, 80, 24)] as unknown as DOMRectList;
+    document.body.append(target);
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(<AssistantPanel />);
+
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
+    fireEvent.pointerMove(document, { clientX: 26, clientY: 36 });
+
+    expect(findTarget).toHaveBeenCalledTimes(1);
   });
 
   it('moves the panel using its keyboard-accessible drag handle', async () => {

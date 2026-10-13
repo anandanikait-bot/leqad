@@ -1,8 +1,8 @@
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
+import { evaluateFoundationsSketchProgress } from '../../src/services/foundationsEvidence';
 import styles from '../../src/styles/panel.css?inline';
 import { findSemanticTarget } from '../../src/services/semanticTargets';
-import type { SemanticTargetId } from '../../src/services/semanticTargets';
 import { createTargetHighlight } from '../../src/services/semanticTargets';
 
 const host = document.createElement('leqad-e2e-host');
@@ -22,6 +22,14 @@ let highlight: ReturnType<typeof createTargetHighlight> | null = null;
 
 reactRoot.render(
   <AssistantPanel
+    page={{
+      supported: true,
+      documentId: 'fixture-document',
+      workspaceId: 'fixture-workspace',
+      elementId: 'fixture-part-studio',
+      modelType: 'workspace',
+      editable: true,
+    }}
     initialPanelPreferences={{
       collapsed: false,
       position: { left: 760, top: 40 },
@@ -34,9 +42,18 @@ reactRoot.render(
       return true;
     }}
     onCheckStep={(_stepId, signal) =>
-      signal === 'finish-sketch' &&
-      findSemanticTarget(document, 'finish-sketch' as SemanticTargetId)
-        ? 'PASS'
+      signal === 'finish-sketch'
+        ? evaluateFoundationsSketchProgress(
+            {
+              supported: true,
+              documentId: 'fixture-document',
+              workspaceId: 'fixture-workspace',
+              elementId: 'fixture-part-studio',
+              modelType: 'workspace',
+              editable: true,
+            },
+            document,
+          )
         : 'UNKNOWN'
     }
   />,

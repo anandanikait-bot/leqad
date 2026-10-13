@@ -24,6 +24,7 @@
 
 - Lookalike hosts and unsupported Onshape routes must not start operation-specific guidance.
 - Hidden, disabled, obscured, detached, or Leqad-owned elements must not be highlighted.
+- The Foundations step must not pass from a visible Finish sketch control alone; it needs explicit selected Top-plane UI evidence and an editable workspace.
 - A click or missing model evidence must not complete a lesson step.
 - Extension storage with a changed document/revision must not restore stale progress.
 - Dragging, collapsing, keyboard controls, and page interaction must work in a real Chromium fixture.
@@ -78,8 +79,8 @@
 
 - [x] Exercise Shadow DOM panel and lesson interactions in Chromium against a local Onshape-like fixture, including target highlight and continued host-page interaction.
 - [x] Attempt direct load of the built extension in Chromium. The managed policy at `/etc/chromium/policies/managed/extensions.json` blocks all unpacked extensions, so the test records this environment blocker; the MV3 manifest is checked separately.
-- [x] Run frozen install, lint, typecheck, 45 unit tests, Chromium fixture tests, and production build; fix the case-sensitive brand-color assertion exposed by the fresh test run.
+- [x] Run frozen install, lint, typecheck, 52 unit tests, Chromium fixture tests, and production build; fix the case-sensitive brand-color assertion, tighten lesson evidence after review, cache cursor-intent target discovery, and revalidate cached targets.
 - [ ] Complete direct extension loading in an unrestricted Chrome/Edge environment and live Onshape validation; the current managed Chromium policy blocks unpacked extension installation.
 - [ ] Commit implementation and push `main` without force-pushing; verify the remote commit SHA.
 
-**Local verification result:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm format:check` pass. `pnpm build` produces `.output/chrome-mv3/manifest.json`, `onshape.js`, and `onshape.css`. `pnpm test:e2e` reports 3 passed and 1 skipped; the skipped case attempts direct loading of the built extension and is blocked by `/etc/chromium/policies/managed/extensions.json` with `ExtensionInstallBlocklist: ["*"]`. Live Onshape compatibility remains unverified.
+**Local verification result:** `pnpm lint`, `pnpm typecheck`, `pnpm test` (52 tests), and `pnpm format:check` pass. `pnpm build` produces `.output/chrome-mv3/manifest.json`, `onshape.js`, and `onshape.css`. `pnpm test:e2e` reports 3 passed and 1 skipped; the skipped case attempts direct loading of the built extension and is blocked by `/etc/chromium/policies/managed/extensions.json` with `ExtensionInstallBlocklist: ["*"]`. The Foundations check requires an explicitly selected accessible Top-plane control, visible Finish sketch control, and editable workspace; tests use semantic fixtures. Cursor-intent discovery caches its target, revalidates it, and retries discovery at most twice per second when absent. Live Onshape compatibility remains unverified.

@@ -28,13 +28,18 @@
   </head>
   <body>
     <h1>Mock Onshape workspace fixture</h1>
-    <button id="fixture-top-plane" aria-label="Top plane">Top plane</button>
+    <button id="fixture-top-plane" aria-label="Top plane" aria-pressed="false">
+      Top plane
+    </button>
     <button id="host-control">Host page control</button>
     <p>Host control clicks: <span id="host-click-count">0</span></p>
     <script>
       document
         .querySelector('#fixture-top-plane')
         ?.addEventListener('click', () => {
+          document
+            .querySelector('#fixture-top-plane')
+            ?.setAttribute('aria-pressed', 'true');
           if (document.querySelector('[aria-label="Finish sketch"]')) return;
           const finish = document.createElement('button');
           finish.setAttribute('aria-label', 'Finish sketch');

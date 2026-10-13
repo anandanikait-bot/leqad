@@ -21,6 +21,22 @@ describe('findSemanticTarget', () => {
     expect(findSemanticTarget(document, 'top-plane')).toBe(target);
   });
 
+  it('does not confuse a Top view control with the Top plane', async () => {
+    visibleButton('Top view');
+    const { findSemanticTarget } = await import('./semanticTargets');
+
+    expect(findSemanticTarget(document, 'top-plane')).toBeNull();
+  });
+
+  it('revalidates a cached target when it becomes unusable', async () => {
+    const target = visibleButton('Top plane');
+    const { isUsableSemanticTarget } = await import('./semanticTargets');
+
+    expect(isUsableSemanticTarget(target, 'top-plane')).toBe(true);
+    target.disabled = true;
+    expect(isUsableSemanticTarget(target, 'top-plane')).toBe(false);
+  });
+
   it('ignores disabled, hidden, and Leqad-owned controls', async () => {
     const disabled = visibleButton('Top plane');
     disabled.disabled = true;

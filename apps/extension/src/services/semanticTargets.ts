@@ -1,7 +1,7 @@
 export type SemanticTargetId = 'top-plane' | 'sketch' | 'finish-sketch';
 
 const TARGET_LABELS: Record<SemanticTargetId, readonly string[]> = {
-  'top-plane': ['top plane', 'top'],
+  'top-plane': ['top plane'],
   sketch: ['sketch', 'create sketch', 'start sketch'],
   'finish-sketch': ['finish sketch', 'exit sketch', 'close sketch'],
 };
@@ -98,19 +98,53 @@ function isVisibleAndUsable(element: HTMLElement): boolean {
   return !hit || hit === element || element.contains(hit);
 }
 
+export function isUsableSemanticTarget(
+  element: HTMLElement,
+  targetId: SemanticTargetId,
+): boolean {
+  return (
+    hasTargetLabel(element, TARGET_LABELS[targetId]) &&
+    isVisibleAndUsable(element)
+  );
+}
+
+function findMatchingSemanticTarget(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+  isTargetMatch: (element: HTMLElement) => boolean = () => true,
+): HTMLElement | null {
+  for (const candidate of root.querySelectorAll<HTMLElement>(
+    CANDIDATE_SELECTOR,
+  )) {
+    if (
+      isUsableSemanticTarget(candidate, targetId) &&
+      isTargetMatch(candidate)
+    ) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 export function findSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement | null {
-  const labels = TARGET_LABELS[targetId];
-  const candidates = [
-    ...root.querySelectorAll<HTMLElement>(CANDIDATE_SELECTOR),
-  ];
-  const matching = candidates.find(
-    (candidate) =>
-      hasTargetLabel(candidate, labels) && isVisibleAndUsable(candidate),
+  return findMatchingSemanticTarget(root, targetId);
+}
+
+export function findSelectedSemanticTarget(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+): HTMLElement | null {
+  return findMatchingSemanticTarget(
+    root,
+    targetId,
+    (element) =>
+      element.getAttribute('aria-selected') === 'true' ||
+      element.getAttribute('aria-pressed') === 'true' ||
+      element.getAttribute('aria-checked') === 'true',
   );
-  return matching ?? null;
 }
 
 export interface TargetHighlight {

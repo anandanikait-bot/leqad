@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('the browser panel highlights a fixture control and verifies sketch-mode UI evidence', async ({
+test('the browser panel highlights a fixture control and confirms Top-plane sketch UI evidence', async ({
   page,
 }) => {
   await page.goto('/fixture.html');
@@ -20,10 +20,10 @@ test('the browser panel highlights a fixture control and verifies sketch-mode UI
   await page.getByRole('button', { name: 'Check progress' }).click();
   await expect(
     page.getByRole('status', { name: 'Lesson progress' }),
-  ).toContainText('Verified in Onshape interface');
+  ).toContainText('Interface evidence confirms');
   await expect(
     page.getByRole('status', { name: 'Lesson progress' }),
-  ).toContainText('not a committed feature');
+  ).toContainText('Model geometry is not checked');
 
   await page.locator('#host-control').click();
   await expect(page.locator('#host-click-count')).toHaveText('1');
