@@ -15,7 +15,7 @@ Phase 1 implementation is present in the repository: a WXT Manifest V3 extension
 - Intended repository: `anandanikait-bot/leqad`.
 - Local branch: `main`.
 - Configured origin: `https://github.com/anandanikait-bot/leqad.git`.
-- The GitHub remote had no advertised branches before this implementation was committed; publish `main` with a regular non-forced push and verify the remote SHA.
+- The GitHub remote was empty before implementation. `main` has now been pushed without force; the final remote SHA will be checked again after this status update is committed.
 - Runtime: Node 24.19.0, pnpm 11.25.0, Chromium at `/usr/bin/chromium`.
 - The workspace uses WXT 0.21.4 and `@wxt-dev/module-react` 1.2.2 with React and TypeScript. CRXJS had only been initialized, so WXT is the selected framework. There is no Phase 2 API shell.
 
@@ -40,6 +40,6 @@ Phase 1 implementation is present in the repository: a WXT Manifest V3 extension
 - No live Onshape session or authenticated editable Part Studio is available. Onshape DOM recognition, actual highlights, lesson flow, and reload behavior still need live browser validation; fixture results are not compatibility claims.
 - The complete Phase 2 model-verification backend and live Onshape API integration remain deferred.
 
-## Next
+## Remaining Phase 1 work
 
-Run final checks, inspect tracked source for credentials, commit the documentation and implementation in recoverable increments, push `main` without force, and verify the published commit SHA. Phase 1's remaining external validation is direct extension loading in an unrestricted browser and live testing in an editable Onshape document.
+The implementation and local checks are committed. Phase 1 still needs direct extension loading in an unrestricted browser and live testing in an editable Onshape document. The current managed browser policy blocks the first check, and no live Onshape account/session is available for the second.
