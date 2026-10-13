@@ -170,8 +170,27 @@
 }
 
 .leqad-lesson,
-.leqad-empty-state {
+.leqad-empty-state,
+.leqad-onboarding {
   padding: 16px;
+}
+
+.leqad-onboarding {
+  margin: 12px;
+  padding: 14px;
+  background: #fffaf3;
+  border: 1px solid rgba(13, 28, 67, 0.16);
+  border-radius: 11px;
+}
+
+.leqad-onboarding + .leqad-lesson {
+  padding-top: 4px;
+}
+
+.leqad-onboarding p:not(.leqad-eyebrow) {
+  margin: 8px 0;
+  color: #38425b;
+  font-size: 12px;
 }
 
 .leqad-eyebrow {
@@ -183,7 +202,8 @@
 }
 
 .leqad-lesson h2,
-.leqad-empty-state h2 {
+.leqad-empty-state h2,
+.leqad-onboarding h2 {
   margin: 0;
   color: var(--leqad-navy);
   font-size: 21px;
@@ -236,7 +256,8 @@
 }
 
 .leqad-button {
-  min-height: 34px;
+  min-width: 40px;
+  min-height: 40px;
   padding: 6px 10px;
   border: 1px solid transparent;
   border-radius: 8px;

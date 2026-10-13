@@ -17,7 +17,10 @@ import type {
   LessonStepOutcome,
   LessonStepState,
 } from '@leqad/lesson-engine';
-import { estimateCursorIntent } from '../../services/cursorIntent';
+import {
+  appendCursorSample,
+  estimateCursorIntent,
+} from '../../services/cursorIntent';
 import type { CursorSample } from '../../services/cursorIntent';
 import { unavailableFoundationsDecision } from '../../services/foundationsEvidence';
 import type { OnshapePageContext } from '../../services/onshapePage';
@@ -31,13 +34,16 @@ import {
   isUsableSemanticTarget,
 } from '../../services/semanticTargets';
 import type { SemanticTargetId } from '../../services/semanticTargets';
+import type { SemanticTargetRecognition } from '../../services/semanticTargets';
 
 interface AssistantPanelProps {
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
   initialLearningHistory?: LearningHistory;
-  onShowTarget?: (targetId: SemanticTargetId) => boolean | void;
+  onShowTarget?: (
+    targetId: SemanticTargetId,
+  ) => SemanticTargetRecognition | void;
   onCheckStep?: (
     stepId: string,
     completionSignal: string,
@@ -57,6 +63,16 @@ interface Position {
 interface DragStart extends Position {
   pointerX: number;
   pointerY: number;
+}
+
+interface PanelSize {
+  width: number;
+  height: number;
+}
+
+interface ViewportSize {
+  width: number;
+  height: number;
 }
 
 interface InitialLessonState {
@@ -111,21 +127,49 @@ function getInitialLessonState(
   return { currentStepIndex, stepStates };
 }
 
+export function clampPanelPosition(
+  position: Position,
+  panel: PanelSize,
+  viewport: ViewportSize,
+): Position {
+  const margin = 8;
+  return {
+    left: Math.min(
+      Math.max(margin, position.left),
+      Math.max(margin, viewport.width - panel.width - margin),
+    ),
+    top: Math.min(
+      Math.max(margin, position.top),
+      Math.max(margin, viewport.height - panel.height - margin),
+    ),
+  };
+}
+
+function fallbackPanelSize(collapsed: boolean): PanelSize {
+  return {
+    width: collapsed ? 280 : 360,
+    height: collapsed ? 56 : Math.min(620, window.innerHeight - 16),
+  };
+}
+
 function getInitialPosition(preferences?: PanelPreferences): Position {
   const position = preferences?.position ?? {
     left: Math.max(16, window.innerWidth - 376),
     top: Math.max(16, window.innerHeight - 500),
   };
-  return {
-    left: Math.min(
-      Math.max(8, position.left),
-      Math.max(8, window.innerWidth - 352),
-    ),
-    top: Math.min(
-      Math.max(8, position.top),
-      Math.max(8, window.innerHeight - 100),
-    ),
-  };
+  return clampPanelPosition(
+    position,
+    fallbackPanelSize(preferences?.collapsed ?? false),
+    { width: window.innerWidth, height: window.innerHeight },
+  );
+}
+
+function capabilityLabel(page: OnshapePageContext | undefined): string {
+  if (!page?.supported) return 'Unsupported document';
+  if (page.editability === 'editable' && page.elementType === 'part-studio') {
+    return 'UI guidance available';
+  }
+  return 'Limited observation';
 }
 
 function modelStateWithDecision(
@@ -248,6 +292,21 @@ function describeProgress(state: LessonStepState): string {
   return 'Waiting for you to try the guided action.';
 }
 
+function describeUnavailableDecision(decision: VerificationDecision): string {
+  const known =
+    decision.evidence.length > 0
+      ? 'Leqad observed supported interface evidence for the active document.'
+      : 'Leqad has no current supported observation for this check.';
+  const unknown =
+    decision.missingRequirements.length > 0
+      ? decision.missingRequirements.join('; ')
+      : 'The required CAD state.';
+  const next =
+    decision.recoveryAction ??
+    'Follow the written action, then check progress again.';
+  return `What happened: ${decision.explanation} What Leqad knows: ${known} What remains unknown: ${unknown}. Try next: ${next}`;
+}
+
 export function AssistantPanel({
   page,
   initialSession = null,
@@ -264,6 +323,9 @@ export function AssistantPanel({
   const [collapsed, setCollapsed] = useState(
     initialPanelPreferences?.collapsed ?? false,
   );
+  const [onboardingComplete, setOnboardingComplete] = useState(
+    initialPanelPreferences?.onboardingComplete ?? false,
+  );
   const [position, setPosition] = useState(() =>
     getInitialPosition(initialPanelPreferences),
   );
@@ -278,7 +340,9 @@ export function AssistantPanel({
   const [guidanceMessage, setGuidanceMessage] = useState('');
   const [cursorCue, setCursorCue] = useState('');
   const dragStart = useRef<DragStart | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const recentSamples = useRef<CursorSample[]>([]);
+  const lastIntentAnalysisAt = useRef(Number.NEGATIVE_INFINITY);
   const sessionRef = useRef<LessonSession | null>(initialSession);
   const learningHistoryRef = useRef<LearningHistory>(
     initialLearningHistory ?? createEmptyLearningHistory(),
@@ -330,11 +394,61 @@ export function AssistantPanel({
 
   useEffect(() => {
     const timeout = window.setTimeout(
-      () => onPanelPreferencesChange?.({ collapsed, position }),
+      () =>
+        onPanelPreferencesChange?.({
+          collapsed,
+          position,
+          onboardingComplete,
+        }),
       250,
     );
     return () => window.clearTimeout(timeout);
-  }, [collapsed, position, onPanelPreferencesChange]);
+  }, [collapsed, onboardingComplete, position, onPanelPreferencesChange]);
+
+  const clampToViewport = (candidate: Position): Position => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    const fallback = fallbackPanelSize(collapsed);
+    return clampPanelPosition(
+      candidate,
+      {
+        width: rect && rect.width > 0 ? rect.width : fallback.width,
+        height: rect && rect.height > 0 ? rect.height : fallback.height,
+      },
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+  };
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setPosition((current) => {
+        const next = clampToViewport(current);
+        return next.left === current.left && next.top === current.top
+          ? current
+          : next;
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [collapsed, mode]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setPosition((current) => {
+        const next = clampToViewport(current);
+        return next.left === current.left && next.top === current.top
+          ? current
+          : next;
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  });
+
+  useEffect(
+    () => () => {
+      dragStart.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -345,6 +459,7 @@ export function AssistantPanel({
       stepState.status === 'PAUSED'
     ) {
       recentSamples.current = [];
+      lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
       setCursorCue((value) => (value ? '' : value));
       return;
     }
@@ -356,6 +471,7 @@ export function AssistantPanel({
       if (intentTarget && !isUsableSemanticTarget(intentTarget, targetId)) {
         intentTarget = null;
         recentSamples.current = [];
+        lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
       }
       if (!intentTarget && now >= nextTargetLookupAt) {
         nextTargetLookupAt = now + 500;
@@ -363,17 +479,23 @@ export function AssistantPanel({
       }
       if (!intentTarget) {
         recentSamples.current = [];
+        lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
         setCursorCue((value) => (value ? '' : value));
         return;
       }
 
       const rect = intentTarget.getBoundingClientRect();
       const samples = recentSamples.current;
-      samples.push({ x: event.clientX, y: event.clientY, at: now });
-      if (samples.length > 20) samples.shift();
+      appendCursorSample(samples, {
+        x: event.clientX,
+        y: event.clientY,
+        at: now,
+      });
+      if (now - lastIntentAnalysisAt.current < 50) return;
+      lastIntentAnalysisAt.current = now;
       const intent = estimateCursorIntent(samples, rect);
       const nextCue =
-        intent.cue === 'NONE'
+        intent.cue !== 'CLEAR_TARGET' && intent.cue !== 'DIRECT_INSTRUCTION'
           ? ''
           : `Local cue: you are near the ${step.goal.toLocaleLowerCase()} control.`;
       setCursorCue((value) => (value === nextCue ? value : nextCue));
@@ -422,15 +544,20 @@ export function AssistantPanel({
     setGuidanceMessage('');
     setCursorCue('');
     recentSamples.current = [];
+    lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
   };
 
   const showTarget = () => {
     if (!step.semanticTarget) return;
-    const found = onShowTarget?.(step.semanticTarget as SemanticTargetId);
+    const recognition = onShowTarget?.(step.semanticTarget as SemanticTargetId);
+    if (!recognition || recognition.status === 'FOUND') {
+      setGuidanceMessage(
+        'The highlight follows the recognized control in the current interface layout.',
+      );
+      return;
+    }
     setGuidanceMessage(
-      found === false
-        ? 'I could not recognize that control on this page. You can still follow the lesson manually.'
-        : 'The highlight follows the recognized control in the current interface layout.',
+      `What happened: I could not highlight this control. What Leqad knows: ${recognition.explanation} What remains unknown: which current control is the intended target. Try next: follow the written action and use I’m stuck for more detail.`,
     );
   };
 
@@ -458,7 +585,9 @@ export function AssistantPanel({
     setShowRecovery(
       decision.status === 'FAIL' || decision.status === 'WARNING',
     );
-    setGuidanceMessage('');
+    setGuidanceMessage(
+      decision.status === 'PASS' ? '' : describeUnavailableDecision(decision),
+    );
   };
 
   const completeWithoutEvidence = (
@@ -532,16 +661,12 @@ export function AssistantPanel({
   const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = dragStart.current;
     if (!start) return;
-    setPosition({
-      left: Math.min(
-        Math.max(8, start.left + event.clientX - start.pointerX),
-        Math.max(8, window.innerWidth - 352),
-      ),
-      top: Math.min(
-        Math.max(8, start.top + event.clientY - start.pointerY),
-        Math.max(8, window.innerHeight - 100),
-      ),
-    });
+    setPosition(
+      clampToViewport({
+        left: start.left + event.clientX - start.pointerX,
+        top: start.top + event.clientY - start.pointerY,
+      }),
+    );
   };
 
   const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -554,16 +679,12 @@ export function AssistantPanel({
     }[event.key];
     if (!delta) return;
     event.preventDefault();
-    setPosition({
-      left: Math.min(
-        Math.max(8, position.left + delta.left),
-        Math.max(8, window.innerWidth - 352),
-      ),
-      top: Math.min(
-        Math.max(8, position.top + delta.top),
-        Math.max(8, window.innerHeight - 100),
-      ),
-    });
+    setPosition(
+      clampToViewport({
+        left: position.left + delta.left,
+        top: position.top + delta.top,
+      }),
+    );
   };
 
   const panelStyle = { left: `${position.left}px`, top: `${position.top}px` };
@@ -576,6 +697,7 @@ export function AssistantPanel({
   return (
     <div data-leqad-root>
       <section
+        ref={panelRef}
         className={`leqad-panel${collapsed ? ' leqad-panel--collapsed' : ''}`}
         style={panelStyle}
         data-leqad-panel
@@ -604,7 +726,7 @@ export function AssistantPanel({
               role="status"
               aria-label="Connection status"
             >
-              Limited access
+              {capabilityLabel(page)}
             </span>
           </div>
           <button
@@ -643,6 +765,35 @@ export function AssistantPanel({
             </nav>
 
             <main className="leqad-panel__body">
+              {!onboardingComplete && (
+                <section
+                  className="leqad-onboarding"
+                  aria-label="Welcome to Leqad"
+                >
+                  <p className="leqad-eyebrow">WELCOME</p>
+                  <h2>Learn CAD in your workspace</h2>
+                  <p>
+                    Leqad guides you through Onshape with written steps,
+                    progressive hints, and highlights for controls it can
+                    recognize.
+                  </p>
+                  <p>
+                    It can observe a limited set of current interface states.
+                    Model geometry, feature values, and design correctness stay
+                    unverified unless current model evidence is available.
+                  </p>
+                  <button
+                    type="button"
+                    className="leqad-button leqad-button--primary"
+                    onClick={() => {
+                      setMode('Learn');
+                      setOnboardingComplete(true);
+                    }}
+                  >
+                    Begin Your First Sketch
+                  </button>
+                </section>
+              )}
               {mode === 'Learn' && (
                 <section
                   aria-label="Foundations lesson"
@@ -840,7 +991,7 @@ export function AssistantPanel({
               )}
               {mode === 'Projects' && (
                 <section className="leqad-empty-state">
-                  <p className="leqad-eyebrow">PRACTICE</p>
+                  <p className="leqad-eyebrow">PRACTICE · PREVIEW</p>
                   <h2>Guided projects</h2>
                   <p>
                     Start with Foundations. Project lessons will build on these
@@ -850,7 +1001,7 @@ export function AssistantPanel({
               )}
               {mode === 'Ask' && (
                 <section className="leqad-empty-state">
-                  <p className="leqad-eyebrow">CONTEXTUAL HELP</p>
+                  <p className="leqad-eyebrow">CONTEXTUAL HELP · PREVIEW</p>
                   <h2>Ask Leqad</h2>
                   <p>
                     Contextual answers need a connected service. You can use the

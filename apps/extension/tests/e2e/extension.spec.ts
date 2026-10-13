@@ -84,7 +84,7 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
     ).toBeVisible();
     await expect(
       page.getByRole('status', { name: 'Connection status' }),
-    ).toHaveText('Limited access');
+    ).toHaveText('Limited observation');
   } finally {
     await context.close();
   }

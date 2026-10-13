@@ -127,14 +127,14 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
-  it('starts in limited access and never claims an unverified connection', async () => {
+  it('reports an unsupported document and never claims an unverified connection', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
 
     render(<AssistantPanel />);
 
     expect(
       screen.getByRole('status', { name: 'Connection status' }).textContent,
-    ).toBe('Limited access');
+    ).toBe('Unsupported document');
     expect(screen.queryByText('Connected')).toBeNull();
   });
 
@@ -158,10 +158,91 @@ describe('AssistantPanel', () => {
       screen.getByText(/cannot confirm an editable Part Studio/),
     ).toBeTruthy();
     expect(
+      screen.getByRole('status', { name: 'Connection status' }).textContent,
+    ).toBe('Limited observation');
+    expect(
       screen
         .getByRole('button', { name: 'Check progress' })
         .hasAttribute('disabled'),
     ).toBe(true);
+  });
+
+  it('reports UI guidance only after editable Part Studio capability is confirmed', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+
+    render(<AssistantPanel page={confirmedPage} />);
+
+    expect(
+      screen.getByRole('status', { name: 'Connection status' }).textContent,
+    ).toBe('UI guidance available');
+  });
+
+  it('provides first-run onboarding and persists its completion', async () => {
+    vi.useFakeTimers();
+    try {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      const onPanelPreferencesChange = vi.fn();
+      render(
+        <AssistantPanel
+          page={confirmedPage}
+          onPanelPreferencesChange={onPanelPreferencesChange}
+        />,
+      );
+
+      expect(screen.getByLabelText('Welcome to Leqad')).toBeTruthy();
+      expect(
+        screen.getByText(/limited set of current interface states/),
+      ).toBeTruthy();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Begin Your First Sketch' }),
+      );
+      vi.advanceTimersByTime(250);
+
+      expect(screen.queryByLabelText('Welcome to Leqad')).toBeNull();
+      expect(onPanelPreferencesChange.mock.lastCall?.[0]).toMatchObject({
+        onboardingComplete: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clamps a saved position with the actual panel and viewport sizes', async () => {
+    const { clampPanelPosition } = await import('./AssistantPanel');
+
+    expect(
+      clampPanelPosition(
+        { left: 2_000, top: 2_000 },
+        { width: 360, height: 500 },
+        { width: 800, height: 600 },
+      ),
+    ).toEqual({ left: 432, top: 92 });
+    expect(
+      clampPanelPosition(
+        { left: -50, top: -20 },
+        { width: 360, height: 500 },
+        { width: 320, height: 300 },
+      ),
+    ).toEqual({ left: 8, top: 8 });
+  });
+
+  it('keeps an off-screen saved panel position reachable on mount', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const { container } = render(
+      <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: { left: 10_000, top: 10_000 },
+          onboardingComplete: true,
+        }}
+      />,
+    );
+    const panel = container.querySelector('[data-leqad-panel]') as HTMLElement;
+
+    expect(Number.parseFloat(panel.style.left)).toBeLessThan(window.innerWidth);
+    expect(Number.parseFloat(panel.style.top)).toBeLessThan(window.innerHeight);
+    expect(Number.parseFloat(panel.style.left)).toBeGreaterThanOrEqual(8);
+    expect(Number.parseFloat(panel.style.top)).toBeGreaterThanOrEqual(8);
   });
 
   it('lets a keyboard-accessible navigation control change the panel mode', async () => {
@@ -337,6 +418,9 @@ describe('AssistantPanel', () => {
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
     ).toContain('Unable to verify');
     expect(screen.getByText('Step 2 of 8 · Unable to verify')).toBeTruthy();
+    expect(screen.getByText(/What Leqad knows:/)).toBeTruthy();
+    expect(screen.getByText(/What remains unknown:/)).toBeTruthy();
+    expect(screen.getByText(/Try next:/)).toBeTruthy();
     expect(
       screen.getByRole('button', { name: 'Continue without verification' }),
     ).toBeTruthy();
@@ -478,6 +562,80 @@ describe('AssistantPanel', () => {
     fireEvent.pointerMove(document, { clientX: 26, clientY: 36 });
 
     expect(findTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['paused lesson', 'inactive mode'] as const)(
+    'stops cursor tracking for an %s',
+    async (inactiveState) => {
+      const semanticTargets = await import('../../services/semanticTargets');
+      const findTarget = vi.spyOn(semanticTargets, 'findSemanticTarget');
+      const { AssistantPanel } = await import('./AssistantPanel');
+      render(
+        <AssistantPanel
+          page={confirmedPage}
+          onCheckStep={() => uiDecision('UNKNOWN')}
+        />,
+      );
+      advanceToStep(2);
+      if (inactiveState === 'paused lesson') {
+        fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+      }
+
+      fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
+
+      expect(findTarget).not.toHaveBeenCalled();
+    },
+  );
+
+  it('removes cursor tracking when the panel unmounts', async () => {
+    const removeListener = vi.spyOn(document, 'removeEventListener');
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const view = render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+    advanceToStep(2);
+
+    view.unmount();
+
+    expect(removeListener).toHaveBeenCalledWith(
+      'pointermove',
+      expect.any(Function),
+    );
+  });
+
+  it('moves the panel with pointer dragging and stops after cancellation', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const { container } = render(<AssistantPanel />);
+    const panel = container.querySelector('[data-leqad-panel]') as HTMLElement;
+    const handle = screen.getByRole('group', { name: 'Move Leqad panel' });
+    const before = panel.style.left;
+
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(handle, {
+      pointerId: 1,
+      clientX: 60,
+      clientY: 100,
+    });
+    expect(panel.style.left).not.toBe(before);
+    const afterMove = panel.style.left;
+
+    fireEvent.pointerCancel(handle, { pointerId: 1 });
+    fireEvent.pointerMove(handle, {
+      pointerId: 1,
+      clientX: 20,
+      clientY: 100,
+    });
+    expect(panel.style.left).toBe(afterMove);
   });
 
   it('moves the panel using its keyboard-accessible drag handle', async () => {

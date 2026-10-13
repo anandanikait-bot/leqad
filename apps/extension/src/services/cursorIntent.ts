@@ -19,8 +19,25 @@ export interface CursorIntent {
   cue: CursorCue;
 }
 
-const MAX_SAMPLES = 20;
+export const MAX_CURSOR_SAMPLES = 20;
 const PROXIMITY_RANGE_PX = 220;
+
+export function appendCursorSample(
+  samples: CursorSample[],
+  sample: CursorSample,
+): void {
+  if (
+    !Number.isFinite(sample.x) ||
+    !Number.isFinite(sample.y) ||
+    !Number.isFinite(sample.at)
+  ) {
+    return;
+  }
+  samples.push(sample);
+  if (samples.length > MAX_CURSOR_SAMPLES) {
+    samples.splice(0, samples.length - MAX_CURSOR_SAMPLES);
+  }
+}
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.max(min, Math.min(max, value));
@@ -80,7 +97,7 @@ export function estimateCursorIntent(
         Number.isFinite(sample.y) &&
         Number.isFinite(sample.at),
     )
-    .slice(-MAX_SAMPLES);
+    .slice(-MAX_CURSOR_SAMPLES);
   const current = samples[samples.length - 1];
   if (!current) return { score: 0, cue: 'NONE' };
 

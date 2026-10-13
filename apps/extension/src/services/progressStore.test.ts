@@ -263,7 +263,21 @@ describe('learning history and preferences', () => {
 
     await store.savePanelPreferences(preferences);
 
-    await expect(store.loadPanelPreferences()).resolves.toEqual(preferences);
+    await expect(store.loadPanelPreferences()).resolves.toEqual({
+      ...preferences,
+      onboardingComplete: false,
+    });
+  });
+
+  it('uses first-run onboarding defaults when no preferences exist', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const store = createLessonProgressStore(memoryStorage());
+
+    await expect(store.loadPanelPreferences()).resolves.toEqual({
+      collapsed: false,
+      position: null,
+      onboardingComplete: false,
+    });
   });
 });
 

@@ -5,6 +5,7 @@ import { defineContentScript } from 'wxt/utils/define-content-script';
 import { AssistantPanel } from '../src/components/panel/AssistantPanel';
 import {
   observeOnshapeCapabilities,
+  onshapePageContextKey,
   parseOnshapePage,
 } from '../src/services/onshapePage';
 import { createLessonProgressStore } from '../src/services/progressStore';
@@ -13,7 +14,7 @@ import type {
   LearningHistory,
   PanelPreferences,
 } from '../src/services/progressStore';
-import { createNavigationInitializationGuard } from '../src/services/navigationGuard';
+import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
 import {
   evaluateFoundationsPlaneProgress,
   evaluateFoundationsSketchProgress,
@@ -21,7 +22,7 @@ import {
 } from '../src/services/foundationsEvidence';
 import {
   createTargetHighlight,
-  findSemanticTarget,
+  recognizeSemanticTarget,
 } from '../src/services/semanticTargets';
 import type {
   SemanticTargetId,
@@ -37,10 +38,9 @@ export default defineContentScript({
   cssInjectionMode: 'ui',
   async main(ctx) {
     const progressStore = createLessonProgressStore(browser.storage.local);
-    let activeUi: { remove(): void } | null = null;
     let activeHighlight: TargetHighlight | null = null;
     let highlightTimer: number | null = null;
-    const initializationGuard = createNavigationInitializationGuard();
+    const pageLifecycle = createPageLifecycleCoordinator();
 
     const clearHighlight = () => {
       if (highlightTimer !== null) window.clearTimeout(highlightTimer);
@@ -49,20 +49,18 @@ export default defineContentScript({
       activeHighlight = null;
     };
 
-    const closePanel = () => {
-      clearHighlight();
-      activeUi?.remove();
-      activeUi = null;
-    };
-
     const mountForCurrentPage = async () => {
-      const currentGeneration = initializationGuard.begin();
-      closePanel();
-      const page = observeOnshapeCapabilities(
-        parseOnshapePage(window.location.href),
-        document,
-      );
-      if (!page.supported) return;
+      const routePage = parseOnshapePage(window.location.href);
+      const contextKey = onshapePageContextKey(routePage);
+      if (!contextKey) {
+        pageLifecycle.invalidate();
+        clearHighlight();
+        return;
+      }
+      const attempt = pageLifecycle.begin(contextKey);
+      if (!attempt) return;
+      clearHighlight();
+      const page = observeOnshapeCapabilities(routePage, document);
 
       const identity: ModelIdentity | null =
         page.documentId && page.workspaceId && page.elementId
@@ -78,6 +76,7 @@ export default defineContentScript({
       let initialPanelPreferences: PanelPreferences = {
         collapsed: false,
         position: null,
+        onboardingComplete: false,
       };
       let initialLearningHistory: LearningHistory =
         createEmptyLearningHistory();
@@ -91,6 +90,7 @@ export default defineContentScript({
           initialSession = null;
         }
       }
+      let activated = false;
       try {
         initialPanelPreferences = await progressStore.loadPanelPreferences();
       } catch {
@@ -101,71 +101,86 @@ export default defineContentScript({
       } catch {
         // Keep an empty learning history if extension storage is unavailable.
       }
-      if (!initializationGuard.isCurrent(currentGeneration) || ctx.isInvalid)
-        return;
+      if (!pageLifecycle.isCurrent(attempt) || ctx.isInvalid) return;
 
-      const ui = await createShadowRootUi(ctx, {
-        name: 'leqad-assistant',
-        position: 'overlay',
-        alignment: 'top-left',
-        zIndex: 2147483000,
-        onMount(container) {
-          const root = createRoot(container);
-          root.render(
-            <AssistantPanel
-              page={page}
-              initialSession={initialSession}
-              initialPanelPreferences={initialPanelPreferences}
-              initialLearningHistory={initialLearningHistory}
-              onShowTarget={(targetId: SemanticTargetId) => {
-                const target = findSemanticTarget(document, targetId);
-                clearHighlight();
-                if (!target) return false;
-                activeHighlight = createTargetHighlight(target);
-                highlightTimer = ctx.setTimeout(clearHighlight, 5000);
-                return true;
-              }}
-              onCheckStep={(_stepId, signal) => {
-                if (signal === 'top-plane-selected') {
-                  return evaluateFoundationsPlaneProgress(page, document);
-                }
-                if (signal === 'sketch-editing') {
-                  return evaluateFoundationsSketchProgress(page, document);
-                }
-                return unavailableFoundationsDecision(
-                  page,
-                  'This lesson step does not have a supported observer.',
-                  [signal],
-                );
-              }}
-              onSessionChange={(session) => {
-                void progressStore.saveSession(session).catch(() => undefined);
-              }}
-              onPanelPreferencesChange={(preferences) => {
-                void progressStore
-                  .savePanelPreferences(preferences)
-                  .catch(() => undefined);
-              }}
-              onLearningHistoryChange={(history) => {
-                void progressStore
-                  .saveLearningHistory(history)
-                  .catch(() => undefined);
-              }}
-            />,
-          );
-          return root;
-        },
-        onRemove(root) {
-          root?.unmount();
-        },
-      });
+      try {
+        const ui = await createShadowRootUi(ctx, {
+          name: 'leqad-assistant',
+          position: 'overlay',
+          alignment: 'top-left',
+          zIndex: 2147483000,
+          onMount(container) {
+            const root = createRoot(container);
+            root.render(
+              <AssistantPanel
+                page={page}
+                initialSession={initialSession}
+                initialPanelPreferences={initialPanelPreferences}
+                initialLearningHistory={initialLearningHistory}
+                onShowTarget={(targetId: SemanticTargetId) => {
+                  const recognition = recognizeSemanticTarget(
+                    document,
+                    targetId,
+                  );
+                  clearHighlight();
+                  if (recognition.status !== 'FOUND' || !recognition.element) {
+                    return recognition;
+                  }
+                  activeHighlight = createTargetHighlight(recognition.element);
+                  highlightTimer = ctx.setTimeout(clearHighlight, 5000);
+                  return recognition;
+                }}
+                onCheckStep={(_stepId, signal) => {
+                  if (signal === 'top-plane-selected') {
+                    return evaluateFoundationsPlaneProgress(page, document);
+                  }
+                  if (signal === 'sketch-editing') {
+                    return evaluateFoundationsSketchProgress(page, document);
+                  }
+                  return unavailableFoundationsDecision(
+                    page,
+                    'This lesson step does not have a supported observer.',
+                    [signal],
+                  );
+                }}
+                onSessionChange={(session) => {
+                  void progressStore
+                    .saveSession(session)
+                    .catch(() => undefined);
+                }}
+                onPanelPreferencesChange={(preferences) => {
+                  void progressStore
+                    .savePanelPreferences(preferences)
+                    .catch(() => undefined);
+                }}
+                onLearningHistoryChange={(history) => {
+                  void progressStore
+                    .saveLearningHistory(history)
+                    .catch(() => undefined);
+                }}
+              />,
+            );
+            return root;
+          },
+          onRemove(root) {
+            root?.unmount();
+          },
+        });
 
-      if (!initializationGuard.isCurrent(currentGeneration) || ctx.isInvalid) {
-        ui.remove();
-        return;
+        if (ctx.isInvalid) {
+          pageLifecycle.abandon(attempt);
+          ui.remove();
+          return;
+        }
+        if (!pageLifecycle.activate(attempt, ui)) return;
+        activated = true;
+        ui.mount();
+      } catch {
+        if (activated || pageLifecycle.isCurrent(attempt)) {
+          pageLifecycle.invalidate();
+        }
+        clearHighlight();
       }
-      activeUi = ui;
-      ui.mount();
     };
 
     await mountForCurrentPage();
@@ -173,8 +188,8 @@ export default defineContentScript({
       void mountForCurrentPage();
     });
     ctx.onInvalidated(() => {
-      initializationGuard.invalidate();
-      closePanel();
+      pageLifecycle.invalidate();
+      clearHighlight();
     });
   },
 });

@@ -19,6 +19,7 @@ export interface ExtensionStorageArea {
 export interface PanelPreferences {
   collapsed: boolean;
   position: { left: number; top: number } | null;
+  onboardingComplete?: boolean;
 }
 
 export interface LearningHistory {
@@ -174,6 +175,12 @@ function isLessonSession(value: unknown): value is LessonSession {
 
 function isPanelPreferences(value: unknown): value is PanelPreferences {
   if (!isRecord(value) || typeof value.collapsed !== 'boolean') return false;
+  if (
+    value.onboardingComplete !== undefined &&
+    typeof value.onboardingComplete !== 'boolean'
+  ) {
+    return false;
+  }
   if (value.position === null) return true;
   return (
     isRecord(value.position) &&
@@ -438,16 +445,27 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
         envelope.schemaVersion === STORAGE_SCHEMA_VERSION &&
         isPanelPreferences(envelope.preferences)
       ) {
-        return envelope.preferences;
+        return {
+          ...envelope.preferences,
+          onboardingComplete: envelope.preferences.onboardingComplete ?? false,
+        };
       }
 
       const legacyResult = await storage.get(LEGACY_PREFERENCES_KEY);
       const legacy = legacyResult[LEGACY_PREFERENCES_KEY];
       if (isPanelPreferences(legacy)) {
-        await savePanelPreferences(legacy);
-        return legacy;
+        const migrated = {
+          ...legacy,
+          onboardingComplete: legacy.onboardingComplete ?? false,
+        };
+        await savePanelPreferences(migrated);
+        return migrated;
       }
-      return { collapsed: false, position: null };
+      return {
+        collapsed: false,
+        position: null,
+        onboardingComplete: false,
+      };
     },
   };
 }

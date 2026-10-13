@@ -107,6 +107,23 @@ export function sameOnshapePageContext(
   );
 }
 
+export function onshapePageContextKey(page: OnshapePageContext): string | null {
+  if (
+    !page.supported ||
+    !page.documentId ||
+    !page.elementId ||
+    !page.modelType
+  ) {
+    return null;
+  }
+  const contextId =
+    page.workspaceId ?? page.versionId ?? page.microversionId ?? null;
+  if (!contextId) return null;
+  return [page.documentId, page.modelType, contextId, page.elementId]
+    .map(encodeURIComponent)
+    .join('/');
+}
+
 function observationMatchesPage(
   page: OnshapePageContext,
   observation: OnshapeCapabilityObservation,

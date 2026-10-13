@@ -225,4 +225,20 @@ describe('Onshape capability observations', () => {
       ),
     ).toBe(false);
   });
+
+  it('builds a stable lifecycle key from the complete route identity', async () => {
+    const { onshapePageContextKey, parseOnshapePage } =
+      await import('./onshapePage');
+
+    expect(
+      onshapePageContextKey(
+        parseOnshapePage(
+          'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+        ),
+      ),
+    ).toBe('document-a/workspace/workspace-a/element-a');
+    expect(
+      onshapePageContextKey(parseOnshapePage('https://cad.onshape.com/')),
+    ).toBeNull();
+  });
 });

@@ -6,7 +6,7 @@ import {
   unavailableFoundationsDecision,
 } from '../../src/services/foundationsEvidence';
 import styles from '../../src/styles/panel.css?inline';
-import { findSemanticTarget } from '../../src/services/semanticTargets';
+import { recognizeSemanticTarget } from '../../src/services/semanticTargets';
 import { createTargetHighlight } from '../../src/services/semanticTargets';
 
 const host = document.createElement('leqad-e2e-host');
@@ -42,13 +42,16 @@ reactRoot.render(
     initialPanelPreferences={{
       collapsed: false,
       position: { left: 760, top: 40 },
+      onboardingComplete: true,
     }}
     onShowTarget={(targetId) => {
-      const target = findSemanticTarget(document, targetId);
+      const recognition = recognizeSemanticTarget(document, targetId);
       highlight?.remove();
-      if (!target) return false;
-      highlight = createTargetHighlight(target);
-      return true;
+      if (recognition.status !== 'FOUND' || !recognition.element) {
+        return recognition;
+      }
+      highlight = createTargetHighlight(recognition.element);
+      return recognition;
     }}
     onCheckStep={(_stepId, signal) => {
       const page = {

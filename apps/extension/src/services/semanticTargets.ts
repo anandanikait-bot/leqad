@@ -9,6 +9,42 @@ export type SemanticTargetId =
   | 'part-studio-tab'
   | 'read-only-indicator';
 
+export type TargetRecognitionStatus =
+  'FOUND' | 'MISSING' | 'AMBIGUOUS' | 'REJECTED';
+export type TargetMatchStrategy =
+  | 'EXACT_ACCESSIBLE_LABEL'
+  | 'EXACT_TOOLTIP_OR_TITLE'
+  | 'VALIDATED_STABLE_ATTRIBUTE'
+  | 'ROLE_AND_LABEL'
+  | 'VALIDATED_CONTEXT'
+  | 'WEAK_TEXT';
+export type TargetRecognitionConfidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+export type TargetVisibility =
+  'VISIBLE' | 'HIDDEN' | 'ZERO_SIZE' | 'OFFSCREEN' | 'OBSCURED' | 'UNKNOWN';
+export type TargetEnabledState = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
+
+export interface SemanticTargetRecognition {
+  targetId: SemanticTargetId;
+  status: TargetRecognitionStatus;
+  element: HTMLElement | null;
+  matchStrategy: TargetMatchStrategy | null;
+  confidence: TargetRecognitionConfidence;
+  visibility: TargetVisibility;
+  enabled: TargetEnabledState;
+  explanation: string;
+  candidateCount: number;
+}
+
+interface TargetCandidate {
+  element: HTMLElement;
+  strategy: TargetMatchStrategy;
+  confidence: Exclude<TargetRecognitionConfidence, 'NONE'>;
+  rank: number;
+  visibility: TargetVisibility;
+  enabled: TargetEnabledState;
+  leqadOwned: boolean;
+}
+
 const TARGET_LABELS: Record<SemanticTargetId, readonly string[]> = {
   'top-plane': ['top plane'],
   'front-plane': ['front plane'],
@@ -36,6 +72,15 @@ const CANDIDATE_SELECTOR = [
   '[title][data-qa]',
 ].join(',');
 
+const STRATEGY_RANK: Record<TargetMatchStrategy, number> = {
+  EXACT_ACCESSIBLE_LABEL: 0,
+  EXACT_TOOLTIP_OR_TITLE: 1,
+  VALIDATED_STABLE_ATTRIBUTE: 2,
+  ROLE_AND_LABEL: 3,
+  VALIDATED_CONTEXT: 4,
+  WEAK_TEXT: 5,
+};
+
 function normalizedText(value: string | null | undefined): string {
   return (value ?? '')
     .toLocaleLowerCase()
@@ -43,25 +88,79 @@ function normalizedText(value: string | null | undefined): string {
     .trim();
 }
 
-function hasTargetLabel(
+function exactLabel(
+  value: string | null | undefined,
+  labels: readonly string[],
+) {
+  const normalized = normalizedText(value);
+  return labels.some((label) => normalized === normalizedText(label));
+}
+
+function containsLabel(
+  value: string | null | undefined,
+  labels: readonly string[],
+) {
+  const normalized = normalizedText(value);
+  return labels.some((label) =>
+    ` ${normalized} `.includes(` ${normalizedText(label)} `),
+  );
+}
+
+function hasRecognizedRole(element: HTMLElement): boolean {
+  const explicitRole = element.getAttribute('role');
+  if (
+    explicitRole &&
+    ['button', 'treeitem', 'menuitem', 'option', 'tab'].includes(explicitRole)
+  ) {
+    return true;
+  }
+  return element.matches('button, input');
+}
+
+function matchStrategy(
   element: HTMLElement,
   labels: readonly string[],
-): boolean {
-  const values = [
-    element.getAttribute('aria-label'),
-    element.getAttribute('title'),
-    element.getAttribute('data-tooltip'),
-    element.textContent,
-  ].map(normalizedText);
+): TargetMatchStrategy | null {
+  if (exactLabel(element.getAttribute('aria-label'), labels)) {
+    return 'EXACT_ACCESSIBLE_LABEL';
+  }
+  if (
+    exactLabel(element.getAttribute('title'), labels) ||
+    exactLabel(element.getAttribute('data-tooltip'), labels)
+  ) {
+    return 'EXACT_TOOLTIP_OR_TITLE';
+  }
+  if (
+    hasRecognizedRole(element) &&
+    (exactLabel(element.textContent, labels) ||
+      containsLabel(element.getAttribute('aria-label'), labels))
+  ) {
+    return 'ROLE_AND_LABEL';
+  }
+  if (
+    containsLabel(element.textContent, labels) ||
+    containsLabel(element.getAttribute('title'), labels) ||
+    containsLabel(element.getAttribute('data-tooltip'), labels)
+  ) {
+    return 'WEAK_TEXT';
+  }
+  return null;
+}
 
-  return labels.some((label) => {
-    const normalizedLabel = normalizedText(label);
-    return values.some(
-      (value) =>
-        value === normalizedLabel ||
-        ` ${value} `.includes(` ${normalizedLabel} `),
-    );
-  });
+function strategyConfidence(
+  strategy: TargetMatchStrategy,
+): Exclude<TargetRecognitionConfidence, 'NONE'> {
+  if (
+    strategy === 'EXACT_ACCESSIBLE_LABEL' ||
+    strategy === 'EXACT_TOOLTIP_OR_TITLE'
+  ) {
+    return 'HIGH';
+  }
+  return strategy === 'ROLE_AND_LABEL' ||
+    strategy === 'VALIDATED_STABLE_ATTRIBUTE' ||
+    strategy === 'VALIDATED_CONTEXT'
+    ? 'MEDIUM'
+    : 'LOW';
 }
 
 function isLeqadOwned(element: HTMLElement): boolean {
@@ -72,18 +171,25 @@ function isLeqadOwned(element: HTMLElement): boolean {
   );
 }
 
-function isVisibleAndUsable(element: HTMLElement): boolean {
+function enabledState(element: HTMLElement): TargetEnabledState {
+  if (
+    ('disabled' in element &&
+      Boolean((element as HTMLButtonElement).disabled)) ||
+    element.getAttribute('aria-disabled') === 'true'
+  ) {
+    return 'DISABLED';
+  }
+  return 'ENABLED';
+}
+
+function visibilityState(element: HTMLElement): TargetVisibility {
   if (
     !element.isConnected ||
     element.hidden ||
     element.getAttribute('aria-hidden') === 'true'
   ) {
-    return false;
+    return 'HIDDEN';
   }
-  if ('disabled' in element && Boolean((element as HTMLButtonElement).disabled))
-    return false;
-  if (element.getAttribute('aria-disabled') === 'true' || isLeqadOwned(element))
-    return false;
 
   const view = element.ownerDocument.defaultView;
   if (view) {
@@ -93,78 +199,166 @@ function isVisibleAndUsable(element: HTMLElement): boolean {
       style.visibility === 'hidden' ||
       style.opacity === '0'
     ) {
-      return false;
+      return 'HIDDEN';
     }
   }
 
   const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
+  if (rect.width <= 0 || rect.height <= 0) return 'ZERO_SIZE';
   if (
     rect.bottom <= 0 ||
     rect.right <= 0 ||
     rect.top >= (view?.innerHeight ?? Number.POSITIVE_INFINITY) ||
     rect.left >= (view?.innerWidth ?? Number.POSITIVE_INFINITY)
   ) {
-    return false;
+    return 'OFFSCREEN';
   }
 
   const hit = element.ownerDocument.elementFromPoint?.(
     rect.left + rect.width / 2,
     rect.top + rect.height / 2,
   );
-  return !hit || hit === element || element.contains(hit);
+  if (hit && hit !== element && !element.contains(hit)) return 'OBSCURED';
+  return 'VISIBLE';
+}
+
+function candidatesFor(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+): TargetCandidate[] {
+  const candidates: TargetCandidate[] = [];
+  const labels = TARGET_LABELS[targetId];
+  for (const element of root.querySelectorAll<HTMLElement>(
+    CANDIDATE_SELECTOR,
+  )) {
+    const strategy = matchStrategy(element, labels);
+    if (!strategy) continue;
+    candidates.push({
+      element,
+      strategy,
+      confidence: strategyConfidence(strategy),
+      rank: STRATEGY_RANK[strategy],
+      visibility: visibilityState(element),
+      enabled: enabledState(element),
+      leqadOwned: isLeqadOwned(element),
+    });
+  }
+  return candidates.sort((left, right) => left.rank - right.rank);
+}
+
+function usable(candidate: TargetCandidate): boolean {
+  return (
+    candidate.visibility === 'VISIBLE' &&
+    candidate.enabled === 'ENABLED' &&
+    !candidate.leqadOwned
+  );
+}
+
+export function recognizeSemanticTarget(
+  root: ParentNode,
+  targetId: SemanticTargetId,
+): SemanticTargetRecognition {
+  const candidates = candidatesFor(root, targetId);
+  if (candidates.length === 0) {
+    return {
+      targetId,
+      status: 'MISSING',
+      element: null,
+      matchStrategy: null,
+      confidence: 'NONE',
+      visibility: 'UNKNOWN',
+      enabled: 'UNKNOWN',
+      explanation: 'No recognizable control for this target is present.',
+      candidateCount: 0,
+    };
+  }
+
+  const bestRank = candidates[0]!.rank;
+  const bestCandidates = candidates.filter(({ rank }) => rank === bestRank);
+  const usableCandidates = bestCandidates.filter(usable);
+  const representative = usableCandidates[0] ?? bestCandidates[0]!;
+  if (usableCandidates.length > 1) {
+    return {
+      targetId,
+      status: 'AMBIGUOUS',
+      element: null,
+      matchStrategy: representative.strategy,
+      confidence: representative.confidence,
+      visibility: 'VISIBLE',
+      enabled: 'ENABLED',
+      explanation: `${usableCandidates.length} equally strong visible controls match this target.`,
+      candidateCount: usableCandidates.length,
+    };
+  }
+  if (usableCandidates.length === 1) {
+    return {
+      targetId,
+      status: 'FOUND',
+      element: representative.element,
+      matchStrategy: representative.strategy,
+      confidence: representative.confidence,
+      visibility: representative.visibility,
+      enabled: representative.enabled,
+      explanation: `Recognized by ${representative.strategy.toLocaleLowerCase().replaceAll('_', ' ')}.`,
+      candidateCount: 1,
+    };
+  }
+
+  return {
+    targetId,
+    status: 'REJECTED',
+    element: representative.element,
+    matchStrategy: representative.strategy,
+    confidence: representative.confidence,
+    visibility: representative.visibility,
+    enabled: representative.enabled,
+    explanation: representative.leqadOwned
+      ? 'The matching control belongs to Leqad rather than the CAD page.'
+      : representative.visibility !== 'VISIBLE'
+        ? `The matching control is ${representative.visibility.toLocaleLowerCase().replaceAll('_', ' ')}.`
+        : 'The matching control is disabled.',
+    candidateCount: bestCandidates.length,
+  };
 }
 
 export function isUsableSemanticTarget(
   element: HTMLElement,
   targetId: SemanticTargetId,
 ): boolean {
-  return (
-    hasTargetLabel(element, TARGET_LABELS[targetId]) &&
-    isVisibleAndUsable(element)
+  const strategy = matchStrategy(element, TARGET_LABELS[targetId]);
+  return Boolean(
+    strategy &&
+    visibilityState(element) === 'VISIBLE' &&
+    enabledState(element) === 'ENABLED' &&
+    !isLeqadOwned(element),
   );
-}
-
-function findMatchingSemanticTargets(
-  root: ParentNode,
-  targetId: SemanticTargetId,
-  isTargetMatch: (element: HTMLElement) => boolean = () => true,
-): HTMLElement[] {
-  const matches: HTMLElement[] = [];
-  for (const candidate of root.querySelectorAll<HTMLElement>(
-    CANDIDATE_SELECTOR,
-  )) {
-    if (
-      isUsableSemanticTarget(candidate, targetId) &&
-      isTargetMatch(candidate)
-    ) {
-      matches.push(candidate);
-    }
-  }
-  return matches;
 }
 
 export function findSemanticTargets(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement[] {
-  return findMatchingSemanticTargets(root, targetId);
+  const candidates = candidatesFor(root, targetId);
+  if (candidates.length === 0) return [];
+  const bestRank = candidates[0]!.rank;
+  return candidates
+    .filter((candidate) => candidate.rank === bestRank && usable(candidate))
+    .map(({ element }) => element);
 }
 
 export function findSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement | null {
-  return findSemanticTargets(root, targetId)[0] ?? null;
+  const recognition = recognizeSemanticTarget(root, targetId);
+  return recognition.status === 'FOUND' ? recognition.element : null;
 }
 
 export function findSelectedSemanticTargets(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement[] {
-  return findMatchingSemanticTargets(
-    root,
-    targetId,
+  return findSemanticTargets(root, targetId).filter(
     (element) =>
       element.getAttribute('aria-selected') === 'true' ||
       element.getAttribute('aria-pressed') === 'true' ||
@@ -176,7 +370,8 @@ export function findSelectedSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement | null {
-  return findSelectedSemanticTargets(root, targetId)[0] ?? null;
+  const selected = findSelectedSemanticTargets(root, targetId);
+  return selected.length === 1 ? selected[0]! : null;
 }
 
 export interface TargetHighlight {
@@ -192,6 +387,8 @@ export function createTargetHighlight(
   const document = target.ownerDocument;
   const view = document.defaultView;
   const overlay = document.createElement('div');
+  const reducedMotion =
+    view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   overlay.dataset.leqadHighlight = 'true';
   overlay.setAttribute('aria-hidden', 'true');
   Object.assign(overlay.style, {
@@ -202,12 +399,36 @@ export function createTargetHighlight(
     boxShadow: '0 0 0 3px rgba(245, 239, 231, 0.9)',
     pointerEvents: 'none',
     zIndex: '2147483646',
-    transition:
-      'top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease',
+    transition: reducedMotion
+      ? 'none'
+      : 'top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease',
   });
 
+  let removed = false;
+  let frame: number | null = null;
+  let mutationObserver: MutationObserver | null = null;
+  let resizeObserver: ResizeObserver | null = null;
+
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    if (frame !== null) view?.cancelAnimationFrame(frame);
+    frame = null;
+    mutationObserver?.disconnect();
+    resizeObserver?.disconnect();
+    view?.removeEventListener('resize', scheduleRefresh);
+    view?.removeEventListener('scroll', scheduleRefresh, true);
+    overlay.remove();
+  };
+
   const refresh = () => {
-    if (!target.isConnected) {
+    frame = null;
+    if (removed) return;
+    if (
+      !target.isConnected ||
+      visibilityState(target) !== 'VISIBLE' ||
+      enabledState(target) !== 'ENABLED'
+    ) {
       remove();
       return;
     }
@@ -220,25 +441,39 @@ export function createTargetHighlight(
     });
   };
 
-  let removed = false;
-  let mutationObserver: MutationObserver | null = null;
-  const remove = () => {
-    if (removed) return;
-    removed = true;
-    mutationObserver?.disconnect();
-    view?.removeEventListener('resize', refresh);
-    view?.removeEventListener('scroll', refresh, true);
-    overlay.remove();
-  };
+  function scheduleRefresh() {
+    if (removed || frame !== null) return;
+    if (view?.requestAnimationFrame) {
+      frame = view.requestAnimationFrame(refresh);
+    } else {
+      refresh();
+    }
+  }
 
   host.append(overlay);
-  view?.addEventListener('resize', refresh);
-  view?.addEventListener('scroll', refresh, true);
+  view?.addEventListener('resize', scheduleRefresh);
+  view?.addEventListener('scroll', scheduleRefresh, true);
   if (view?.MutationObserver) {
     mutationObserver = new view.MutationObserver(() => {
-      if (!target.isConnected) remove();
+      if (
+        !target.isConnected ||
+        enabledState(target) !== 'ENABLED' ||
+        visibilityState(target) !== 'VISIBLE'
+      ) {
+        remove();
+        return;
+      }
+      scheduleRefresh();
     });
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+    mutationObserver.observe(target, { attributes: true });
+  }
+  if (view?.ResizeObserver) {
+    resizeObserver = new view.ResizeObserver(scheduleRefresh);
+    resizeObserver.observe(target);
   }
   refresh();
 

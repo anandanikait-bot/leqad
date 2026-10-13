@@ -11,7 +11,7 @@ test('the browser panel highlights a fixture control and confirms Top-plane sket
   ).toBeVisible();
   await expect(
     page.getByRole('status', { name: 'Connection status' }),
-  ).toHaveText('Limited access');
+  ).toHaveText('UI guidance available');
 
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();

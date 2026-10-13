@@ -14,6 +14,22 @@ afterEach(() => {
 });
 
 describe('findSemanticTarget', () => {
+  it('returns a typed high-confidence exact accessible-label recognition', async () => {
+    const target = visibleButton('Top plane');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      targetId: 'top-plane',
+      status: 'FOUND',
+      element: target,
+      matchStrategy: 'EXACT_ACCESSIBLE_LABEL',
+      confidence: 'HIGH',
+      visibility: 'VISIBLE',
+      enabled: 'ENABLED',
+      candidateCount: 1,
+    });
+  });
+
   it('recognizes a visible control by accessible name instead of fixed screen position', async () => {
     const target = visibleButton('Top plane');
     const { findSemanticTarget } = await import('./semanticTargets');
@@ -23,9 +39,15 @@ describe('findSemanticTarget', () => {
 
   it('does not confuse a Top view control with the Top plane', async () => {
     visibleButton('Top view');
-    const { findSemanticTarget } = await import('./semanticTargets');
+    const { findSemanticTarget, recognizeSemanticTarget } =
+      await import('./semanticTargets');
 
     expect(findSemanticTarget(document, 'top-plane')).toBeNull();
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'MISSING',
+      confidence: 'NONE',
+      candidateCount: 0,
+    });
   });
 
   it('revalidates a cached target when it becomes unusable', async () => {
@@ -66,6 +88,59 @@ describe('findSemanticTarget', () => {
 
     expect(findSemanticTarget(document, 'top-plane')).not.toBe(target);
   });
+
+  it('rejects duplicate equally strong controls as ambiguous', async () => {
+    visibleButton('Sketch');
+    visibleButton('Sketch');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+
+    const result = recognizeSemanticTarget(document, 'sketch');
+
+    expect(result).toMatchObject({
+      status: 'AMBIGUOUS',
+      element: null,
+      matchStrategy: 'EXACT_ACCESSIBLE_LABEL',
+      confidence: 'HIGH',
+      candidateCount: 2,
+    });
+    expect(result.explanation).toContain('equally strong');
+  });
+
+  it('reports why a matching hidden or disabled target was rejected', async () => {
+    const hidden = visibleButton('Rectangle');
+    hidden.hidden = true;
+    const disabled = visibleButton('Dimension');
+    disabled.disabled = true;
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+
+    expect(recognizeSemanticTarget(document, 'rectangle')).toMatchObject({
+      status: 'REJECTED',
+      visibility: 'HIDDEN',
+    });
+    expect(recognizeSemanticTarget(document, 'dimension')).toMatchObject({
+      status: 'REJECTED',
+      enabled: 'DISABLED',
+    });
+  });
+
+  it.each([
+    ['sketch', 'Sketch'],
+    ['top-plane', 'Top plane'],
+    ['rectangle', 'Rectangle'],
+    ['dimension', 'Dimension'],
+    ['finish-sketch', 'Finish sketch'],
+  ] as const)(
+    'recognizes the first-lesson %s target',
+    async (targetId, label) => {
+      const target = visibleButton(label);
+      const { recognizeSemanticTarget } = await import('./semanticTargets');
+
+      expect(recognizeSemanticTarget(document, targetId)).toMatchObject({
+        status: 'FOUND',
+        element: target,
+      });
+    },
+  );
 });
 
 describe('createTargetHighlight', () => {
@@ -100,5 +175,57 @@ describe('createTargetHighlight', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(highlight.element.isConnected).toBe(false);
+  });
+
+  it('recalculates after resize and removes a target that becomes disabled', async () => {
+    const target = visibleButton('Top plane');
+    let left = 12;
+    target.getBoundingClientRect = () => new DOMRect(left, 20, 60, 25);
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body);
+
+    left = 72;
+    window.dispatchEvent(new Event('resize'));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(highlight.element.style.left).toBe('69px');
+
+    target.disabled = true;
+    target.setAttribute('aria-disabled', 'true');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(highlight.element.isConnected).toBe(false);
+  });
+
+  it('recalculates when layout mutation moves the target without scrolling', async () => {
+    const target = visibleButton('Top plane');
+    let left = 12;
+    target.getBoundingClientRect = () => new DOMRect(left, 20, 60, 25);
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body);
+
+    left = 102;
+    target.setAttribute('data-layout-revision', '2');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(highlight.element.style.left).toBe('99px');
+    highlight.remove();
+  });
+
+  it('disables highlight transitions when reduced motion is requested', async () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (() => ({
+      matches: true,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const target = visibleButton('Top plane');
+      const { createTargetHighlight } = await import('./semanticTargets');
+
+      const highlight = createTargetHighlight(target, document.body);
+
+      expect(highlight.element.style.transition).toBe('none');
+      highlight.remove();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 });
