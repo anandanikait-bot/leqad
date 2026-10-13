@@ -40,13 +40,13 @@ Record PASS, FAIL, or BLOCKED plus a short observed result for each in the [acce
 Run all eight steps without developer tools changing the page:
 
 1. Read and acknowledge the introduction.
-2. Use Show me for Top plane. Record whether recognition is correct, ambiguous, missing, or rejected. Select Top plane. If edit permission is unknown, expect a disabled Check progress and use direct unverified continuation.
+2. Use Show me for Top plane. Record whether recognition is correct, ambiguous, missing, or rejected. Select Top plane. If edit permission is unknown, expect Check progress to be hidden and use I've finished this step (recorded as self-reported).
 3. Use Show me for Sketch and enter sketch editing. Record whether plane selection disappears and whether editing controls are visible. Confirm earlier selection is not described as proof of actual sketch plane association. Use unverified continuation when the permission gate remains unknown.
-4. Use Show me for Rectangle and draw a closed rectangle. Confirm the limitation explanation and direct Continue without verification appear without requiring Check progress; completion stays self-reported.
+4. Use Show me for Rectangle and draw a closed rectangle. Confirm the limitation explanation and the I've finished this step action appears without requiring Check progress; completion stays self-reported.
 5. Add 40 mm and 30 mm dimensions. Confirm the values remain unknown without model evidence.
 6. Finish the sketch and continue without verification directly. Confirm leaving sketch mode is not described as verified committed geometry.
 7. Acknowledge the 2D sketch and extrusion explanation.
-8. Complete independent practice and confirm the outcome is labeled self-reported.
+8. Complete independent practice with I've finished this step and confirm the underlying outcome remains SELF_REPORTED/UNKNOWN.
 
 For every recognized control, test visible/enabled state, ambiguity, replacement after UI refresh, scroll, resize, browser zoom, and pointer pass-through. Record exact accessible labels or validated stable attributes observed in live Onshape before adding selectors to source.
 

@@ -266,7 +266,7 @@ function outcomeLabel(outcome: LessonStepOutcome): string {
     ACKNOWLEDGED: 'Acknowledged',
     UI_VERIFIED: 'UI verified',
     MODEL_VERIFIED: 'Model verified',
-    SELF_REPORTED: 'Self-reported',
+    SELF_REPORTED: 'Marked done',
     UNABLE_TO_VERIFY: 'Unable to verify',
   };
   return labels[outcome];
@@ -284,7 +284,7 @@ function describeProgress(state: LessonStepState): string {
     return 'Current model evidence confirms this step.';
   }
   if (state.outcome === 'SELF_REPORTED') {
-    return 'Continued without verification. This step is recorded as self-reported.';
+    return 'You marked this step done. Leqad has not verified your CAD work.';
   }
   if (state.status === 'UNKNOWN' || state.outcome === 'UNABLE_TO_VERIFY') {
     return 'Unable to verify. Leqad could not obtain the required current evidence.';
@@ -918,11 +918,11 @@ export function AssistantPanel({
                         {cursorCue}
                       </p>
                     )}
-                    {verificationUnavailable && (
+                    {canContinueUnverified && (
                       <p className="leqad-guidance" aria-live="polite">
-                        Leqad cannot verify this step in this version. Continue
-                        without verification records your progress as
-                        self-reported; the CAD result remains unknown.
+                        Finished the action in Onshape? Mark this step done.
+                        Leqad cannot check it automatically, so your CAD work
+                        will remain unverified.
                       </p>
                     )}
                     <div className="leqad-step-footer">
@@ -940,17 +940,15 @@ export function AssistantPanel({
                         </button>
                       )}
                       {step.completionMode === 'UI_VERIFICATION' &&
-                        stepObserverAvailable && (
+                        stepObserverAvailable &&
+                        operationGuidanceAvailable &&
+                        stepState.status !== 'COMPLETED' &&
+                        stepState.status !== 'PAUSED' &&
+                        stepState.status !== 'UNKNOWN' && (
                           <button
                             type="button"
                             className="leqad-button leqad-button--primary"
                             onClick={checkProgress}
-                            disabled={
-                              stepState.status === 'COMPLETED' ||
-                              stepState.status === 'PAUSED' ||
-                              stepState.status === 'UNKNOWN' ||
-                              !operationGuidanceAvailable
-                            }
                           >
                             Check progress
                           </button>
@@ -965,18 +963,18 @@ export function AssistantPanel({
                             stepState.status === 'PAUSED'
                           }
                         >
-                          I completed this practice
+                          I've finished this step
                         </button>
                       )}
                       {canContinueUnverified && (
                         <button
                           type="button"
-                          className="leqad-button leqad-button--secondary"
+                          className="leqad-button leqad-button--primary"
                           onClick={() =>
                             completeWithoutEvidence('CONTINUE_UNVERIFIED')
                           }
                         >
-                          Continue without verification
+                          I've finished this step
                         </button>
                       )}
                       <button
