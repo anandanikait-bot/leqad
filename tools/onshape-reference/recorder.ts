@@ -16,8 +16,13 @@ import {
 import { REFERENCE_SCENARIOS } from '../../validation/onshape-reference/scenarios.ts';
 import { sha256Hex } from '../../validation/onshape-reference/integrity.ts';
 import { capturePageSnapshot } from './capture-page.ts';
+import { isSupportedOnshapePartStudioLocation } from './onshape-context.ts';
+import {
+  MAX_SIGN_IN_MS,
+  observationDeadlineAfterPartStudioReady,
+  signInDeadlineFromLaunch,
+} from './session-policy.ts';
 
-const MAX_SESSION_MS = 10 * 60 * 1000;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const PENDING_DIRECTORY = resolve(
   REPOSITORY_ROOT,
@@ -249,7 +254,7 @@ export async function runReferenceCapture(): Promise<void> {
   assertNotCi();
   const confirmation = await askWithinSession(
     'This creates a clean temporary Chrome profile, uses no Leqad extension, and deletes the profile on exit. Type START to begin: ',
-    Date.now() + 30 * 60 * 1000,
+    Date.now() + MAX_SIGN_IN_MS,
   );
   if (confirmation.trim() !== 'START') {
     stdout.write('No browser launched.\n');
@@ -279,7 +284,6 @@ export async function runReferenceCapture(): Promise<void> {
 
   let context: BrowserContext | undefined;
   let page: Page | undefined;
-  const deadline = Date.now() + MAX_SESSION_MS;
   try {
     const executablePath = process.env.LEQAD_REFERENCE_CHROME;
     context = await chromium.launchPersistentContext(profileDirectory, {
@@ -293,15 +297,26 @@ export async function runReferenceCapture(): Promise<void> {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
     });
+    const signInDeadline = signInDeadlineFromLaunch(Date.now());
     stdout.write(
       'Chrome opened with a fresh profile and extensions disabled. Sign into Onshape manually, then open an authorized disposable Part Studio.\n',
     );
     const ready = await askWithinSession(
       'When the Part Studio is open, type READY. If you do not have an authenticated authorized session, type STOP: ',
-      deadline,
+      signInDeadline,
     );
     if (ready.trim().toUpperCase() !== 'READY') {
       stdout.write('No authenticated capture made.\n');
+      return;
+    }
+    const deadline = observationDeadlineAfterPartStudioReady(Date.now());
+    const supportedPartStudioRoute = await page.evaluate(
+      isSupportedOnshapePartStudioLocation,
+    );
+    if (!supportedPartStudioRoute) {
+      stdout.write(
+        'The active tab is not on the supported Onshape Part Studio workspace route. No capture was made; no URL or identifier was recorded.\n',
+      );
       return;
     }
     const authorization = await askWithinSession(

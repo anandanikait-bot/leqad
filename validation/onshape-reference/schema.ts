@@ -156,6 +156,8 @@ export interface ScanStatus {
   roleAttributeCount: number;
   nativeControlCount: number;
   nodeLimitReached: boolean;
+  candidateLimitReached: boolean;
+  sketchCandidateLimitReached: boolean;
   depthLimitReached: boolean;
   outputLimitReached: boolean;
   status: 'COMPLETE' | 'INCOMPLETE_CAPTURE';
@@ -408,6 +410,8 @@ function observationIssue(value: unknown): string | null {
       'roleAttributeCount',
       'nativeControlCount',
       'nodeLimitReached',
+      'candidateLimitReached',
+      'sketchCandidateLimitReached',
       'depthLimitReached',
       'outputLimitReached',
       'status',
@@ -435,6 +439,8 @@ function observationIssue(value: unknown): string | null {
   }
   for (const flag of [
     'nodeLimitReached',
+    'candidateLimitReached',
+    'sketchCandidateLimitReached',
     'depthLimitReached',
     'outputLimitReached',
   ]) {
@@ -444,6 +450,8 @@ function observationIssue(value: unknown): string | null {
     return 'SCAN_STATUS';
   const incomplete =
     value.scan.nodeLimitReached ||
+    value.scan.candidateLimitReached ||
+    value.scan.sketchCandidateLimitReached ||
     value.scan.depthLimitReached ||
     value.scan.outputLimitReached;
   return value.scan.status === (incomplete ? 'INCOMPLETE_CAPTURE' : 'COMPLETE')

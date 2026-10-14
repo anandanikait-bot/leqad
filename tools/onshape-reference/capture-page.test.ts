@@ -44,7 +44,8 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(snapshot.nodes.some((node) => node.label === 'Rectangle')).toBe(
       true,
     );
-    expect(snapshot.scan.status).toBe('COMPLETE');
+    expect(snapshot.scan.candidateLimitReached).toBe(true);
+    expect(snapshot.scan.status).toBe('INCOMPLETE_CAPTURE');
   });
 
   it('marks bounded traversal as incomplete instead of reporting a missing target', () => {
@@ -61,6 +62,31 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(snapshot.scan.nodeLimitReached).toBe(true);
     expect(snapshot.scan.status).toBe('INCOMPLETE_CAPTURE');
     expect(snapshot.domState).toBe('UNKNOWN');
+  });
+
+  it('keeps local Sketch evidence usable while flagging unrelated deep structure globally', () => {
+    const deepBranch = Array.from(
+      { length: 18 },
+      (_, index) => `<div data-depth="${index}">`,
+    ).join('');
+    const deepClose = '</div>'.repeat(18);
+    document.body.innerHTML = `
+      <button aria-label="Sketch">Sketch</button>
+      ${deepBranch}<span>private deep content</span>${deepClose}`;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot({ maxDepth: 5 });
+
+    expect(snapshot.scan.depthLimitReached).toBe(true);
+    expect(snapshot.scan.status).toBe('INCOMPLETE_CAPTURE');
+    expect(snapshot.domState).toBe('SKETCH_COMMAND_VISIBLE');
+    expect(
+      snapshot.nodes.some(
+        (node) => node.label === 'Sketch' && node.visibility === 'VISIBLE',
+      ),
+    ).toBe(true);
   });
 
   it('never returns arbitrary role, ARIA, or attribute values', () => {
@@ -167,5 +193,36 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(serialized).not.toContain('private-wrapper');
     expect(serialized).not.toContain('Private sketch title');
     expect(serialized).not.toContain('geometry names');
+  });
+
+  it('retains unlabeled structural evidence when unrelated allowlisted labels exist', () => {
+    const unrelatedSections = Array.from(
+      { length: 18 },
+      (_, index) =>
+        `<section><span>private unrelated ${index}</span></section>`,
+    ).join('');
+    document.body.innerHTML = `
+      <section>
+        <button title="Top">Top</button>
+        <button title="Part Studio">Part Studio</button>
+      </section>
+      ${unrelatedSections}
+      <section>
+        <div role="private-control" aria-label="Private Sketch toolbar">hidden diagnostic structure</div>
+      </section>`;
+
+    const snapshot = capturePageSnapshot({ maxCandidates: 12 });
+    const serialized = JSON.stringify(snapshot);
+
+    expect(snapshot.scan.recognizedLabelCount).toBeGreaterThan(0);
+    expect(
+      snapshot.nodes.some((node) => node.accessibility.roleAttributePresent),
+    ).toBe(true);
+    expect(
+      snapshot.nodes.some((node) => node.accessibility.nameAttributePresent),
+    ).toBe(true);
+    expect(serialized).not.toContain('private-control');
+    expect(serialized).not.toContain('Private Sketch toolbar');
+    expect(serialized).not.toContain('hidden diagnostic structure');
   });
 });

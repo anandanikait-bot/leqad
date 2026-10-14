@@ -95,6 +95,8 @@ const makeCapture = (
         roleAttributeCount: 1,
         nativeControlCount: 1,
         nodeLimitReached: false,
+        candidateLimitReached: false,
+        sketchCandidateLimitReached: false,
         depthLimitReached: false,
         outputLimitReached: false,
         status: 'COMPLETE',
@@ -180,6 +182,8 @@ const makeCapture = (
         roleAttributeCount: 2,
         nativeControlCount: 1,
         nodeLimitReached: false,
+        candidateLimitReached: false,
+        sketchCandidateLimitReached: false,
         depthLimitReached: false,
         outputLimitReached: false,
         status: 'COMPLETE',
@@ -311,6 +315,8 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
             scan: {
               ...capture.observations[0]!.scan,
               nodeLimitReached: true,
+              candidateLimitReached: false,
+              sketchCandidateLimitReached: false,
               status: 'INCOMPLETE_CAPTURE',
             },
           },
@@ -445,6 +451,8 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
             roleAttributeCount: 1,
             nativeControlCount: 1,
             nodeLimitReached: false,
+            candidateLimitReached: false,
+            sketchCandidateLimitReached: false,
             depthLimitReached: false,
             outputLimitReached: false,
             status: 'COMPLETE',
@@ -477,6 +485,88 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     expect(
       evaluate({ ...productBase, outcome: 'MISSING', targetId: null }),
     ).toMatchObject({ status: 'FAIL', reason: 'TARGET_MISSING' });
+
+    const evaluateCapture = (capture: ReferenceCapture) =>
+      compareReferenceContract({
+        capture,
+        product: productBase,
+        approval: 'APPROVED',
+        freshness: 'CURRENT',
+      });
+    const before = sketchCapture.observations[0]!;
+    const after = sketchCapture.observations[1]!;
+
+    expect(
+      evaluateCapture({
+        ...sketchCapture,
+        observations: [
+          { ...before, humanState: 'UNKNOWN', domState: 'UNKNOWN' },
+          after,
+        ],
+      }),
+    ).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+    expect(
+      evaluateCapture({
+        ...sketchCapture,
+        observations: [
+          before,
+          {
+            ...after,
+            nodes: after.nodes.map((node) =>
+              node.label === 'Finish Sketch'
+                ? { ...node, visibility: 'UNKNOWN' as const }
+                : node,
+            ),
+          },
+        ],
+      }),
+    ).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+    expect(
+      evaluateCapture({
+        ...sketchCapture,
+        observations: [
+          before,
+          { ...after, domState: 'UNKNOWN', humanState: 'UNKNOWN' },
+        ],
+      }),
+    ).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+    const depthLimited = {
+      ...sketchCapture,
+      observations: [
+        {
+          ...before,
+          scan: {
+            ...before.scan,
+            depthLimitReached: true,
+            status: 'INCOMPLETE_CAPTURE' as const,
+          },
+        },
+        {
+          ...after,
+          scan: {
+            ...after.scan,
+            depthLimitReached: true,
+            status: 'INCOMPLETE_CAPTURE' as const,
+          },
+        },
+      ],
+    };
+    expect(validateCapture(depthLimited).observations[0]?.scan.status).toBe(
+      'INCOMPLETE_CAPTURE',
+    );
+    expect(evaluateCapture(depthLimited)).toMatchObject({
+      status: 'PASS',
+      reason: 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_DEPTH_LIMIT',
+    });
   });
 
   it('detects tampering and refuses to approve a synthetic capture', async () => {

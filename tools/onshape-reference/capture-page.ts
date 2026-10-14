@@ -80,6 +80,8 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     roleAttributeCount: 0,
     nativeControlCount: 0,
     nodeLimitReached: false,
+    candidateLimitReached: false,
+    sketchCandidateLimitReached: false,
     depthLimitReached: false,
     outputLimitReached: false,
     status: 'COMPLETE',
@@ -168,11 +170,14 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
       ancestor = ancestor.parentElement;
       ancestorDepth += 1;
     }
+    const ancestorDepthReached = ancestor !== null;
     const clipping = ancestorClipped
       ? 'ANCESTOR'
       : viewportClipped
         ? 'VIEWPORT'
-        : 'NONE';
+        : ancestorDepthReached
+          ? 'UNKNOWN'
+          : 'NONE';
     return {
       bounds: {
         x: Number(left.toFixed(4)),
@@ -180,13 +185,20 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
         width: Number((right - left).toFixed(4)),
         height: Number((bottom - top).toFixed(4)),
       },
-      visibility: viewportClipped || ancestorClipped ? 'PARTIAL' : 'VISIBLE',
+      visibility:
+        viewportClipped || ancestorClipped
+          ? 'PARTIAL'
+          : ancestorDepthReached
+            ? 'UNKNOWN'
+            : 'VISIBLE',
       clipping,
     };
   };
 
   let visitedElements = 0;
   let nodeLimitReached = false;
+  let candidateLimitReached = false;
+  let sketchCandidateLimitReached = false;
   let depthLimitReached = false;
   let outputLimitReached = false;
   let recognizedLabelCount = 0;
@@ -213,11 +225,11 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
         nativeControlCount += 1;
       let depth = 0;
       let parent = element.parentElement;
-      while (parent && parent !== root) {
+      while (parent && parent !== root && depth <= limits.maxDepth) {
         depth += 1;
         parent = parent.parentElement;
       }
-      if (depth > limits.maxDepth) depthLimitReached = true;
+      if (parent && parent !== root) depthLimitReached = true;
       if (labelOf(element)) {
         recognizedLabelCount += 1;
         labeledCandidates.push(element);
@@ -257,21 +269,55 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     const rightRank = sketchLabels.has(labelOf(right) ?? '') ? 0 : 1;
     return leftRank - rightRank;
   });
-  let candidates = labeledCandidates;
-  if (candidates.length > limits.maxCandidates) {
-    candidates = candidates.slice(0, limits.maxCandidates);
-    nodeLimitReached = true;
-  }
-  if (labeledCandidates.length === 0) {
-    // For an UNKNOWN result retain a small, sanitized structural sample so a
-    // missing accessible Sketch label can still be investigated.
-    const fallbackCandidates = Array.from(
-      new Set([...structuralCandidates, ...genericFallbackCandidates]),
+  const preferredSketchCandidates = labeledCandidates.filter((element) =>
+    sketchLabels.has(labelOf(element) ?? ''),
+  );
+  const otherLabelCandidates = labeledCandidates.filter(
+    (element) => !sketchLabels.has(labelOf(element) ?? ''),
+  );
+  const fallbackCandidates = Array.from(
+    new Set([...structuralCandidates, ...genericFallbackCandidates]),
+  );
+  const selectedSketch = preferredSketchCandidates.slice(
+    0,
+    limits.maxCandidates,
+  );
+  const afterSketchBudget = limits.maxCandidates - selectedSketch.length;
+  const structuralBudget = Math.min(
+    afterSketchBudget,
+    Math.min(8, Math.max(1, Math.floor(limits.maxCandidates / 4))),
+  );
+  const selectedStructure = fallbackCandidates.slice(0, structuralBudget);
+  const remainingAfterStructure =
+    limits.maxCandidates - selectedSketch.length - selectedStructure.length;
+  const selectedOtherLabels = otherLabelCandidates.slice(
+    0,
+    remainingAfterStructure,
+  );
+  const usedFallbacks = new Set(selectedStructure);
+  const additionalStructure = fallbackCandidates
+    .filter((element) => !usedFallbacks.has(element))
+    .slice(
+      0,
+      limits.maxCandidates -
+        selectedSketch.length -
+        selectedStructure.length -
+        selectedOtherLabels.length,
     );
-    candidates = fallbackCandidates.slice(0, limits.maxCandidates);
-    if (fallbackCandidates.length > limits.maxCandidates)
-      nodeLimitReached = true;
-  }
+  const candidates = [
+    ...selectedSketch,
+    ...selectedStructure,
+    ...selectedOtherLabels,
+    ...additionalStructure,
+  ];
+  const allCandidates = new Set([
+    ...preferredSketchCandidates,
+    ...fallbackCandidates,
+    ...otherLabelCandidates,
+  ]);
+  if (allCandidates.size > candidates.length) candidateLimitReached = true;
+  if (preferredSketchCandidates.length > selectedSketch.length)
+    sketchCandidateLimitReached = true;
 
   const relevant = new Set<Element>();
   for (const candidate of candidates) {
@@ -344,10 +390,15 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     roleAttributeCount,
     nativeControlCount,
     nodeLimitReached,
+    candidateLimitReached,
+    sketchCandidateLimitReached,
     depthLimitReached,
     outputLimitReached,
     status:
-      nodeLimitReached || depthLimitReached || outputLimitReached
+      nodeLimitReached ||
+      candidateLimitReached ||
+      depthLimitReached ||
+      outputLimitReached
         ? 'INCOMPLETE_CAPTURE'
         : 'COMPLETE',
   });
@@ -380,7 +431,7 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     (node) => node.role === 'MENU' || node.role === 'MENUITEM',
   );
   let domState = 'UNKNOWN';
-  if (scan().status === 'COMPLETE') {
+  if (!nodeLimitReached && !outputLimitReached) {
     if (menuVisible) domState = 'MENU_VISIBLE';
     else if (has('Finish Sketch')) domState = 'SKETCH_CONTROLS_VISIBLE';
     else if (has('Sketch') || has('Start sketch') || has('Create sketch'))

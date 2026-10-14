@@ -48,6 +48,8 @@ export interface ComparisonResult {
     | 'TARGET_WRONG'
     | 'TRANSITION_UNVERIFIED'
     | 'HIGHLIGHT_WRONG'
+    | 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_DEPTH_LIMIT'
+    | 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_SCAN_INCOMPLETE'
     | 'RESULT_UNKNOWN'
     | 'MATCHED';
 }
@@ -72,7 +74,27 @@ function result(
 
 function isIncomplete(capture: ReferenceCapture): boolean {
   return capture.observations.some(
-    (observation) => observation.scan.status !== 'COMPLETE',
+    (observation) =>
+      observation.scan.status !== 'COMPLETE' &&
+      !(
+        capture.scenarioId === 'active-sketch' &&
+        !observation.scan.nodeLimitReached &&
+        !observation.scan.outputLimitReached &&
+        !observation.scan.sketchCandidateLimitReached
+      ),
+  );
+}
+
+function hasVisibleLabel(
+  observation: ReferenceCapture['observations'][number],
+  labels: readonly string[],
+): boolean {
+  return observation.nodes.some(
+    (node) =>
+      node.label !== null &&
+      labels.includes(node.label) &&
+      node.visibility === 'VISIBLE' &&
+      node.bounds !== null,
   );
 }
 
@@ -158,6 +180,17 @@ export function compareReferenceContract(
     return result('INSUFFICIENT_EVIDENCE', evidenceLevel, 'CAPTURE_INCOMPLETE');
   if (input.product.scenarioId !== capture.scenarioId)
     return result('FAIL', evidenceLevel, 'SCENARIO_MISMATCH');
+  const hasGlobalDepthLimit = capture.observations.some(
+    (observation) => observation.scan.depthLimitReached,
+  );
+  const hasGlobalIncompleteScan = capture.observations.some(
+    (observation) => observation.scan.status !== 'COMPLETE',
+  );
+  const localMatchReason = hasGlobalDepthLimit
+    ? 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_DEPTH_LIMIT'
+    : hasGlobalIncompleteScan
+      ? 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_SCAN_INCOMPLETE'
+      : 'MATCHED';
   if (capture.targetId === 'none') {
     const unsupported =
       input.product.outcome === 'UNSUPPORTED' ||
@@ -165,6 +198,28 @@ export function compareReferenceContract(
     return unsupported && input.product.targetId === null
       ? result('PASS', evidenceLevel, 'MATCHED')
       : result('FAIL', evidenceLevel, 'TARGET_WRONG');
+  }
+
+  if (capture.scenarioId === 'active-sketch') {
+    const [before, after] = capture.observations;
+    if (
+      !before ||
+      !after ||
+      before.stateId !== 'BEFORE' ||
+      after.stateId !== 'AFTER' ||
+      before.humanState !== 'PART_STUDIO_READY' ||
+      after.humanState !== 'SKETCH_ACTIVE' ||
+      before.domState !== 'SKETCH_COMMAND_VISIBLE' ||
+      after.domState !== 'SKETCH_CONTROLS_VISIBLE' ||
+      !hasVisibleLabel(before, expectedLabel['sketch-command']) ||
+      !hasVisibleLabel(after, expectedLabel['finish-sketch-command'])
+    ) {
+      return result(
+        'INSUFFICIENT_EVIDENCE',
+        evidenceLevel,
+        'TRANSITION_UNVERIFIED',
+      );
+    }
   }
 
   const labels = expectedLabel[capture.targetId];
@@ -225,7 +280,7 @@ export function compareReferenceContract(
     capture.scenarioId === 'active-sketch' &&
     input.product.highlight === 'NOT_APPLICABLE'
   ) {
-    return result('PASS', evidenceLevel, 'MATCHED');
+    return result('PASS', evidenceLevel, localMatchReason);
   }
   if (
     input.product.highlight === 'UNKNOWN' ||
@@ -233,5 +288,9 @@ export function compareReferenceContract(
   ) {
     return result('INSUFFICIENT_EVIDENCE', evidenceLevel, 'RESULT_UNKNOWN');
   }
-  return result('PASS', evidenceLevel, 'MATCHED');
+  return result(
+    'PASS',
+    evidenceLevel,
+    capture.scenarioId === 'active-sketch' ? localMatchReason : 'MATCHED',
+  );
 }
