@@ -235,7 +235,8 @@ export function observeOnshapeGuidanceContext(
 ): GuidanceUiContext {
   if (!page.supported || page.elementType === 'other') return 'UNKNOWN';
 
-  const editingAppearsActive = observeSketchGuidanceUi(root).editingAppearsActive;
+  const editingAppearsActive =
+    observeSketchGuidanceUi(root).editingAppearsActive;
   if (page.elementType === 'part-studio') {
     return editingAppearsActive ? 'SKETCH_EDITING' : 'PART_STUDIO';
   }
