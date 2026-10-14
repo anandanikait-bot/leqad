@@ -171,11 +171,9 @@ describe('AssistantPanel', () => {
 
   it('explains active sketches without highlighting Sketch', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    const { createGuidanceRunner } = await import(
-      '../../services/guidanceRunner',
-    );
+    const runnerModule = await import('../../services/guidanceRunner');
     const highlightTarget = vi.fn(() => true);
-    const runner = createGuidanceRunner({
+    const runner = runnerModule.createGuidanceRunner({
       getContext: () => 'SKETCH_EDITING',
       resolveTarget: () => ({ status: 'FOUND' }),
       highlightTarget,
