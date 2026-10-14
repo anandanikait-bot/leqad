@@ -172,7 +172,7 @@ describe('AssistantPanel', () => {
   it('explains active sketches without highlighting Sketch', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const { createGuidanceRunner } = await import(
-      '../../services/guidanceRunner'
+      '../../services/guidanceRunner',
     );
     const highlightTarget = vi.fn(() => true);
     const runner = createGuidanceRunner({
