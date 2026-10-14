@@ -6,6 +6,7 @@ import { AssistantPanel } from '../src/components/panel/AssistantPanel';
 import {
   createOnshapeCapabilityMonitor,
   observeOnshapeCapabilities,
+  observeOnshapeGuidanceContext,
   onshapePageContextKey,
   onshapeUrlMatchesContextKey,
   parseOnshapePage,
@@ -130,17 +131,8 @@ export default defineContentScript({
               return definition?.semanticTarget ?? null;
             };
             const guidanceRunner = createGuidanceRunner({
-              getContext: () => {
-                if (
-                  !currentPage.supported ||
-                  currentPage.elementType !== 'part-studio'
-                ) {
-                  return 'UNKNOWN';
-                }
-                return observeSketchGuidanceUi(document).editingAppearsActive
-                  ? 'SKETCH_EDITING'
-                  : 'PART_STUDIO';
-              },
+              getContext: () =>
+                observeOnshapeGuidanceContext(currentPage, document),
               resolveTarget: (targetId) => {
                 const semanticTarget = semanticTargetFor(targetId);
                 if (!semanticTarget) return { status: 'MISSING' };
