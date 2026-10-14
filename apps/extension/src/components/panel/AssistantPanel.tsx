@@ -1253,10 +1253,11 @@ export function AssistantPanel({
                   {diagnosticsEnabled && (
                     <>
                       <p>
-                        Local only. Reports bounded feature-tree structure and
-                        known plane-name matches; page text and identifiers are
-                        omitted. This structural scan does not run the
-                        production Show me recognizer.
+                        Local only. Captures bounded parent and sibling
+                        relationships, relative geometry, and exact known label
+                        matches. Page text and identifiers are omitted;
+                        JavaScript click handling is not inspected. Production
+                        Show me recognition is not run.
                       </p>
                       {onCaptureTopRow && (
                         <button

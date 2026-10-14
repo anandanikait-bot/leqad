@@ -97,7 +97,7 @@ test('already sketching with unknown permission stays unverified and exports opt
   const output = await page
     .getByLabel('Recognition diagnostics output')
     .inputValue();
-  expect(JSON.parse(output).version).toBe('leqad-recognition/2');
+  expect(JSON.parse(output).version).toBe('leqad-recognition/3');
   expect(output).not.toContain('fixture-document');
   await page
     .getByRole('button', { name: 'Turn off recognition diagnostics' })
@@ -134,12 +134,21 @@ test('captures the actual clicked row once without swallowing its click, then co
     .getByLabel('Recognition diagnostics output')
     .inputValue();
   const report = JSON.parse(output);
-  expect(report.version).toBe('leqad-recognition/2');
+  expect(report.version).toBe('leqad-recognition/3');
   expect(report.productionRecognition.status).toBe('NOT_RUN');
   expect(report.capturedTopRow.diagnosis).toBe(
     'STRUCTURE_MATCHES_SUPPORTED_RESOLVER',
   );
   expect(report.capturedTopRow.structure[0].planeMatches).toEqual(['Top']);
+  expect(report.capturedTopRow.relationshipOutline).toMatchObject({
+    interactionHandling: 'JAVASCRIPT_HANDLER_NOT_INSPECTED',
+  });
+  expect(typeof report.capturedTopRow.relationshipOutline.truncated).toBe(
+    'boolean',
+  );
+  expect(
+    report.capturedTopRow.relationshipOutline.relationships.length,
+  ).toBeGreaterThan(0);
   for (const secret of [
     'fixture-document',
     'fixture-workspace',

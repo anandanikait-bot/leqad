@@ -1,16 +1,18 @@
 import {
-  enabledState,
   isLeqadOwned,
   normalizedText,
   semanticName,
-  visibilityState,
 } from './semanticTargetDom';
 import {
   planeIdentity,
   referencePlaneCandidate,
-  referencePlaneContext,
   type ReferencePlane,
 } from './referencePlanes';
+import {
+  captureFeatureListStructure,
+  type FeatureListParentRelationship,
+  type FeatureListStructureNode,
+} from './featureListStructureCapture';
 
 export const RECOGNITION_DIAGNOSTIC_LIMITS = {
   treeRoots: 8,
@@ -19,8 +21,40 @@ export const RECOGNITION_DIAGNOSTIC_LIMITS = {
   candidateRecords: 12,
   capturedAncestors: 10,
   captureTimeoutMs: 20_000,
-  reportChars: 16_000,
+  reportChars: 24_000,
 } as const;
+
+function trimmedCapture(
+  capture: TopRowCaptureReport,
+  relationshipLimit: number,
+  siblingLimit: number,
+  labelLimit: number,
+  pathLimit: number,
+): TopRowCaptureReport {
+  return {
+    ...capture,
+    structure: capture.structure.slice(0, pathLimit),
+    relationshipOutline: {
+      ...capture.relationshipOutline,
+      relationships: capture.relationshipOutline.relationships
+        .slice(0, relationshipLimit)
+        .map((relationship) => ({
+          ...relationship,
+          siblings: relationship.siblings
+            .slice(0, siblingLimit)
+            .map((sibling) => ({
+              ...sibling,
+              nestedLabelMatches: sibling.nestedLabelMatches.slice(
+                0,
+                labelLimit,
+              ),
+              nestedScanTruncated: true,
+            })),
+        })),
+      truncated: true,
+    },
+  };
+}
 
 const planes: readonly ReferencePlane[] = ['Top', 'Front', 'Right'];
 const treeSelector = '[role="tree"],[role="treegrid"]';
@@ -74,20 +108,7 @@ type DiagnosticScanStatus =
   | 'NO_SEMANTIC_TREE_ROOT'
   | 'TREE_ROOT_LIMIT_REACHED';
 
-export interface TopRowCaptureStructure {
-  tag: string;
-  role: string;
-  ariaLabelPresent: boolean;
-  ariaLabelledByPresent: boolean;
-  titlePresent: boolean;
-  tabIndexPresent: boolean;
-  planeMatches: ReferencePlane[];
-  defaultGeometryMatch: boolean;
-  actionable: boolean;
-  visibility: string;
-  enabled: string;
-  context: string;
-}
+export type TopRowCaptureStructure = FeatureListStructureNode;
 
 export interface TopRowCaptureReport {
   status: 'CAPTURED';
@@ -95,6 +116,13 @@ export interface TopRowCaptureReport {
   findings: string[];
   actionableAncestorDistance: number | null;
   structure: TopRowCaptureStructure[];
+  relationshipOutline: {
+    relationships: FeatureListParentRelationship[];
+    elementsInspected: number;
+    labelMatchesRecorded: number;
+    truncated: boolean;
+    interactionHandling: 'JAVASCRIPT_HANDLER_NOT_INSPECTED';
+  };
   assessment: {
     planeCandidateObserved: boolean;
     contextValid: boolean;
@@ -341,7 +369,7 @@ export function collectRecognitionDiagnostics(
   );
 
   const report = {
-    version: 'leqad-recognition/2',
+    version: 'leqad-recognition/3',
     scope:
       'local structural observations only; actual Onshape compatibility remains unverified',
     productionRecognition: {
@@ -370,41 +398,39 @@ export function collectRecognitionDiagnostics(
     ...(capturedTopRow ? { capturedTopRow } : {}),
   };
   const serialized = JSON.stringify(report);
-  return serialized.length <= RECOGNITION_DIAGNOSTIC_LIMITS.reportChars
-    ? serialized
-    : JSON.stringify({
-        ...report,
-        candidates: records.slice(0, 4),
-        reportTruncated: true,
-      });
-}
-
-function capturedStructure(element: HTMLElement): TopRowCaptureStructure {
-  const name = semanticName(element);
-  const titleName = normalizedText(element.getAttribute('title'));
-  const plane = planeIdentity(name) ?? planeIdentity(titleName);
-  return {
-    tag: safeTags.has(element.localName) ? element.localName : 'other',
-    role: safeRole(element),
-    ariaLabelPresent: element.hasAttribute('aria-label'),
-    ariaLabelledByPresent: element.hasAttribute('aria-labelledby'),
-    titlePresent: element.hasAttribute('title'),
-    tabIndexPresent: element.hasAttribute('tabindex'),
-    planeMatches: plane ? [plane] : [],
-    defaultGeometryMatch:
-      name === 'default geometry' || titleName === 'default geometry',
-    actionable: actionable(element),
-    visibility: visibilityState(element),
-    enabled: enabledState(element),
-    context: referencePlaneContext(element),
+  if (serialized.length <= RECOGNITION_DIAGNOSTIC_LIMITS.reportChars)
+    return serialized;
+  const trimmed = {
+    ...report,
+    candidates: records.slice(0, 4),
+    ...(capturedTopRow
+      ? { capturedTopRow: trimmedCapture(capturedTopRow, 4, 3, 2, 6) }
+      : {}),
+    reportTruncated: true,
   };
+  const trimmedSerialized = JSON.stringify(trimmed);
+  if (trimmedSerialized.length <= RECOGNITION_DIAGNOSTIC_LIMITS.reportChars)
+    return trimmedSerialized;
+  const minimal = {
+    ...report,
+    candidates: [],
+    ...(capturedTopRow
+      ? { capturedTopRow: trimmedCapture(capturedTopRow, 0, 0, 0, 4) }
+      : {}),
+    reportTruncated: true,
+  };
+  return JSON.stringify(minimal);
 }
 
 function makeCaptureReport(path: HTMLElement[]): TopRowCaptureReport {
-  const structure = path.map(capturedStructure);
-  const matchedIndex = structure.findIndex((item) =>
-    item.planeMatches.includes('Top'),
-  );
+  const matchedIndex = path.findIndex((element) => {
+    const name =
+      semanticName(element) || normalizedText(element.getAttribute('title'));
+    return planeIdentity(name) === 'Top';
+  });
+  const matchedElement = matchedIndex >= 0 ? path[matchedIndex]! : path[0]!;
+  const outline = captureFeatureListStructure(matchedElement, path);
+  const structure = outline.capturedPath;
   const treeRolePresent = structure.some((item) =>
     ['tree', 'treegrid'].includes(item.role),
   );
@@ -414,13 +440,24 @@ function makeCaptureReport(path: HTMLElement[]): TopRowCaptureReport {
   const defaultGeometryPresent = structure.some(
     (item) => item.defaultGeometryMatch,
   );
+  const defaultGeometryInRelationships = outline.relationships.some(
+    (relationship) =>
+      relationship.parent.defaultGeometryMatch ||
+      relationship.siblings.some(
+        (sibling) =>
+          sibling.node.defaultGeometryMatch ||
+          sibling.nestedLabelMatches.some(
+            (match) => match.label === 'Default geometry',
+          ),
+      ),
+  );
   const actionableAncestorDistance = structure.findIndex(
     (item) => item.actionable,
   );
-  const matchedElement = matchedIndex >= 0 ? path[matchedIndex]! : null;
-  const candidate = matchedElement
-    ? referencePlaneCandidate(matchedElement, 'top-plane')
-    : null;
+  const candidate =
+    matchedIndex >= 0
+      ? referencePlaneCandidate(matchedElement, 'top-plane')
+      : null;
   const labelNode = matchedIndex >= 0 ? structure[matchedIndex]! : null;
   const rowNode = candidate
     ? structure.find((item, index) => path[index] === candidate.element)
@@ -437,7 +474,11 @@ function makeCaptureReport(path: HTMLElement[]): TopRowCaptureReport {
   if (matchedIndex >= 0 && !ariaNameAttributePresent)
     findings.push('NO_ARIA_NAME_ATTRIBUTE_ON_TOP_LABEL_OR_ROW');
   if (!defaultGeometryPresent)
-    findings.push('DEFAULT_GEOMETRY_ANCESTOR_NOT_EXPOSED');
+    findings.push(
+      defaultGeometryInRelationships
+        ? 'DEFAULT_GEOMETRY_OBSERVED_OUTSIDE_CAPTURED_ANCESTOR_PATH'
+        : 'DEFAULT_GEOMETRY_NOT_OBSERVED_IN_BOUNDED_RELATIONSHIPS',
+    );
   if (matchedIndex >= 0 && !candidate)
     findings.push('ACTIONABLE_ROW_HIERARCHY_NOT_RECOGNIZED');
   if (candidate && candidate.context !== 'FEATURE_TREE')
@@ -460,6 +501,13 @@ function makeCaptureReport(path: HTMLElement[]): TopRowCaptureReport {
     actionableAncestorDistance:
       actionableAncestorDistance < 0 ? null : actionableAncestorDistance,
     structure,
+    relationshipOutline: {
+      relationships: outline.relationships,
+      elementsInspected: outline.elementsInspected,
+      labelMatchesRecorded: outline.labelMatchesRecorded,
+      truncated: outline.truncated,
+      interactionHandling: outline.interactionHandling,
+    },
     assessment: candidate
       ? {
           planeCandidateObserved: true,

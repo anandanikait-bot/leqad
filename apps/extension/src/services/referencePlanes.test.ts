@@ -5,7 +5,7 @@ import {
   recognizeSemanticTarget,
 } from './semanticTargets';
 
-// Controlled ARIA structures, not a captured or asserted Onshape DOM.
+// Controlled simulations, not captured or asserted Onshape DOM.
 function referenceTree(name = 'Top', label = name) {
   const tree = document.createElement('div');
   tree.setAttribute('role', 'tree');
@@ -175,6 +175,26 @@ describe('context-scoped reference-plane recognition', () => {
       'FOUND',
     );
     expect(isUsableSemanticTarget(row, 'top-plane')).toBe(false);
+  });
+
+  it('does not promote a non-ARIA Top label without a validated feature row', () => {
+    const shell = document.createElement('div');
+    const group = document.createElement('div');
+    const nestedRow = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = 'Top';
+    nestedRow.append(label);
+    group.append(nestedRow);
+    shell.append(group);
+    document.body.append(shell);
+
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'REJECTED',
+      element: label,
+      confidence: 'LOW',
+      candidateCount: 1,
+    });
+    expect(findSelectedSemanticTargets(document, 'top-plane')).toEqual([]);
   });
 
   it.each([

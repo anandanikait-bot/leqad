@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createTopRowCapture } from './recognitionDiagnostics';
 
+// All DOM structures in this file are simulations, not captured Onshape DOM.
 afterEach(() => {
   vi.useRealTimers();
   document.body.replaceChildren();
@@ -81,6 +82,79 @@ it('captures a nested target and exposes the actionable ancestor distance', asyn
     ).toEqual(['button', 'treeitem']);
     expect(result.report.diagnosis).toBe(
       'STRUCTURE_MATCHES_SUPPORTED_RESOLVER',
+    );
+  }
+});
+
+it('shows the non-ARIA hierarchy and keeps unsupported actionability unknown', async () => {
+  // Simulation only: sibling placement is not asserted as Onshape structure.
+  const root = document.createElement('div');
+  const heading = document.createElement('div');
+  heading.textContent = 'Default geometry';
+  const list = document.createElement('div');
+  const row = document.createElement('div');
+  const wrapper = document.createElement('div');
+  const top = document.createElement('span');
+  top.textContent = 'Top';
+  wrapper.append(top);
+  row.append(wrapper);
+  const front = document.createElement('div');
+  front.innerHTML = '<span>Front</span>';
+  const right = document.createElement('div');
+  right.innerHTML = '<span>Right</span>';
+  list.append(row, front, right);
+  root.append(heading, list);
+  document.body.append(root);
+
+  let clickPassedThrough = false;
+  top.addEventListener('click', () => {
+    clickPassedThrough = true;
+  });
+  const capture = createTopRowCapture(document, 1000);
+  const event = new MouseEvent('click', {
+    bubbles: true,
+    composed: true,
+    cancelable: true,
+  });
+  top.dispatchEvent(event);
+  const result = await capture.promise;
+
+  expect(result.status).toBe('CAPTURED');
+  expect(clickPassedThrough).toBe(true);
+  expect(event.defaultPrevented).toBe(false);
+  if (result.status === 'CAPTURED') {
+    expect(result.report.structure[0]).toMatchObject({
+      tag: 'span',
+      role: 'none',
+      rolePresent: false,
+      planeMatches: ['Top'],
+      actionable: false,
+      actionabilityEvidence: 'NOT_EXPOSED',
+      context: 'UNKNOWN',
+    });
+    expect(result.report.relationshipOutline.interactionHandling).toBe(
+      'JAVASCRIPT_HANDLER_NOT_INSPECTED',
+    );
+    expect(
+      result.report.relationshipOutline.relationships.some((relationship) =>
+        relationship.siblings.some((sibling) =>
+          sibling.nestedLabelMatches.some(
+            (match) => match.label === 'Default geometry',
+          ),
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      result.report.relationshipOutline.relationships.some((relationship) =>
+        relationship.siblings.some((sibling) =>
+          sibling.nestedLabelMatches.some(
+            (match) => match.label === 'Front' || match.label === 'Right',
+          ),
+        ),
+      ),
+    ).toBe(true);
+    expect(result.report.findings).toContain(
+      'DEFAULT_GEOMETRY_OBSERVED_OUTSIDE_CAPTURED_ANCESTOR_PATH',
     );
   }
 });

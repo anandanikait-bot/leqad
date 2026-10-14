@@ -1,5 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
+import {
+  collectRecognitionDiagnostics,
+  createTopRowCapture,
+  RECOGNITION_DIAGNOSTIC_LIMITS,
+} from './recognitionDiagnostics';
 
+// All DOM structures in this file are controlled simulations.
 afterEach(() => document.body.replaceChildren());
 
 function featureTree() {
@@ -29,6 +35,7 @@ it('scans the semantic tree region even when the rest of the document is large',
   const { collectRecognitionDiagnostics } =
     await import('./recognitionDiagnostics');
   const report = JSON.parse(collectRecognitionDiagnostics(document));
+  expect(report.version).toBe('leqad-recognition/3');
   expect(report.productionRecognition.status).toBe('NOT_RUN');
   expect(report.scan).toMatchObject({
     status: 'COMPLETE',
@@ -48,6 +55,45 @@ it('scans the semantic tree region even when the rest of the document is large',
   expect(row.isConnected).toBe(true);
   expect(report.scan.scannedElements).toBeLessThan(20);
   expect(report.scanLimitReached).toBe(false);
+});
+
+it('keeps a dense clicked-row report within the serialized report-size limit', async () => {
+  // Simulation only: this nested structure stresses the capture output bounds.
+  let branch: HTMLElement = document.createElement('div');
+  document.body.append(branch);
+  for (let depth = 0; depth < 8; depth++) {
+    const siblings: HTMLElement[] = [];
+    for (let siblingIndex = 0; siblingIndex < 5; siblingIndex++) {
+      const sibling = document.createElement('div');
+      for (let labelIndex = 0; labelIndex < 8; labelIndex++) {
+        const label = document.createElement('span');
+        label.textContent = ['Top', 'Front', 'Right', 'Default geometry'][
+          labelIndex % 4
+        ]!;
+        sibling.append(label);
+      }
+      siblings.push(sibling);
+      branch.append(sibling);
+    }
+    branch = siblings[2]!;
+  }
+  const clicked = document.createElement('span');
+  clicked.textContent = 'Top';
+  branch.append(clicked);
+
+  const capture = createTopRowCapture(document, 1000);
+  clicked.dispatchEvent(
+    new MouseEvent('click', { bubbles: true, composed: true }),
+  );
+  const result = await capture.promise;
+  expect(result.status).toBe('CAPTURED');
+  if (result.status === 'CAPTURED') {
+    const output = collectRecognitionDiagnostics(document, result.report);
+    expect(output.length).toBeLessThanOrEqual(
+      RECOGNITION_DIAGNOSTIC_LIMITS.reportChars,
+    );
+    expect(JSON.parse(output).productionRecognition.status).toBe('NOT_RUN');
+  }
 });
 
 it('does not turn an incomplete feature-tree scan into a MISSING recognition result', async () => {
