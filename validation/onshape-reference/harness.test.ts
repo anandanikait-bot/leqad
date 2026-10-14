@@ -18,7 +18,7 @@ import type { ProductObservation } from './evaluate.ts';
 const makeCapture = (
   overrides: Partial<ReferenceCapture> = {},
 ): ReferenceCapture => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   captureId: 'cap_simulated_001',
   capturedAt: '2026-10-14T12:00:00.000Z',
   captureSource: 'LOCAL_CHROME',
@@ -57,6 +57,7 @@ const makeCapture = (
           },
           accessibility: {
             nameAttributePresent: false,
+            nativeDisabledAttributePresent: false,
             roleAttributePresent: false,
             tabIndexAttributePresent: false,
           },
@@ -79,6 +80,7 @@ const makeCapture = (
           },
           accessibility: {
             nameAttributePresent: true,
+            nativeDisabledAttributePresent: false,
             roleAttributePresent: true,
             tabIndexAttributePresent: false,
           },
@@ -122,6 +124,7 @@ const makeCapture = (
           },
           accessibility: {
             nameAttributePresent: false,
+            nativeDisabledAttributePresent: false,
             roleAttributePresent: false,
             tabIndexAttributePresent: false,
           },
@@ -144,6 +147,7 @@ const makeCapture = (
           },
           accessibility: {
             nameAttributePresent: true,
+            nativeDisabledAttributePresent: false,
             roleAttributePresent: true,
             tabIndexAttributePresent: false,
           },
@@ -166,6 +170,7 @@ const makeCapture = (
           },
           accessibility: {
             nameAttributePresent: true,
+            nativeDisabledAttributePresent: false,
             roleAttributePresent: true,
             tabIndexAttributePresent: false,
           },
@@ -413,6 +418,7 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
               },
               accessibility: {
                 nameAttributePresent: false,
+                nativeDisabledAttributePresent: false,
                 roleAttributePresent: false,
                 tabIndexAttributePresent: false,
               },
@@ -435,6 +441,7 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
               },
               accessibility: {
                 nameAttributePresent: true,
+                nativeDisabledAttributePresent: false,
                 roleAttributePresent: true,
                 tabIndexAttributePresent: false,
               },
@@ -496,6 +503,79 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     const before = sketchCapture.observations[0]!;
     const after = sketchCapture.observations[1]!;
 
+    const ariaDisabledSketch = structuredClone(sketchCapture);
+    ariaDisabledSketch.observations[0]!.nodes.find(
+      (node) => node.label === 'Sketch',
+    )!.aria.disabled = 'TRUE';
+    expect(evaluateCapture(ariaDisabledSketch)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const ariaDisabledFinish = structuredClone(sketchCapture);
+    ariaDisabledFinish.observations[1]!.nodes.find(
+      (node) => node.label === 'Finish Sketch',
+    )!.aria.disabled = 'TRUE';
+    expect(evaluateCapture(ariaDisabledFinish)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const nativeDisabledSketch = structuredClone(sketchCapture);
+    Object.assign(
+      nativeDisabledSketch.observations[0]!.nodes.find(
+        (node) => node.label === 'Sketch',
+      )!.accessibility,
+      { nativeDisabledAttributePresent: true },
+    );
+    expect(evaluateCapture(nativeDisabledSketch)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const nativeDisabledFinish = structuredClone(sketchCapture);
+    Object.assign(
+      nativeDisabledFinish.observations[1]!.nodes.find(
+        (node) => node.label === 'Finish Sketch',
+      )!.accessibility,
+      { nativeDisabledAttributePresent: true },
+    );
+    expect(evaluateCapture(nativeDisabledFinish)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const nestedConflictingName = structuredClone(sketchCapture);
+    const command = nestedConflictingName.observations[0]!.nodes[1]!;
+    command.label = null;
+    command.childIndexes = [2];
+    command.accessibility.nameAttributePresent = true;
+    nestedConflictingName.observations[0]!.nodes.push({
+      ...command,
+      nodeIndex: 2,
+      parentIndex: command.nodeIndex,
+      childIndexes: [],
+      tag: 'SPAN',
+      label: 'Sketch',
+      role: null,
+      aria: {
+        expanded: 'UNKNOWN',
+        selected: 'UNKNOWN',
+        disabled: 'UNKNOWN',
+        hidden: 'FALSE',
+      },
+      accessibility: {
+        nameAttributePresent: false,
+        nativeDisabledAttributePresent: false,
+        roleAttributePresent: false,
+        tabIndexAttributePresent: false,
+      },
+    });
+    expect(evaluateCapture(nestedConflictingName)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
     // A label and manually asserted state do not establish a CAD command.
     for (const index of [0, 1]) {
       const textOnly = structuredClone(sketchCapture);
@@ -522,6 +602,7 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     const nestedLabel = structuredClone(sketchCapture);
     nestedLabel.observations[1]!.nodes[1]!.label = null;
     nestedLabel.observations[1]!.nodes[1]!.childIndexes = [2];
+    nestedLabel.observations[1]!.nodes[1]!.accessibility.nameAttributePresent = false;
     nestedLabel.observations[1]!.nodes.push({
       ...after.nodes[1]!,
       nodeIndex: 2,

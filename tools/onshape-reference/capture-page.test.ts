@@ -119,6 +119,86 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     ).toBe(true);
   });
 
+  it.each([
+    ['aria-label', 'Sketch options'],
+    ['title', 'Sketch tools'],
+    ['aria-labelledby', 'private-name'],
+  ])(
+    'keeps Sketch uncertain when an explicit %s name is not allowlisted',
+    (attribute, value) => {
+      document.body.innerHTML = `<button ${attribute}="${value}">Sketch</button>`;
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(10, 20, 80, 24),
+      );
+
+      const snapshot = capturePageSnapshot();
+
+      expect(snapshot.domState).toBe('UNKNOWN');
+      expect(snapshot.nodes.find((node) => node.tag === 'BUTTON')?.label).toBe(
+        null,
+      );
+      expect(JSON.stringify(snapshot)).not.toContain(value);
+    },
+  );
+
+  it('uses the higher-precedence allowlisted aria-label over a private title', () => {
+    document.body.innerHTML =
+      '<button aria-label="Sketch" title="private toolbar name">fallback text</button>';
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot();
+
+    expect(snapshot.domState).toBe('SKETCH_COMMAND_VISIBLE');
+    expect(snapshot.nodes.find((node) => node.tag === 'BUTTON')?.label).toBe(
+      'Sketch',
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('private toolbar name');
+    expect(JSON.stringify(snapshot)).not.toContain('fallback text');
+  });
+
+  it('does not recover a Sketch command from text nested under a conflicting named button', () => {
+    document.body.innerHTML =
+      '<button aria-label="Sketch options"><span>Sketch</span></button>';
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot();
+
+    expect(snapshot.domState).toBe('UNKNOWN');
+    expect(snapshot.nodes.some((node) => node.label === 'Sketch')).toBe(false);
+    expect(JSON.stringify(snapshot)).not.toContain('Sketch options');
+  });
+
+  it('preserves disabled command state as bounded sanitized facts', () => {
+    document.body.innerHTML = `
+      <button aria-label="Sketch" aria-disabled="true">Sketch</button>
+      <button aria-label="Finish Sketch" disabled="false">Finish Sketch</button>`;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot();
+    const sketch = snapshot.nodes.find((node) => node.label === 'Sketch');
+    const finish = snapshot.nodes.find(
+      (node) => node.label === 'Finish Sketch',
+    );
+
+    expect(sketch?.aria.disabled).toBe('TRUE');
+    expect(
+      (sketch?.accessibility as Record<string, unknown>)
+        .nativeDisabledAttributePresent,
+    ).toBe(false);
+    expect(finish?.aria.disabled).toBe('UNKNOWN');
+    expect(
+      (finish?.accessibility as Record<string, unknown>)
+        .nativeDisabledAttributePresent,
+    ).toBe(true);
+    expect(JSON.stringify(snapshot)).not.toContain('disabled="false"');
+  });
+
   it('records the active Sketch control without exporting private dialog text', () => {
     document.body.innerHTML = `
       <div role="dialog" aria-label="Sketch">

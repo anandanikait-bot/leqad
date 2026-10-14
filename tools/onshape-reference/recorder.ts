@@ -7,6 +7,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import {
+  CAPTURE_SCHEMA_VERSION,
   validateCapture,
   type CaptureEvent,
   type DomState,
@@ -212,7 +213,7 @@ async function captureOne(
   const observations = [before, after];
 
   const record = {
-    schemaVersion: 1,
+    schemaVersion: CAPTURE_SCHEMA_VERSION,
     captureId: `cap_${randomUUID()}`,
     capturedAt: new Date().toISOString(),
     captureSource: 'LOCAL_CHROME',

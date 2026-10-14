@@ -1,4 +1,4 @@
-export const CAPTURE_SCHEMA_VERSION = 1 as const;
+export const CAPTURE_SCHEMA_VERSION = 2 as const;
 export const MAX_CAPTURE_BYTES = 32_768;
 export const MAX_OBSERVATIONS = 2;
 export const MAX_CAPTURE_NODES = 180;
@@ -113,6 +113,7 @@ export interface CaptureNode {
   };
   accessibility: {
     nameAttributePresent: boolean;
+    nativeDisabledAttributePresent: boolean;
     roleAttributePresent: boolean;
     tabIndexAttributePresent: boolean;
   };
@@ -320,6 +321,7 @@ function isNode(value: unknown): value is CaptureNode {
   if (
     !hasExactKeys(node.accessibility, [
       'nameAttributePresent',
+      'nativeDisabledAttributePresent',
       'roleAttributePresent',
       'tabIndexAttributePresent',
     ]) ||

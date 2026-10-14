@@ -93,10 +93,14 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     return trimmed && allowedLabels.includes(trimmed) ? trimmed : null;
   };
   const labelOf = (element: Element) => {
-    const fromAria = exactLabel(element.getAttribute('aria-label'));
-    if (fromAria) return fromAria;
-    const fromTitle = exactLabel(element.getAttribute('title'));
-    if (fromTitle) return fromTitle;
+    // An explicit accessible name takes precedence even when it is not in the
+    // export allowlist. In that case keep the target unknown instead of
+    // classifying it from a lower-priority title or text fallback.
+    if (element.hasAttribute('aria-labelledby')) return null;
+    if (element.hasAttribute('aria-label'))
+      return exactLabel(element.getAttribute('aria-label'));
+    if (element.hasAttribute('title'))
+      return exactLabel(element.getAttribute('title'));
     for (const child of Array.from(element.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE) {
         const direct = exactLabel(child.textContent);
@@ -108,6 +112,28 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   const roleOf = (element: Element) => {
     const role = element.getAttribute('role')?.trim().toUpperCase();
     return role && roles.includes(role) ? role : null;
+  };
+  const hasConflictingNamedControlAncestor = (
+    element: Element,
+    label: string,
+  ) => {
+    const nativeActionable = new Set(['BUTTON', 'INPUT', 'SELECT', 'OPTION']);
+    let ancestor = element.parentElement;
+    let depth = 0;
+    while (ancestor && ancestor !== root && depth < limits.maxDepth) {
+      const actionable =
+        nativeActionable.has(ancestor.tagName.toUpperCase()) ||
+        ['BUTTON', 'MENUITEM'].includes(roleOf(ancestor) ?? '');
+      const hasExplicitName =
+        ancestor.hasAttribute('aria-labelledby') ||
+        ancestor.hasAttribute('aria-label') ||
+        ancestor.hasAttribute('title');
+      if (actionable && hasExplicitName && labelOf(ancestor) !== label)
+        return true;
+      ancestor = ancestor.parentElement;
+      depth += 1;
+    }
+    return false;
   };
   const boolOf = (element: Element, key: string) => {
     const value = element.getAttribute(`aria-${key}`)?.trim().toLowerCase();
@@ -230,7 +256,8 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
         parent = parent.parentElement;
       }
       if (parent && parent !== root) depthLimitReached = true;
-      if (labelOf(element)) {
+      const label = labelOf(element);
+      if (label && !hasConflictingNamedControlAncestor(element, label)) {
         recognizedLabelCount += 1;
         labeledCandidates.push(element);
       } else if (
@@ -399,6 +426,9 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
           element.hasAttribute('aria-label') ||
           element.hasAttribute('aria-labelledby') ||
           element.hasAttribute('title'),
+        nativeDisabledAttributePresent:
+          nativeControls.has(element.tagName.toUpperCase()) &&
+          element.hasAttribute('disabled'),
         roleAttributePresent: element.hasAttribute('role'),
         tabIndexAttributePresent: element.hasAttribute('tabindex'),
       },

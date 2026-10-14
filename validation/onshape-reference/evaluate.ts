@@ -106,15 +106,21 @@ function visibleCommandControls(
         !node.bounds ||
         node.bounds.width <= 0 ||
         node.bounds.height <= 0 ||
-        node.aria.hidden === 'TRUE'
+        node.aria.hidden === 'TRUE' ||
+        node.aria.disabled === 'TRUE' ||
+        node.accessibility.nativeDisabledAttributePresent
       )
         break;
       if (node.label && !labels.includes(node.label)) break;
-      if (
+      const actionable =
         node.tag === 'BUTTON' ||
         node.role === 'BUTTON' ||
-        node.role === 'MENUITEM'
-      ) {
+        node.role === 'MENUITEM';
+      // If an actionable element declares a name that was not safely
+      // allowlisted, nested fallback text cannot override that name.
+      if (actionable && node.accessibility.nameAttributePresent && !node.label)
+        break;
+      if (actionable) {
         controls.set(node.nodeIndex, node);
         break;
       }
