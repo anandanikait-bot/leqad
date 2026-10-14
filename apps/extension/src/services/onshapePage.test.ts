@@ -177,6 +177,85 @@ describe('Onshape capability observations', () => {
     });
   });
 
+  it('allows Sketch visual guidance from a unique control when the selected Part Studio tab is unrecognized', async () => {
+    const {
+      observeOnshapeCapabilities,
+      observeOnshapeGuidanceContext,
+      parseOnshapePage,
+    } = await import('./onshapePage');
+    visibleControl('Sketch', 'button');
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+
+    // The toolbar is guidance evidence, not sufficient capability/permission evidence.
+    expect(observeOnshapeCapabilities(page, document)).toMatchObject({
+      elementType: 'unknown',
+      editability: 'unknown',
+    });
+    expect(observeOnshapeGuidanceContext(page, document)).toBe('PART_STUDIO');
+    expect(page.elementType).toBe('unknown');
+  });
+
+  it('allows Sketch-editing guidance only from a unique visible Finish Sketch control when the tab is unrecognized', async () => {
+    const { observeOnshapeGuidanceContext, parseOnshapePage } =
+      await import('./onshapePage');
+    visibleControl('Finish sketch', 'button');
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+
+    expect(observeOnshapeGuidanceContext(page, document)).toBe(
+      'SKETCH_EDITING',
+    );
+    expect(page.elementType).toBe('unknown');
+  });
+
+  it('keeps guidance context UNKNOWN without a unique usable control, or with a known different element type', async () => {
+    const { observeOnshapeGuidanceContext, parseOnshapePage } =
+      await import('./onshapePage');
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+
+    expect(observeOnshapeGuidanceContext(page, document)).toBe('UNKNOWN');
+    visibleControl('Sketch', 'button');
+    visibleControl('Sketch', 'button');
+    expect(observeOnshapeGuidanceContext(page, document)).toBe('UNKNOWN');
+    expect(
+      observeOnshapeGuidanceContext(
+        { ...page, elementType: 'other' },
+        document,
+      ),
+    ).toBe('UNKNOWN');
+  });
+
+  it('does not use Sketch-toolbar fallback for read-only, version, or unsupported pages', async () => {
+    const { observeOnshapeGuidanceContext, parseOnshapePage } =
+      await import('./onshapePage');
+    visibleControl('Sketch', 'button');
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+    expect(
+      observeOnshapeGuidanceContext(
+        { ...page, editability: 'read-only' },
+        document,
+      ),
+    ).toBe('UNKNOWN');
+    expect(
+      observeOnshapeGuidanceContext(
+        parseOnshapePage(
+          'https://cad.onshape.com/documents/document-a/v/version-a/e/element-a',
+        ),
+        document,
+      ),
+    ).toBe('UNKNOWN');
+    expect(
+      observeOnshapeGuidanceContext(parseOnshapePage('https://cad.onshape.com/'), document),
+    ).toBe('UNKNOWN');
+  });
+
   it('honors a visible read-only indicator and does not promote editability', async () => {
     const { observeOnshapeCapabilities, parseOnshapePage } =
       await import('./onshapePage');
