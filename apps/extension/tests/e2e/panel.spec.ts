@@ -70,12 +70,14 @@ test('non-ARIA feature-list simulation highlights only the row and re-resolves a
     );
 
     common.append(
-      document.createElement('div'),
-      document.createElement('div'),
-      document.createElement('div'),
       heading,
       spacer,
       row,
+      // These unknown siblings preserve the reported total only; their
+      // positions do not stand in for captured Onshape evidence.
+      document.createElement('div'),
+      document.createElement('div'),
+      document.createElement('div'),
     );
     document.body.append(common);
   });

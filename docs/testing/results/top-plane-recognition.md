@@ -4,7 +4,7 @@
 
 **Live Onshape acceptance:** BLOCKED. The latest adapter has not been owner-tested in Onshape.
 
-The code under test is PR #1 commit e4ad2a310a251e4684ccfdf48fe34d87958032e3. A later documentation-only PR commit carries this report; no extension source changed after the tested commit. PR #1 remains open and unmerged.
+The production adapter under test is PR #1 commit e4ad2a310a251e4684ccfdf48fe34d87958032e3. Later PR changes refine sanitized regression fixtures and reporting; they do not change production behavior. PR #1 remains open and unmerged.
 
 ## Authenticated evidence and root cause
 
@@ -37,7 +37,7 @@ The highlight uses the candidate branch’s current DOMRect. A mutation or remov
 
 ## Regression coverage
 
-The sanitized unit fixture labels its evidence boundary in the test source. It models only the captured Top span, nested div wrappers, six-child common parent, -2/-1/0 sibling relationship, and measured 1.6x/1.3x/7.8x bounds. The other three leading empty children preserve the reported count; their real contents are unknown. Front/Right use simulated variants with a changed sibling gap and child count and are not live Onshape evidence.
+The sanitized unit fixture labels its evidence boundary in the test source. It models only the captured Top span, nested div wrappers, six-child common parent, -2/-1/0 sibling relationship, and measured 1.6x/1.3x/7.8x bounds. Three empty placeholders preserve the reported count only; their real contents and positions are unknown and do not drive recognition. Front/Right use simulated variants with a changed sibling gap and child count and are not live Onshape evidence.
 
 The regressions cover exact Top/Front/Right matching, duplicate rows, camera/viewport/dialog decoys, unrelated Top text, a distant rather than direct Default geometry sibling, hidden rows, an oversized row bound that overlaps Default geometry, unknown click/selection state, click-through, cleanup, and DOM replacement followed by a fresh Show me.
 

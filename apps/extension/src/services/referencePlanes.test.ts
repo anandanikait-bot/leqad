@@ -31,9 +31,10 @@ function referenceTree(name = 'Top', label = name) {
  * Sanitized non-ARIA fixture, based on authenticated Onshape v3 observations:
  * a Top span nested in divs, a shared parent with six children, Default
  * geometry two sibling positions before Top, and an unlabeled sibling between.
- * The three leading empty children only preserve the observed count; their
- * actual contents are unknown. Front/Right use this shape only as simulated
- * variants because their live sibling relationships were not captured.
+ * Three empty placeholders preserve the observed count only; their contents
+ * and positions were not captured and do not establish recognition context.
+ * Front/Right use this shape only as simulated variants because their live
+ * sibling relationships were not captured.
  */
 function nonAriaFeatureList(
   plane: 'Top' | 'Front' | 'Right' = 'Top',
@@ -77,9 +78,9 @@ function nonAriaFeatureList(
     for (let index = 0; index < 3; index += 1)
       common.append(document.createElement('div'));
   } else {
+    common.append(heading, spacer, ...rows.map(({ row }) => row));
     for (let index = 0; index < 3; index += 1)
       common.append(document.createElement('div'));
-    common.append(heading, spacer, ...rows.map(({ row }) => row));
   }
   document.body.append(common);
   return {
