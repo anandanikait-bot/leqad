@@ -511,8 +511,8 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     });
 
     const disabledFieldsetAncestor = structuredClone(sketchCapture);
-    const disabledFieldset = disabledFieldsetAncestor.observations[0]!.nodes[0]!;
-    disabledFieldset.accessibility.nativeDisabledAttributePresent = true;
+    const ancestor = disabledFieldsetAncestor.observations[0]!.nodes[0]!;
+    ancestor.accessibility.nativeDisabledAttributePresent = true;
     expect(evaluateCapture(disabledFieldsetAncestor)).toMatchObject({
       status: 'INSUFFICIENT_EVIDENCE',
       reason: 'TRANSITION_UNVERIFIED',
