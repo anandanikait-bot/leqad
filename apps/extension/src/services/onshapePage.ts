@@ -1,7 +1,10 @@
 import {
   findSelectedSemanticTarget,
   findSemanticTarget,
+  recognizeSemanticTarget,
 } from './semanticTargets';
+import { observeSketchGuidanceUi } from './sketchGuidance';
+import type { GuidanceUiContext } from './guidanceRegistry';
 
 export type OnshapeModelType = 'workspace' | 'version' | 'microversion' | null;
 export type OnshapeEditability = 'editable' | 'read-only' | 'unknown';
@@ -217,6 +220,35 @@ export function observeOnshapeCapabilities(
     source: 'UI',
     observedAt: now.toISOString(),
   });
+}
+
+/**
+ * Observe the UI context needed solely to show visual guidance.
+ * This is deliberately separate from capability observations: an identified
+ * Sketch button is not proof of the element type or editing permission.
+ * An unknown selected-tab state must not prevent highlighting a unique,
+ * usable Sketch control on an otherwise supported workspace.
+ */
+export function observeOnshapeGuidanceContext(
+  page: OnshapePageContext,
+  root: ParentNode,
+): GuidanceUiContext {
+  if (!page.supported || page.elementType === 'other') return 'UNKNOWN';
+
+  const editingAppearsActive = observeSketchGuidanceUi(root).editingAppearsActive;
+  if (page.elementType === 'part-studio') {
+    return editingAppearsActive ? 'SKETCH_EDITING' : 'PART_STUDIO';
+  }
+
+  // Fall back only for visual guidance in a workspace with an unknown tab type.
+  // This does not update the page's elementType or editability.
+  if (page.modelType !== 'workspace' || page.editability === 'read-only') {
+    return 'UNKNOWN';
+  }
+  if (editingAppearsActive) return 'SKETCH_EDITING';
+  return recognizeSemanticTarget(root, 'sketch').status === 'FOUND'
+    ? 'PART_STUDIO'
+    : 'UNKNOWN';
 }
 
 export interface OnshapeCapabilityMonitor {
