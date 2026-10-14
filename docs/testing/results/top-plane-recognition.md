@@ -1,10 +1,10 @@
 # Top-plane recognition sprint
 
-**Automated validation:** local checks and hosted CI run 38510905966 passed.
+**Automated validation:** local checks and hosted CI run 38511406874 passed on PR head 7b4ec449a039e27eca67f9aa29cdf33592b3d26c.
 
 **Live Onshape acceptance:** BLOCKED. The latest adapter has not been owner-tested in Onshape.
 
-The production adapter under test is PR #1 commit e4ad2a310a251e4684ccfdf48fe34d87958032e3. Later PR changes refine sanitized regression fixtures and reporting; they do not change production behavior. PR #1 remains open and unmerged.
+The production adapter was introduced in PR #1 commit e4ad2a310a251e4684ccfdf48fe34d87958032e3. Latest tested PR head: 7b4ec449a039e27eca67f9aa29cdf33592b3d26c; later commits refine sanitized regression fixtures and reporting without changing the production adapter. PR #1 remains open and unmerged.
 
 ## Authenticated evidence and root cause
 
@@ -52,7 +52,7 @@ No Onshape API integration, AI tutoring, or lesson verification behavior was add
 
 ## Automated validation
 
-Local results for source commit e4ad2a310a251e4684ccfdf48fe34d87958032e3:
+Local results on tested PR head 7b4ec449a039e27eca67f9aa29cdf33592b3d26c (adapter introduced at e4ad2a310a251e4684ccfdf48fe34d87958032e3):
 
 | Check                             | Result                                                                                    |
 | --------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -67,13 +67,13 @@ Local results for source commit e4ad2a310a251e4684ccfdf48fe34d87958032e3:
 
 The new Playwright case is a controlled simulation. It confirms the measured row outline, pointer click-through, stale-outline removal when Onshape-style DOM is replaced, and a fresh match on the next Show me. It is not an authenticated Onshape test.
 
-Hosted CI [run 38510905966](https://github.com/anandanikait-bot/leqad/actions/runs/38510905966) on source commit e4ad2a310a251e4684ccfdf48fe34d87958032e3 passed frozen install, lint, typecheck, formatting, **237 unit/component tests across 17 files**, Chrome/Edge builds, **12 browser tests**, packaging, and artifact upload. [Download the tested Chrome/Edge build — artifact 11869538592](https://github.com/anandanikait-bot/leqad/actions/runs/38510905966/artifacts/11869538592). Each inner ZIP is 129,414 bytes with SHA-256 244cc70661fbb423158d599046e86bc650947a7bb03f6864698f52f28229cd8f. The two inner packages are byte-identical and match the local packages. The outer artifact is 259,062 bytes with SHA-256 8d2c6d4d7dfea92ba657fbae7547bc7ffa98c344a2cf976ec9d51d6b48c8c238, matching the Actions digest. I downloaded the hosted artifact and verified the outer digest, both inner hashes, and byte equality with the local Chrome/Edge packages. These hashes were measured for this artifact and are not copied from the diagnostic build.
+Hosted CI [run 38511406874](https://github.com/anandanikait-bot/leqad/actions/runs/38511406874) on tested PR head 7b4ec449a039e27eca67f9aa29cdf33592b3d26c passed frozen install, lint, typecheck, formatting, **237 unit/component tests across 17 files**, Chrome/Edge builds, **12 browser tests**, packaging, and artifact upload. [Download the tested Chrome/Edge build — artifact 11870015949](https://github.com/anandanikait-bot/leqad/actions/runs/38511406874/artifacts/11870015949). Each inner ZIP is 129,414 bytes with SHA-256 244cc70661fbb423158d599046e86bc650947a7bb03f6864698f52f28229cd8f. The two inner packages are byte-identical and match the local packages. The outer artifact is 259,062 bytes with SHA-256 1e4c06b51fdc0287d346cd15c87e1dc9486ccb66ff3a572bdd46ee1b656e251f, matching the Actions digest. I downloaded this hosted artifact and verified its outer digest, both inner hashes, and byte equality with local Chrome/Edge packages. These hashes were measured for this artifact and are not copied from an earlier build.
 
 The earlier diagnostic-only build passed Actions run 38502121687, artifact 11865553662. Its Chrome/Edge inner packages were 128,329 bytes each with SHA-256 8e330abb5e603f868bbd75939243af712fe01b6bb06e0d10e2cef8f8e13645a0. That artifact predates this adapter and is not the live-acceptance build.
 
 ## Owner live test
 
-Download [artifact 11869538592](https://github.com/anandanikait-bot/leqad/actions/runs/38510905966/artifacts/11869538592) and extract its outer ZIP. Extract leqadextension-0.1.0-chrome.zip (or the Edge ZIP) into a folder with manifest.json at its root. Disable/remove older Leqad copies, open chrome://extensions or edge://extensions, enable Developer mode, choose **Load unpacked**, select that folder, and refresh Onshape.
+Download [artifact 11870015949](https://github.com/anandanikait-bot/leqad/actions/runs/38511406874/artifacts/11870015949) and extract its outer ZIP. Extract leqadextension-0.1.0-chrome.zip (or the Edge ZIP) into a folder with manifest.json at its root. Disable/remove older Leqad copies, open chrome://extensions or edge://extensions, enable Developer mode, choose **Load unpacked**, select that folder, and refresh Onshape.
 
 In an authorized disposable Part Studio:
 
