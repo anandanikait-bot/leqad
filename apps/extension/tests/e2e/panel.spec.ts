@@ -499,11 +499,22 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
   await page
     .getByRole('button', { name: 'Capture Rectangle dropdown' })
     .click();
-  await page.locator('#simulated-rectangle-keyboard-trigger').click();
+  const trigger = page.locator('#simulated-rectangle-keyboard-trigger');
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  // The capture batches DOM mutations into requestAnimationFrame. Flush that
+  // bounded observer pass before the next click so CLOSED and OPEN are not
+  // collapsed into one simulated transition under parallel CI load.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
   await expect(
     page.getByText(/Waiting for Rectangle menu change/i),
   ).toBeVisible();
-  await page.locator('#simulated-rectangle-keyboard-trigger').click();
+  await trigger.click();
   await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
