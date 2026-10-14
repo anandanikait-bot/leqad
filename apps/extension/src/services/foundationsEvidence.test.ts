@@ -35,6 +35,16 @@ function visibleControl(
   if (selected !== undefined) control.setAttribute('aria-selected', selected);
   control.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
   document.body.append(control);
+  if (['Top plane', 'Front plane', 'Right plane'].includes(name)) {
+    const tree = document.createElement('div');
+    tree.setAttribute('role', 'tree');
+    const group = document.createElement('div');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', 'Default geometry');
+    group.append(control);
+    tree.append(group);
+    document.body.append(tree);
+  }
   return control;
 }
 

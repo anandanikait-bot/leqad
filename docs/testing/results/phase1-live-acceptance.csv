@@ -9,9 +9,9 @@ Rectangle command,Show me targets Rectangle; command visibility never verifies r
 Dimension command,Show me targets Dimension; visible values never become verified model dimensions.,BLOCKED,No real Onshape observation recorded.
 Finish Sketch command,Show me targets Finish Sketch; disappearing controls never prove committed geometry.,BLOCKED,No real Onshape observation recorded.
 Step 1: introduction,Got it records ACKNOWLEDGED and Next becomes available.,BLOCKED,Lesson not run in real Onshape.
-Step 2: select Top plane,"Perform the action manually. With unknown edit permission, Check progress is disabled and direct continuation records SELF_REPORTED/UNKNOWN.",BLOCKED,Lesson not run in real Onshape.
+Step 2: select Top plane,"Perform the action manually. With unknown edit permission, Check progress is hidden and direct continuation records SELF_REPORTED/UNKNOWN.",BLOCKED,Lesson not run in real Onshape.
 Step 3: start Sketch,"Enter sketch mode manually. Current controls may differ from earlier selection. With unknown edit permission, continue self-reported; no plane association is claimed.",BLOCKED,Lesson not run in real Onshape.
-Step 4: draw rectangle,Explanation and Continue without verification appear immediately; no unproductive Check progress. Completion is SELF_REPORTED/UNKNOWN.,BLOCKED,Lesson not run in real Onshape.
+Step 4: draw rectangle,Explanation and I've finished this step appear immediately; no unproductive Check progress. Completion is SELF_REPORTED/UNKNOWN.,BLOCKED,Lesson not run in real Onshape.
 Step 5: set 40 mm × 30 mm,"Add dimensions manually. Direct continuation records SELF_REPORTED/UNKNOWN, with no verified dimension claim.",BLOCKED,Lesson not run in real Onshape.
 Step 6: finish Sketch,"Finish manually. Direct continuation records SELF_REPORTED/UNKNOWN, with no verified committed sketch claim.",BLOCKED,Lesson not run in real Onshape.
 Step 7: understand result,Got it records ACKNOWLEDGED; explanation distinguishes a 2D sketch from a solid.,BLOCKED,Lesson not run in real Onshape.

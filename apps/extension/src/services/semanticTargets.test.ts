@@ -1,19 +1,48 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+function inDefaultGeometry(control: HTMLElement) {
+  const tree = document.createElement('div');
+  tree.setAttribute('role', 'tree');
+  const group = document.createElement('div');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Default geometry');
+  group.append(control);
+  tree.append(group);
+  document.body.append(tree);
+}
 
 function visibleButton(name: string): HTMLButtonElement {
   const button = document.createElement('button');
   button.setAttribute('aria-label', name);
   button.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
   document.body.append(button);
+  if (name === 'Top plane') inDefaultGeometry(button);
   return button;
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.replaceChildren();
   Reflect.deleteProperty(document, 'elementFromPoint');
 });
 
 describe('findSemanticTarget', () => {
+  it('does not let an unusable stronger match suppress a visible valid control', async () => {
+    const hidden = visibleButton('Sketch');
+    hidden.hidden = true;
+    const visible = document.createElement('button');
+    visible.textContent = 'Sketch';
+    visible.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    document.body.append(visible);
+    const { recognizeSemanticTarget, findSemanticTargets } =
+      await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch')).toMatchObject({
+      status: 'FOUND',
+      element: visible,
+    });
+    expect(findSemanticTargets(document, 'sketch')).toEqual([visible]);
+  });
+
   it('returns a typed high-confidence exact accessible-label recognition', async () => {
     const target = visibleButton('Top plane');
     const { recognizeSemanticTarget } = await import('./semanticTargets');
@@ -69,6 +98,7 @@ describe('findSemanticTarget', () => {
     target.textContent = 'Top plane';
     target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
     document.body.append(target);
+    inDefaultGeometry(target);
     const { recognizeSemanticTarget, isUsableSemanticTarget } =
       await import('./semanticTargets');
 
@@ -187,6 +217,76 @@ describe('findSemanticTarget', () => {
 });
 
 describe('createTargetHighlight', () => {
+  it('owns one timed highlight across repeated actions and cancels it on cleanup', async () => {
+    vi.useFakeTimers();
+    try {
+      visibleButton('Top plane');
+      const { createSemanticHighlighter } = await import('./semanticTargets');
+      const highlighter = createSemanticHighlighter(document);
+      expect(highlighter.show('top-plane').status).toBe('FOUND');
+      expect(highlighter.show('top-plane').status).toBe('FOUND');
+      expect(document.querySelectorAll('[data-leqad-highlight]')).toHaveLength(
+        1,
+      );
+      vi.advanceTimersByTime(5000);
+      expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+      highlighter.show('top-plane');
+      highlighter.clear();
+      expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('removes a highlight when its still-visible DOM node changes plane identity', async () => {
+    const target = visibleButton('Top plane');
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body, 'top-plane');
+    expect(highlight.element.isConnected).toBe(true);
+    target.setAttribute('aria-label', 'Front plane');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(highlight.element.isConnected).toBe(false);
+  });
+
+  it('removes a highlight after recognition becomes ambiguous or the tree collapses', async () => {
+    const target = visibleButton('Top plane');
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body, 'top-plane');
+    const rival = visibleButton('Top plane');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(highlight.element.isConnected).toBe(false);
+    rival.remove();
+    const next = createTargetHighlight(target, document.body, 'top-plane');
+    target.parentElement!.setAttribute('aria-expanded', 'false');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(next.element.isConnected).toBe(false);
+  });
+
+  it('tracks scroll and zoom geometry and releases listeners and observers on removal', async () => {
+    const target = visibleButton('Top plane');
+    let width = 80;
+    target.getBoundingClientRect = () => new DOMRect(20, 30, width, 24);
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body, 'top-plane');
+    width = 120;
+    window.dispatchEvent(new Event('scroll'));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(highlight.element.style.width).toBe('126px');
+    highlight.remove();
+    highlight.remove();
+    const frames = vi.spyOn(window, 'requestAnimationFrame');
+    window.dispatchEvent(new Event('scroll'));
+    window.dispatchEvent(new Event('resize'));
+    target.setAttribute('aria-label', 'Front plane');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(frames).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+  });
+
   it('uses current target geometry and lets all pointer input pass through', async () => {
     const target = document.createElement('button');
     let left = 12;

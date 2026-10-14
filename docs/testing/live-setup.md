@@ -4,7 +4,7 @@ This guide prepares Leqad for the separate live Onshape procedure. A successful 
 
 ## Download and extract the tested build
 
-1. Open the [tested browser package download](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346/artifacts/11854411254) from successful [final tested-head Actions run 38476549346, attempt 1](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346). Its source commit is `c3a0346a1d4089e421984f7b3c17ccad68fa2105`; a newer PR commit may be a documentation follow-up. The [final validation report](results/phase1-final-validation.md) records the independently verified package and archive checksums.
+1. Open [PR #1](https://github.com/anandanikait-bot/leqad/pull/1) and use the **Top-plane diagnostic build** section for the exact tested source, successful Actions run, artifact download, and freshly measured checksums. Use that sprint artifact; the older compatibility candidate does not contain recognition diagnostics. If no successful sprint artifact is listed, the build is not ready to download.
 2. Sign in to GitHub if the artifact download requires it. Under **Artifacts**, download **leqad-browser-packages**. The download is an outer ZIP containing two extension ZIPs, not a ready-to-load extension directory.
 3. Extract the outer ZIP to a new folder. It contains `leqadextension-0.1.0-chrome.zip` and `leqadextension-0.1.0-edge.zip`.
 4. For Chrome, extract the Chrome ZIP into a folder such as `Leqad-Chrome`. For Edge, extract the Edge ZIP into `Leqad-Edge`.
@@ -45,7 +45,7 @@ The ZIPs are written to `apps/extension/.output/`. A ZIP that builds is not a li
 5. Confirm that Leqad appears in the installed extensions list and is enabled.
 6. Open a new, disposable Onshape document named **Leqad Phase 1 Validation** with an empty Part Studio.
 7. Confirm that exactly one Leqad panel appears and that the Onshape page remains usable.
-8. Follow the [live Onshape validation procedure](live-onshape.md) and fill in the [acceptance report](results/phase1-live-acceptance.md).
+8. Start with the [Top-plane sprint checklist and no-DevTools diagnostic steps](results/top-plane-recognition.md), then fill in the [full Phase 1 acceptance report](results/phase1-live-acceptance.md).
 
 ## Load in Microsoft Edge
 
@@ -56,13 +56,13 @@ The ZIPs are written to `apps/extension/.output/`. A ZIP that builds is not a li
 5. Confirm that Leqad appears in the installed extensions list and is enabled.
 6. Open a new, disposable Onshape document named **Leqad Phase 1 Validation** with an empty Part Studio.
 7. Confirm that exactly one Leqad panel appears and that the Onshape page remains usable.
-8. Follow the [live Onshape validation procedure](live-onshape.md) and fill in the [acceptance report](results/phase1-live-acceptance.md).
+8. Start with the [Top-plane sprint checklist and no-DevTools diagnostic steps](results/top-plane-recognition.md), then fill in the [full Phase 1 acceptance report](results/phase1-live-acceptance.md).
 
 ## Expected limitations during acceptance
 
-A selected Part Studio tab and visible Sketch command do not prove editing permission. Workspace permission remains UNKNOWN unless a supported observation establishes it; no positive permission observer is currently connected. **Limited observation** and a disabled Check progress are therefore expected in that context. You can follow the written lesson and use Continue without verification. Do not change the page, inject capability flags, or use developer tools to manufacture a verified result.
+A selected Part Studio tab and visible Sketch command do not prove editing permission. Workspace permission remains UNKNOWN unless a supported observation establishes it; no positive permission observer is currently connected. **Limited observation** and no Check progress button are therefore expected in that context. You can follow the written lesson and use **I've finished this step**. Do not change the page, inject capability flags, or use developer tools to manufacture a verified result.
 
-Steps 4–6 offer Continue without verification directly because rectangle creation, driving dimensions, and finished sketch state have no implemented verifier. Continuation is self-reported and CAD state stays unknown. Top-plane selection and active sketch controls are separate observations; an earlier plane selection never verifies the actual sketch's plane association.
+Steps 4–6 offer **I've finished this step** directly because rectangle creation, driving dimensions, and finished sketch state have no implemented verifier. Continuation is self-reported and CAD state stays unknown. Top-plane selection and active sketch controls are separate observations; an earlier plane selection never verifies the actual sketch's plane association.
 
 ## Capture observations safely
 

@@ -77,7 +77,8 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
       await route.fulfill({
         status: 200,
         contentType: 'text/html',
-        body: '<!doctype html><html><body><h1>Onshape test fixture</h1></body></html>',
+        // Controlled semantic fixture, not a capture of production Onshape DOM.
+        body: '<!doctype html><html><body><h1>Onshape test fixture</h1><div role="tree"><div role="group" aria-label="Default geometry"><button aria-label="Top" style="margin:40px;width:180px;height:28px">Top</button></div></div></body></html>',
       });
     });
     const page = context.pages()[0] ?? (await context.newPage());
@@ -95,6 +96,21 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
     await expect(
       page.getByRole('status', { name: 'Connection status' }),
     ).toHaveText('Limited observation');
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Show me' }).click();
+    await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
+    await expect(page.getByText('Step 2 of 8 · Visited')).toBeVisible();
+    // Exercise the production content-script SPA cleanup, not a fixture copy.
+    await page.evaluate(() =>
+      history.pushState(
+        {},
+        '',
+        '/documents/document-b/w/workspace-b/e/element-b',
+      ),
+    );
+    await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+    await expect(page.locator('leqad-assistant')).toHaveCount(1);
   } finally {
     await context.close();
   }

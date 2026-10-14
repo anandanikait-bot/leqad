@@ -1,5 +1,7 @@
 # Phase 1 final validation report
 
+> Historical compatibility report. The newer [Top-plane recognition sprint](top-plane-recognition.md) starts at reviewed commit `d2186423ecb3faefe6e93dde3f69b72c81659052` and records the owner’s confirmed live recognition failure. The historical runs, test counts, and package hashes below apply only to their pinned revisions. Use PR #1’s **Top-plane diagnostic build** for the new tested commit/artifact.
+
 **Report date:** 2026-10-13
 
 **Branch / PR:** `phase1-hardening` / [PR #1](https://github.com/anandanikait-bot/leqad/pull/1), open and unmerged.

@@ -135,6 +135,122 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it.each([
+    [
+      'AMBIGUOUS',
+      'VISIBLE',
+      'ENABLED',
+      'MEDIUM',
+      /more than one possible control/,
+    ],
+    ['REJECTED', 'HIDDEN', 'ENABLED', 'MEDIUM', /isn’t fully visible/],
+    ['REJECTED', 'VISIBLE', 'DISABLED', 'MEDIUM', /row is unavailable/],
+    ['REJECTED', 'VISIBLE', 'ENABLED', 'LOW', /can't safely identify/],
+  ] as const)(
+    'explains the supported %s/%s/%s/%s failure briefly',
+    async (status, visibility, enabled, confidence, message) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      render(
+        <AssistantPanel
+          page={confirmedPage}
+          initialSession={restoredSession('select-reference-plane')}
+          onShowTarget={() => ({
+            targetId: 'top-plane',
+            status,
+            element: null,
+            visibility,
+            enabled,
+            confidence,
+            matchStrategy: null,
+            candidateCount: 1,
+            explanation: 'Developer detail, not default copy.',
+          })}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(screen.queryByText(/Developer detail/)).toBeNull();
+      expect(screen.getByText('Step 2 of 8 · Visited')).toBeTruthy();
+    },
+  );
+  it('gives short missing-target guidance and never reports success from a missing callback', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={{ ...confirmedPage, editability: 'unknown' }}
+        initialSession={restoredSession('select-reference-plane')}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
+    expect(screen.getByText(/couldn't find the Top plane/)).toBeTruthy();
+    expect(screen.queryByText(/The highlight follows/)).toBeNull();
+    expect(screen.getByText('Step 2 of 8 · Visited')).toBeTruthy();
+  });
+
+  it('offers current already-sketching guidance without verifying permission, selection, or geometry', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onShowTarget = vi.fn();
+    render(
+      <AssistantPanel
+        page={{ ...confirmedPage, editability: 'unknown' }}
+        initialSession={restoredSession('select-reference-plane')}
+        onShowTarget={onShowTarget}
+        onObserveSketchUi={() => ({
+          editingAppearsActive: true,
+          dialogPlane: 'Top',
+        })}
+      />,
+    );
+    expect(screen.getByText(/already editing a sketch/)).toBeTruthy();
+    expect(screen.getByText(/Sketch dialog displays Top plane/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
+    expect(onShowTarget).not.toHaveBeenCalled();
+    expect(screen.getByText('Step 2 of 8 · Visited')).toBeTruthy();
+    expect(
+      screen.getByRole('status', { name: 'Connection status' }).textContent,
+    ).toBe('Limited observation');
+    fireEvent.click(
+      screen.getByRole('button', { name: "I've finished this step" }),
+    );
+    expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
+    expect(
+      screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+    ).toContain('has not verified');
+  });
+
+  it('only collects diagnostics after opt-in and explicit copy; clears them when turned off', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const collect = vi.fn(() => '{"version":"sanitized-test"}');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onRecognitionDiagnostics={collect}
+      />,
+    );
+    expect(collect).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    expect(collect).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Copy recognition diagnostics' }),
+      );
+    });
+    expect(
+      screen.getByLabelText<HTMLTextAreaElement>(
+        'Recognition diagnostics output',
+      ).value,
+    ).toBe('{"version":"sanitized-test"}');
+    expect(collect).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
+    );
+    expect(
+      screen.queryByLabelText('Recognition diagnostics output'),
+    ).toBeNull();
+  });
+
   it.each(['draw-rectangle', 'apply-dimensions', 'finish-sketch'])(
     'offers direct unverified continuation for %s without running a nonexistent verifier',
     async (stepId) => {

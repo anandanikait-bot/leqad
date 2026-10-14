@@ -1,3 +1,13 @@
+import {
+  enabledState,
+  isLeqadOwned,
+  visibilityState,
+} from './semanticTargetDom';
+import {
+  isReferencePlaneTarget,
+  referencePlaneCandidate,
+  referencePlaneCandidates,
+} from './referencePlanes';
 export type SemanticTargetId =
   | 'top-plane'
   | 'front-plane'
@@ -20,7 +30,13 @@ export type TargetMatchStrategy =
   | 'WEAK_TEXT';
 export type TargetRecognitionConfidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
 export type TargetVisibility =
-  'VISIBLE' | 'HIDDEN' | 'ZERO_SIZE' | 'OFFSCREEN' | 'OBSCURED' | 'UNKNOWN';
+  | 'VISIBLE'
+  | 'HIDDEN'
+  | 'ZERO_SIZE'
+  | 'OFFSCREEN'
+  | 'CLIPPED'
+  | 'OBSCURED'
+  | 'UNKNOWN';
 export type TargetEnabledState = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
 
 export interface SemanticTargetRecognition {
@@ -35,7 +51,10 @@ export interface SemanticTargetRecognition {
   candidateCount: number;
 }
 
-interface TargetCandidate {
+export interface TargetCandidate {
+  contextValid?: boolean;
+  context?: string;
+  rejectionReason?: string;
   element: HTMLElement;
   strategy: TargetMatchStrategy;
   confidence: Exclude<TargetRecognitionConfidence, 'NONE'>;
@@ -163,73 +182,12 @@ function strategyConfidence(
     : 'LOW';
 }
 
-function isLeqadOwned(element: HTMLElement): boolean {
-  if (element.closest('[data-leqad-root], [data-leqad-highlight]')) return true;
-  const root = element.getRootNode();
-  return (
-    root instanceof ShadowRoot && root.host.hasAttribute('data-leqad-root')
-  );
-}
-
-function enabledState(element: HTMLElement): TargetEnabledState {
-  if (
-    ('disabled' in element &&
-      Boolean((element as HTMLButtonElement).disabled)) ||
-    element.getAttribute('aria-disabled') === 'true'
-  ) {
-    return 'DISABLED';
-  }
-  return 'ENABLED';
-}
-
-function visibilityState(element: HTMLElement): TargetVisibility {
-  const view = element.ownerDocument.defaultView;
-  for (
-    let current: HTMLElement | null = element;
-    current;
-    current = current.parentElement
-  ) {
-    if (
-      !current.isConnected ||
-      current.hidden ||
-      current.getAttribute('aria-hidden') === 'true'
-    ) {
-      return 'HIDDEN';
-    }
-    const style = view?.getComputedStyle(current);
-    if (
-      style &&
-      (style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        style.opacity === '0')
-    ) {
-      return 'HIDDEN';
-    }
-  }
-
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return 'ZERO_SIZE';
-  if (
-    rect.bottom <= 0 ||
-    rect.right <= 0 ||
-    rect.top >= (view?.innerHeight ?? Number.POSITIVE_INFINITY) ||
-    rect.left >= (view?.innerWidth ?? Number.POSITIVE_INFINITY)
-  ) {
-    return 'OFFSCREEN';
-  }
-
-  const hit = element.ownerDocument.elementFromPoint?.(
-    rect.left + rect.width / 2,
-    rect.top + rect.height / 2,
-  );
-  if (hit && hit !== element && !element.contains(hit)) return 'OBSCURED';
-  return 'VISIBLE';
-}
-
 function candidatesFor(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): TargetCandidate[] {
+  if (isReferencePlaneTarget(targetId))
+    return referencePlaneCandidates(root, targetId);
   const candidates: TargetCandidate[] = [];
   const labels = TARGET_LABELS[targetId];
   for (const element of root.querySelectorAll<HTMLElement>(
@@ -253,6 +211,7 @@ function candidatesFor(
 function usable(candidate: TargetCandidate): boolean {
   return (
     candidate.confidence !== 'LOW' &&
+    candidate.contextValid !== false &&
     candidate.visibility === 'VISIBLE' &&
     candidate.enabled === 'ENABLED' &&
     !candidate.leqadOwned
@@ -263,7 +222,13 @@ export function recognizeSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): SemanticTargetRecognition {
-  const candidates = candidatesFor(root, targetId);
+  return recognitionFromCandidates(targetId, candidatesFor(root, targetId));
+}
+
+export function recognitionFromCandidates(
+  targetId: SemanticTargetId,
+  candidates: TargetCandidate[],
+): SemanticTargetRecognition {
   if (candidates.length === 0) {
     return {
       targetId,
@@ -278,10 +243,8 @@ export function recognizeSemanticTarget(
     };
   }
 
-  const bestRank = candidates[0]!.rank;
-  const bestCandidates = candidates.filter(({ rank }) => rank === bestRank);
-  const usableCandidates = bestCandidates.filter(usable);
-  const representative = usableCandidates[0] ?? bestCandidates[0]!;
+  const usableCandidates = candidates.filter(usable);
+  const representative = usableCandidates[0] ?? candidates[0]!;
   if (usableCandidates.length > 1) {
     return {
       targetId,
@@ -291,7 +254,11 @@ export function recognizeSemanticTarget(
       confidence: representative.confidence,
       visibility: 'VISIBLE',
       enabled: 'ENABLED',
-      explanation: `${usableCandidates.length} equally strong visible controls match this target.`,
+      explanation: usableCandidates.every(
+        (candidate) => candidate.rank === representative.rank,
+      )
+        ? `${usableCandidates.length} equally strong visible controls match this target.`
+        : `${usableCandidates.length} plausible visible controls compete for this target.`,
       candidateCount: usableCandidates.length,
     };
   }
@@ -324,7 +291,7 @@ export function recognizeSemanticTarget(
         : representative.enabled !== 'ENABLED'
           ? 'The matching control is disabled.'
           : 'Only a low-confidence text match was found; Leqad cannot safely identify this control.',
-    candidateCount: bestCandidates.length,
+    candidateCount: candidates.length,
   };
 }
 
@@ -332,6 +299,12 @@ export function isUsableSemanticTarget(
   element: HTMLElement,
   targetId: SemanticTargetId,
 ): boolean {
+  if (isReferencePlaneTarget(targetId)) {
+    const candidate = referencePlaneCandidate(element, targetId);
+    return Boolean(
+      candidate && candidate.element === element && usable(candidate),
+    );
+  }
   const strategy = matchStrategy(element, TARGET_LABELS[targetId]);
   return Boolean(
     strategy &&
@@ -348,10 +321,7 @@ export function findSemanticTargets(
 ): HTMLElement[] {
   const candidates = candidatesFor(root, targetId);
   if (candidates.length === 0) return [];
-  const bestRank = candidates[0]!.rank;
-  return candidates
-    .filter((candidate) => candidate.rank === bestRank && usable(candidate))
-    .map(({ element }) => element);
+  return candidates.filter(usable).map(({ element }) => element);
 }
 
 export function findSemanticTarget(
@@ -391,6 +361,7 @@ export interface TargetHighlight {
 export function createTargetHighlight(
   target: HTMLElement,
   host: HTMLElement = target.ownerDocument.body,
+  targetId?: SemanticTargetId,
 ): TargetHighlight {
   const document = target.ownerDocument;
   const view = document.defaultView;
@@ -415,7 +386,6 @@ export function createTargetHighlight(
   let removed = false;
   let frame: number | null = null;
   let mutationObserver: MutationObserver | null = null;
-  let ancestorMutationObserver: MutationObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
 
   const remove = () => {
@@ -424,7 +394,6 @@ export function createTargetHighlight(
     if (frame !== null) view?.cancelAnimationFrame(frame);
     frame = null;
     mutationObserver?.disconnect();
-    ancestorMutationObserver?.disconnect();
     resizeObserver?.disconnect();
     view?.removeEventListener('resize', scheduleRefresh);
     view?.removeEventListener('scroll', scheduleRefresh, true);
@@ -436,6 +405,9 @@ export function createTargetHighlight(
     if (removed) return;
     if (
       !target.isConnected ||
+      isLeqadOwned(target) ||
+      (targetId !== undefined &&
+        recognizeSemanticTarget(document, targetId).element !== target) ||
       visibilityState(target) !== 'VISIBLE' ||
       enabledState(target) !== 'ENABLED'
     ) {
@@ -464,37 +436,49 @@ export function createTargetHighlight(
   view?.addEventListener('resize', scheduleRefresh);
   view?.addEventListener('scroll', scheduleRefresh, true);
   if (view?.MutationObserver) {
-    const handleMutation = () => {
+    // One observer for the active overlay, never one per candidate. Revalidate at
+    // most once per animation frame and ignore Leqad's own style mutations.
+    mutationObserver = new view.MutationObserver((records) => {
       if (
-        !target.isConnected ||
-        enabledState(target) !== 'ENABLED' ||
-        visibilityState(target) !== 'VISIBLE'
+        records.some((record) => {
+          const element =
+            record.target.nodeType === Node.ELEMENT_NODE
+              ? (record.target as Element)
+              : record.target.parentElement;
+          return !element || !isLeqadOwned(element);
+        })
       ) {
-        remove();
-        return;
+        if (
+          !target.isConnected ||
+          isLeqadOwned(target) ||
+          enabledState(target) !== 'ENABLED' ||
+          visibilityState(target) !== 'VISIBLE'
+        )
+          remove();
+        else scheduleRefresh();
       }
-      scheduleRefresh();
-    };
-    const observeAncestorAttributes = () => {
-      ancestorMutationObserver?.disconnect();
-      for (
-        let current: HTMLElement | null = target;
-        current;
-        current = current.parentElement
-      ) {
-        ancestorMutationObserver?.observe(current, { attributes: true });
-      }
-    };
-    mutationObserver = new view.MutationObserver(() => {
-      observeAncestorAttributes();
-      handleMutation();
     });
-    ancestorMutationObserver = new view.MutationObserver(handleMutation);
     mutationObserver.observe(document.body, {
       childList: true,
       subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: [
+        'aria-label',
+        'aria-labelledby',
+        'aria-hidden',
+        'aria-disabled',
+        'aria-expanded',
+        'role',
+        'title',
+        'data-tooltip',
+        'hidden',
+        'disabled',
+        'class',
+        'style',
+        'data-layout-revision',
+      ],
     });
-    observeAncestorAttributes();
   }
   if (view?.ResizeObserver) {
     resizeObserver = new view.ResizeObserver(scheduleRefresh);
@@ -503,4 +487,48 @@ export function createTargetHighlight(
   refresh();
 
   return { element: overlay, refresh, remove };
+}
+
+/** Shared by the real content script and browser fixture; one overlay and timer. */
+export function createSemanticHighlighter(root: ParentNode) {
+  const node = root as Node;
+  const document =
+    node.nodeType === Node.DOCUMENT_NODE
+      ? (node as Document)
+      : node.ownerDocument!;
+  const view = document.defaultView!;
+  let highlight: TargetHighlight | null = null;
+  let timer: number | null = null;
+  const clear = () => {
+    if (timer !== null) view.clearTimeout(timer);
+    timer = null;
+    highlight?.remove();
+    highlight = null;
+  };
+  return {
+    clear,
+    show(targetId: SemanticTargetId): SemanticTargetRecognition {
+      clear();
+      const recognition = recognizeSemanticTarget(root, targetId);
+      if (recognition.status !== 'FOUND' || !recognition.element)
+        return recognition;
+      highlight = createTargetHighlight(
+        recognition.element,
+        document.body,
+        targetId,
+      );
+      if (!highlight.element.isConnected) {
+        clear();
+        return {
+          ...recognition,
+          status: 'REJECTED',
+          element: null,
+          explanation:
+            'The recognized control became unavailable before highlighting.',
+        };
+      }
+      timer = view.setTimeout(clear, 5000);
+      return recognition;
+    },
+  };
 }

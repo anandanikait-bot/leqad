@@ -18,14 +18,9 @@ import type {
 } from '../src/services/progressStore';
 import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
 import { evaluateFoundationsStepProgress } from '../src/services/foundationsEvidence';
-import {
-  createTargetHighlight,
-  recognizeSemanticTarget,
-} from '../src/services/semanticTargets';
-import type {
-  SemanticTargetId,
-  TargetHighlight,
-} from '../src/services/semanticTargets';
+import { createSemanticHighlighter } from '../src/services/semanticTargets';
+import { collectRecognitionDiagnostics } from '../src/services/recognitionDiagnostics';
+import { observeSketchGuidanceUi } from '../src/services/sketchGuidance';
 import type { ModelIdentity } from '@leqad/contracts';
 import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 import '../src/styles/panel.css';
@@ -36,16 +31,10 @@ export default defineContentScript({
   cssInjectionMode: 'ui',
   async main(ctx) {
     const progressStore = createLessonProgressStore(browser.storage.local);
-    let activeHighlight: TargetHighlight | null = null;
-    let highlightTimer: number | null = null;
+    const highlighter = createSemanticHighlighter(document);
     const pageLifecycle = createPageLifecycleCoordinator();
 
-    const clearHighlight = () => {
-      if (highlightTimer !== null) window.clearTimeout(highlightTimer);
-      highlightTimer = null;
-      activeHighlight?.remove();
-      activeHighlight = null;
-    };
+    const clearHighlight = highlighter.clear;
 
     const mountForCurrentPage = async () => {
       const routePage = parseOnshapePage(window.location.href);
@@ -122,24 +111,12 @@ export default defineContentScript({
                   initialSession={initialSession}
                   initialPanelPreferences={initialPanelPreferences}
                   initialLearningHistory={initialLearningHistory}
-                  onShowTarget={(targetId: SemanticTargetId) => {
-                    const recognition = recognizeSemanticTarget(
-                      document,
-                      targetId,
-                    );
-                    clearHighlight();
-                    if (
-                      recognition.status !== 'FOUND' ||
-                      !recognition.element
-                    ) {
-                      return recognition;
-                    }
-                    activeHighlight = createTargetHighlight(
-                      recognition.element,
-                    );
-                    highlightTimer = ctx.setTimeout(clearHighlight, 5000);
-                    return recognition;
-                  }}
+                  onShowTarget={highlighter.show}
+                  onClearTarget={clearHighlight}
+                  onObserveSketchUi={() => observeSketchGuidanceUi(document)}
+                  onRecognitionDiagnostics={() =>
+                    collectRecognitionDiagnostics(document)
+                  }
                   onCheckStep={(_stepId, signal) => {
                     currentPage = capabilityMonitor.refresh();
                     return evaluateFoundationsStepProgress(
@@ -178,6 +155,7 @@ export default defineContentScript({
             return { root, capabilityMonitor };
           },
           onRemove(mounted) {
+            clearHighlight();
             mounted?.capabilityMonitor.disconnect();
             mounted?.root.unmount();
           },

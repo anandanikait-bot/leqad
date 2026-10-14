@@ -28,9 +28,28 @@
   </head>
   <body>
     <h1>Mock Onshape workspace fixture</h1>
-    <button id="fixture-top-plane" aria-label="Top plane" aria-pressed="false">
-      Top plane
-    </button>
+    <div role="tree" aria-label="Feature tree">
+      <div
+        role="group"
+        aria-label="Default geometry"
+        id="fixture-default-geometry"
+      >
+        <button id="fixture-top-plane" aria-label="Top" aria-pressed="false">
+          <span>Top</span>
+        </button>
+      </div>
+    </div>
+    <button id="fixture-sketch" aria-label="Sketch">Start sketch</button>
+    <div role="dialog" aria-label="Sketch 2" id="fixture-sketch-dialog" hidden>
+      <span role="status" aria-label="Sketch plane: Top plane"
+        >Sketch plane: Top plane</span
+      >
+      <button id="fixture-rectangle" aria-label="Rectangle">Rectangle</button>
+      <button id="fixture-dimension" aria-label="Dimension">Dimension</button>
+      <button id="fixture-finish" aria-label="Finish sketch">
+        Finish sketch
+      </button>
+    </div>
     <button id="host-control">Host page control</button>
     <p>Host control clicks: <span id="host-click-count">0</span></p>
     <script>
@@ -40,12 +59,16 @@
           document
             .querySelector('#fixture-top-plane')
             ?.setAttribute('aria-pressed', 'true');
-          if (document.querySelector('[aria-label="Finish sketch"]')) return;
-          const finish = document.createElement('button');
-          finish.setAttribute('aria-label', 'Finish sketch');
-          finish.title = 'Finish sketch';
-          finish.textContent = 'Finish sketch';
-          document.body.append(finish);
+        });
+      document
+        .querySelector('#fixture-sketch')
+        ?.addEventListener('click', () => {
+          document.querySelector('#fixture-sketch-dialog').hidden = false;
+        });
+      document
+        .querySelector('#fixture-finish')
+        ?.addEventListener('click', () => {
+          document.querySelector('#fixture-sketch-dialog').hidden = true;
         });
       document.querySelector('#host-control')?.addEventListener('click', () => {
         const counter = document.querySelector('#host-click-count');

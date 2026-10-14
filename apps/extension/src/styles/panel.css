@@ -335,6 +335,21 @@
   font-size: 11px;
 }
 
+.leqad-diagnostics {
+  margin-top: 12px;
+  border-top: 1px solid rgba(13, 28, 67, 0.14);
+  font-size: 11px;
+}
+
+.leqad-diagnostics textarea {
+  width: 100%;
+  min-height: 96px;
+  margin-top: 8px;
+  box-sizing: border-box;
+  resize: vertical;
+  font: 11px monospace;
+}
+
 .leqad-empty-state p:last-child {
   margin: 10px 0 0;
   color: #38425b;

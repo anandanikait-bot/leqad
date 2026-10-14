@@ -38,8 +38,12 @@ import {
 } from '../../services/semanticTargets';
 import type { SemanticTargetId } from '../../services/semanticTargets';
 import type { SemanticTargetRecognition } from '../../services/semanticTargets';
+import type { SketchGuidanceObservation } from '../../services/sketchGuidance';
 
 interface AssistantPanelProps {
+  onClearTarget?: () => void;
+  onObserveSketchUi?: () => SketchGuidanceObservation;
+  onRecognitionDiagnostics?: () => string;
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
@@ -316,6 +320,9 @@ export function AssistantPanel({
   initialPanelPreferences,
   initialLearningHistory,
   onShowTarget,
+  onClearTarget,
+  onObserveSketchUi,
+  onRecognitionDiagnostics,
   onCheckStep,
   onSessionChange,
   onPanelPreferencesChange,
@@ -341,6 +348,12 @@ export function AssistantPanel({
   const [showReason, setShowReason] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [guidanceMessage, setGuidanceMessage] = useState('');
+  const [sketchUi, setSketchUi] = useState<SketchGuidanceObservation | null>(
+    null,
+  );
+  const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
+  const [diagnosticsOutput, setDiagnosticsOutput] = useState('');
+  const [diagnosticsMessage, setDiagnosticsMessage] = useState('');
   const [cursorCue, setCursorCue] = useState('');
   const dragStart = useRef<DragStart | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -352,6 +365,26 @@ export function AssistantPanel({
   );
   const step = FOUNDATIONS_FIRST_SKETCH.steps[currentStepIndex];
   const stepState = step ? stepStates[step.id] : undefined;
+  const sketchGuidanceRelevant =
+    step?.semanticTarget === 'top-plane' || step?.semanticTarget === 'sketch';
+
+  useEffect(() => {
+    onClearTarget?.();
+    setSketchUi(
+      sketchGuidanceRelevant && !collapsed
+        ? (onObserveSketchUi?.() ?? null)
+        : null,
+    );
+    return () => onClearTarget?.();
+  }, [
+    step?.id,
+    stepState?.status,
+    mode,
+    collapsed,
+    onClearTarget,
+    onObserveSketchUi,
+    sketchGuidanceRelevant,
+  ]);
 
   const recordLearningHistory = (
     stepId: string,
@@ -546,12 +579,16 @@ export function AssistantPanel({
   );
   const verificationUnavailable =
     step.completionMode === 'UI_VERIFICATION' && !stepObserverAvailable;
+  const alreadySketching =
+    sketchGuidanceRelevant && sketchUi?.editingAppearsActive;
   const canContinueUnverified =
     step.allowUnverifiedContinuation &&
     (stepState.status === 'UNKNOWN' ||
       (step.completionMode === 'UI_VERIFICATION' &&
         stepState.status === 'AWAITING_ACTION' &&
-        (!operationGuidanceAvailable || verificationUnavailable)));
+        (!operationGuidanceAvailable ||
+          verificationUnavailable ||
+          alreadySketching)));
 
   const persistLesson = (
     nextStepId: string,
@@ -589,17 +626,81 @@ export function AssistantPanel({
   };
 
   const showTarget = () => {
-    if (!step.semanticTarget) return;
+    if (!step.semanticTarget || stepState.status === 'PAUSED') return;
+    const currentSketchUi = sketchGuidanceRelevant
+      ? onObserveSketchUi?.()
+      : undefined;
+    setSketchUi(currentSketchUi ?? null);
+    if (currentSketchUi?.editingAppearsActive) {
+      onClearTarget?.();
+      setGuidanceMessage('');
+      return;
+    }
     const recognition = onShowTarget?.(step.semanticTarget as SemanticTargetId);
-    if (!recognition || recognition.status === 'FOUND') {
+    if (recognition?.status === 'FOUND' && recognition.element?.isConnected) {
       setGuidanceMessage(
-        'The highlight follows the recognized control in the current interface layout.',
+        'The highlighted row or control is ready for you to use.',
       );
       return;
     }
-    setGuidanceMessage(
-      `What happened: I could not highlight this control. What Leqad knows: ${recognition.explanation} What remains unknown: which current control is the intended target. Try next: follow the written action and use I’m stuck for more detail.`,
-    );
+    if (recognition?.status === 'AMBIGUOUS')
+      setGuidanceMessage(
+        "I found more than one possible control, so I won't highlight the wrong one.",
+      );
+    else if (
+      step.semanticTarget === 'top-plane' &&
+      recognition?.status === 'REJECTED' &&
+      recognition.confidence === 'LOW'
+    )
+      setGuidanceMessage(
+        "I can't safely identify the Top plane row. Expand Default geometry and try again.",
+      );
+    else if (
+      step.semanticTarget === 'top-plane' &&
+      recognition?.status === 'REJECTED' &&
+      recognition.enabled === 'DISABLED'
+    )
+      setGuidanceMessage(
+        'The Top plane row is unavailable. Check the current Onshape state and try again.',
+      );
+    else if (
+      step.semanticTarget === 'top-plane' &&
+      recognition?.status === 'REJECTED'
+    )
+      setGuidanceMessage(
+        'The Top plane isn’t fully visible. Expand Default geometry, scroll the row into view, and try again.',
+      );
+    else if (step.semanticTarget === 'top-plane')
+      setGuidanceMessage(
+        "I couldn't find the Top plane. Expand Default geometry on the left, make the row visible, and try again.",
+      );
+    else
+      setGuidanceMessage(
+        "I couldn't highlight that control. Make sure its toolbar is open and try again.",
+      );
+  };
+
+  const copyDiagnostics = async () => {
+    if (!diagnosticsEnabled || !onRecognitionDiagnostics) return;
+    try {
+      const report = onRecognitionDiagnostics();
+      setDiagnosticsOutput(report);
+      if (!navigator.clipboard?.writeText) {
+        setDiagnosticsMessage('Select and copy the report below.');
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(report);
+        setDiagnosticsMessage('Sanitized recognition diagnostics copied.');
+      } catch {
+        setDiagnosticsMessage(
+          'Clipboard unavailable. Select and copy the report below.',
+        );
+      }
+    } catch {
+      setDiagnosticsOutput('');
+      setDiagnosticsMessage('Diagnostics could not be collected. Try again.');
+    }
   };
 
   const checkProgress = () => {
@@ -855,13 +956,29 @@ export function AssistantPanel({
                     <p className="leqad-eyebrow">GOAL</p>
                     <p className="leqad-goal">{step.goal}</p>
                     <p className="leqad-eyebrow">NEXT ACTION</p>
-                    <p>{step.action}</p>
+                    {alreadySketching ? (
+                      <div className="leqad-guidance" aria-live="polite">
+                        <p>
+                          It looks like you’re already editing a sketch. You can
+                          mark this step done when you’re ready.
+                        </p>
+                        {sketchUi?.dialogPlane && (
+                          <p>
+                            The Sketch dialog displays {sketchUi.dialogPlane}{' '}
+                            plane. Your CAD work is still unverified.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p>{step.action}</p>
+                    )}
                     <div className="leqad-help-row">
                       {step.semanticTarget && (
                         <button
                           type="button"
                           className="leqad-button leqad-button--secondary"
                           onClick={showTarget}
+                          disabled={stepState.status === 'PAUSED'}
                         >
                           Show me
                         </button>
@@ -1053,6 +1170,52 @@ export function AssistantPanel({
                     Contextual answers need a connected service. You can use the
                     Foundations lesson while access is limited.
                   </p>
+                </section>
+              )}
+              {onRecognitionDiagnostics && (
+                <section
+                  className="leqad-diagnostics"
+                  aria-label="Local development diagnostics"
+                >
+                  <button
+                    type="button"
+                    className="leqad-button leqad-button--text"
+                    onClick={() => {
+                      setDiagnosticsEnabled(!diagnosticsEnabled);
+                      setDiagnosticsOutput('');
+                      setDiagnosticsMessage('');
+                    }}
+                  >
+                    {diagnosticsEnabled
+                      ? 'Turn off recognition diagnostics'
+                      : 'Enable recognition diagnostics'}
+                  </button>
+                  {diagnosticsEnabled && (
+                    <>
+                      <p>
+                        Development diagnostic, local only. Copies a bounded
+                        report about reference-plane labels and structure. No
+                        account or document data.
+                      </p>
+                      <button
+                        type="button"
+                        className="leqad-button leqad-button--secondary"
+                        onClick={() => void copyDiagnostics()}
+                      >
+                        Copy recognition diagnostics
+                      </button>
+                      {diagnosticsMessage && (
+                        <p role="status">{diagnosticsMessage}</p>
+                      )}
+                      {diagnosticsOutput && (
+                        <textarea
+                          readOnly
+                          aria-label="Recognition diagnostics output"
+                          value={diagnosticsOutput}
+                        />
+                      )}
+                    </>
+                  )}
                 </section>
               )}
             </main>
