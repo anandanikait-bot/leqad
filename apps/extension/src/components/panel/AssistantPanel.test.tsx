@@ -15,6 +15,15 @@ import type {
   TopRowCaptureReport,
   TopRowCaptureTask,
 } from '../../services/recognitionDiagnostics';
+import {
+  inspectRectangleDropdown,
+  serializeRectangleDropdownReport,
+} from '../../services/rectangleDropdownCapture';
+import type {
+  RectangleDropdownCaptureReport,
+  RectangleDropdownCaptureTask,
+  RectangleDropdownManualSnapshot,
+} from '../../services/rectangleDropdownCapture';
 
 const confirmedPage: OnshapePageContext = {
   supported: true,
@@ -366,6 +375,129 @@ describe('AssistantPanel', () => {
     expect(task.cancel).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByRole('button', { name: 'Capture Top row' }),
+    ).toBeNull();
+  });
+
+  it('keeps Rectangle capture opt-in and offers manual UNKNOWN snapshots separately', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const report: RectangleDropdownCaptureReport = {
+      version: 'leqad-rectangle-dropdown/1',
+      status: 'TIMED_OUT',
+      captureMode: 'AUTOMATIC',
+      baseline: inspectRectangleDropdown(document),
+      transitions: [],
+      manualSnapshots: [],
+      truncated: false,
+    };
+    let resolveCapture!: (value: {
+      status: 'TIMED_OUT';
+      report: RectangleDropdownCaptureReport;
+    }) => void;
+    const task: RectangleDropdownCaptureTask = {
+      promise: new Promise((resolve) => {
+        resolveCapture = resolve;
+      }),
+      cancel: vi.fn(),
+      isActive: () => true,
+    };
+    const onCaptureRectangleDropdown = vi.fn(() => task);
+    const onCaptureRectangleDropdownSnapshot = vi.fn(
+      (
+        snapshotRole: 'BEFORE' | 'AFTER',
+        userReportedState: 'OPEN' | 'CLOSED',
+      ): RectangleDropdownManualSnapshot => ({
+        snapshotRole,
+        userReportedState,
+        snapshot: inspectRectangleDropdown(document),
+      }),
+    );
+    const onRecognitionDiagnostics = vi.fn(() => 'not the rectangle report');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCaptureRectangleDropdown={onCaptureRectangleDropdown}
+        onCaptureRectangleDropdownSnapshot={onCaptureRectangleDropdownSnapshot}
+        onRecognitionDiagnostics={onRecognitionDiagnostics}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Capture Rectangle dropdown' }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture Rectangle dropdown' }),
+    );
+    expect(onCaptureRectangleDropdown).toHaveBeenCalledTimes(1);
+    await act(async () => resolveCapture({ status: 'TIMED_OUT', report }));
+
+    expect(
+      screen.getByText(/automatic DOM evidence did not establish/i),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Capture manual before snapshot (I report closed)',
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Capture manual after snapshot (I report open)',
+      }),
+    );
+    expect(onCaptureRectangleDropdownSnapshot).toHaveBeenNthCalledWith(
+      1,
+      'BEFORE',
+      'CLOSED',
+    );
+    expect(onCaptureRectangleDropdownSnapshot).toHaveBeenNthCalledWith(
+      2,
+      'AFTER',
+      'OPEN',
+    );
+
+    await act(async () =>
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Copy Rectangle dropdown report' }),
+      ),
+    );
+    const output = screen.getByLabelText<HTMLTextAreaElement>(
+      'Rectangle dropdown diagnostic output',
+    ).value;
+    expect(JSON.parse(output).captureMode).toBe('MANUAL_FALLBACK');
+    expect(JSON.parse(output).manualSnapshots).toHaveLength(2);
+    expect(output).not.toContain('productionRecognition');
+    expect(onRecognitionDiagnostics).not.toHaveBeenCalled();
+    expect(serializeRectangleDropdownReport(JSON.parse(output))).toBe(output);
+  });
+
+  it('cancels the Rectangle observer when diagnostics are disabled', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const task: RectangleDropdownCaptureTask = {
+      promise: new Promise(() => undefined),
+      cancel: vi.fn(),
+      isActive: () => true,
+    };
+    render(
+      <AssistantPanel
+        onCaptureRectangleDropdown={() => task}
+        onRecognitionDiagnostics={() => '{}'}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture Rectangle dropdown' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
+    );
+
+    expect(task.cancel).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('button', { name: 'Capture Rectangle dropdown' }),
     ).toBeNull();
   });
 

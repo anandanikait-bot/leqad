@@ -23,6 +23,10 @@ import {
   collectRecognitionDiagnostics,
   createTopRowCapture,
 } from '../src/services/recognitionDiagnostics';
+import {
+  captureManualRectangleDropdownSnapshot,
+  createRectangleDropdownCapture,
+} from '../src/services/rectangleDropdownCapture';
 import { observeSketchGuidanceUi } from '../src/services/sketchGuidance';
 import type { ModelIdentity } from '@leqad/contracts';
 import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
@@ -118,6 +122,19 @@ export default defineContentScript({
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={() => observeSketchGuidanceUi(document)}
                   onCaptureTopRow={() => createTopRowCapture(document)}
+                  onCaptureRectangleDropdown={() =>
+                    createRectangleDropdownCapture(document)
+                  }
+                  onCaptureRectangleDropdownSnapshot={(
+                    snapshotRole,
+                    userReportedState,
+                  ) =>
+                    captureManualRectangleDropdownSnapshot(
+                      document,
+                      snapshotRole,
+                      userReportedState,
+                    )
+                  }
                   onRecognitionDiagnostics={(capture) =>
                     collectRecognitionDiagnostics(document, capture)
                   }

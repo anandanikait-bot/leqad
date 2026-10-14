@@ -18,6 +18,8 @@
 - The runner contains no DOM selector or DOM traversal; it calls injected registry-backed host functions.
 - `rectangle-tool-group` is distinct from any individual Rectangle variant. No variant target is registered before a real Onshape capture confirms it.
 - Reuse the current single pointer-events-none highlight with its reduced-motion handling and lifecycle cleanup.
+- Preserve HINT support for validated general toolbar-area targets through closed registry identities.
+- Reuse the existing five-second highlight expiration. Replace or clear the prior highlight and its timer on each guide transition; clear it immediately on pause, collapse, step change, navigation, target removal, menu close, retry, cancellation, or replacement. Do not implicitly renew highlights; a learner may explicitly retry.
 - Keep the existing Top-plane resolver/highlight path unchanged.
 - Missing, ambiguous, closed, or timed-out targets clear temporary state and return to written instructions with an explicit reason and user-controlled Retry.
 - Registered wait steps are bounded to 10 seconds; each wait timeout returns to the written instruction and requires a manual Retry.
@@ -54,7 +56,7 @@
 
 - Produces `GuidanceLevel`, `GuidanceActionId`, `GuidanceTargetId`, `GuidanceUiContext`, `GuidanceRequest`, `GuidanceActionDefinition`, `GuidanceRegistry`, `validateGuidanceRequest(value: unknown): GuidanceRequest | null`, and `guidanceActionForSemanticTarget(target: string | null): GuidanceActionId | null`.
 - `GuidanceActionId` is exactly `'sketch' | 'rectangle-tool-group' | 'dimension' | 'finish-sketch'`.
-- `GuidanceTargetId` includes `rectangle-tool-group` as the group identity and the typed form `rectangle-variant:${string}` for future confirmed variants. The production registry contains no variant IDs in this plan; only the test-only registry may use an explicitly named simulated variant. The compatibility adapter may call the existing `SemanticTargetId` `'rectangle'` for legacy SHOW behavior, but that does not assert an exact Onshape group or variant match.
+- `GuidanceTargetId` is a closed union of explicitly registered identities. It includes `rectangle-tool-group` as the group identity. Do not use a template-string variant type or accept arbitrary Rectangle variant identifiers. Add a specific variant identifier and production registry entry only after authenticated evidence confirms that exact variant. A clearly named simulated variant may exist only in the test-only registry. The compatibility adapter may call the existing `SemanticTargetId` `'rectangle'` for legacy SHOW behavior, but that does not assert an exact Onshape group or variant match.
 - Each definition has `actionId`, `targetId`, `requiredContext`, `supportedLevels`, local `hintContentId`, and optional `guideRecipeId`. It has no lesson-completion or model-evidence field.
 - For this first release, each production action supports HINT and SHOW; GUIDE is unavailable unless that action has a validated registered recipe. No production Rectangle GUIDE recipe exists before the authenticated capture.
 - Required contexts are `PART_STUDIO` for Sketch and `SKETCH_EDITING` for Rectangle tool group, Dimension, and Finish Sketch.

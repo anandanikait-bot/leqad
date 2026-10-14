@@ -43,12 +43,23 @@ import type {
   TopRowCaptureReport,
   TopRowCaptureTask,
 } from '../../services/recognitionDiagnostics';
+import { serializeRectangleDropdownReport } from '../../services/rectangleDropdownCapture';
+import type {
+  RectangleDropdownCaptureReport,
+  RectangleDropdownCaptureTask,
+  RectangleDropdownManualSnapshot,
+} from '../../services/rectangleDropdownCapture';
 
 interface AssistantPanelProps {
   onClearTarget?: () => void;
   onObserveSketchUi?: () => SketchGuidanceObservation;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
+  onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
+  onCaptureRectangleDropdownSnapshot?: (
+    snapshotRole: 'BEFORE' | 'AFTER',
+    userReportedState: 'OPEN' | 'CLOSED',
+  ) => RectangleDropdownManualSnapshot;
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
@@ -329,6 +340,8 @@ export function AssistantPanel({
   onObserveSketchUi,
   onCaptureTopRow,
   onRecognitionDiagnostics,
+  onCaptureRectangleDropdown,
+  onCaptureRectangleDropdownSnapshot,
   onCheckStep,
   onSessionChange,
   onPanelPreferencesChange,
@@ -359,10 +372,15 @@ export function AssistantPanel({
   );
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
   const [diagnosticsOutput, setDiagnosticsOutput] = useState('');
+  const [rectangleDiagnosticsOutput, setRectangleDiagnosticsOutput] =
+    useState('');
   const [diagnosticsMessage, setDiagnosticsMessage] = useState('');
   const [capturePending, setCapturePending] = useState(false);
   const [captureReport, setCaptureReport] =
     useState<TopRowCaptureReport | null>(null);
+  const [rectangleCaptureReport, setRectangleCaptureReport] =
+    useState<RectangleDropdownCaptureReport | null>(null);
+  const [rectangleCapturePending, setRectangleCapturePending] = useState(false);
   const [cursorCue, setCursorCue] = useState('');
   const dragStart = useRef<DragStart | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -371,6 +389,10 @@ export function AssistantPanel({
   const sessionRef = useRef<LessonSession | null>(initialSession);
   const captureTaskRef = useRef<TopRowCaptureTask | null>(null);
   const captureGeneration = useRef(0);
+  const rectangleCaptureTaskRef = useRef<RectangleDropdownCaptureTask | null>(
+    null,
+  );
+  const rectangleCaptureGeneration = useRef(0);
   const learningHistoryRef = useRef<LearningHistory>(
     initialLearningHistory ?? createEmptyLearningHistory(),
   );
@@ -384,6 +406,9 @@ export function AssistantPanel({
       captureGeneration.current++;
       captureTaskRef.current?.cancel();
       captureTaskRef.current = null;
+      rectangleCaptureGeneration.current++;
+      rectangleCaptureTaskRef.current?.cancel();
+      rectangleCaptureTaskRef.current = null;
     },
     [],
   );
@@ -736,6 +761,99 @@ export function AssistantPanel({
     captureTaskRef.current?.cancel();
     captureTaskRef.current = null;
     setCapturePending(false);
+  };
+
+  const beginRectangleDropdownCapture = () => {
+    if (!diagnosticsEnabled || !onCaptureRectangleDropdown) return;
+    rectangleCaptureTaskRef.current?.cancel();
+    rectangleCaptureTaskRef.current = null;
+    setRectangleCaptureReport(null);
+    setRectangleDiagnosticsOutput('');
+    setDiagnosticsMessage(
+      'Click or keyboard-activate the Rectangle control in Onshape. If the menu starts open, close and reopen it manually. The CAD interaction continues normally.',
+    );
+    setRectangleCapturePending(true);
+    const generation = ++rectangleCaptureGeneration.current;
+    const task = onCaptureRectangleDropdown();
+    rectangleCaptureTaskRef.current = task;
+    void task.promise.then((result) => {
+      if (rectangleCaptureGeneration.current !== generation) return;
+      rectangleCaptureTaskRef.current = null;
+      setRectangleCapturePending(false);
+      setRectangleCaptureReport(result.report);
+      const finalState =
+        result.report.transitions.at(-1)?.after.domObservedState ??
+        result.report.baseline.domObservedState;
+      if (result.status === 'CANCELLED')
+        setDiagnosticsMessage('Rectangle capture stopped.');
+      else if (result.status === 'CAPTURED' && finalState !== 'UNKNOWN')
+        setDiagnosticsMessage(
+          `Rectangle structure captured. The final DOM-observed state is ${finalState}.`,
+        );
+      else
+        setDiagnosticsMessage(
+          'Automatic DOM evidence did not establish the menu state or a transition. Manual snapshots are available; their state labels remain user-reported.',
+        );
+    });
+  };
+
+  const stopRectangleDropdownCapture = () => {
+    rectangleCaptureGeneration.current++;
+    rectangleCaptureTaskRef.current?.cancel();
+    rectangleCaptureTaskRef.current = null;
+    setRectangleCapturePending(false);
+  };
+
+  const captureManualRectangleSnapshot = (
+    snapshotRole: 'BEFORE' | 'AFTER',
+    userReportedState: 'OPEN' | 'CLOSED',
+  ) => {
+    if (
+      !diagnosticsEnabled ||
+      !rectangleCaptureReport ||
+      !onCaptureRectangleDropdownSnapshot
+    )
+      return;
+    const snapshot = onCaptureRectangleDropdownSnapshot(
+      snapshotRole,
+      userReportedState,
+    );
+    const manualSnapshots = [
+      ...rectangleCaptureReport.manualSnapshots.filter(
+        (item) => item.snapshotRole !== snapshotRole,
+      ),
+      snapshot,
+    ].sort((left, right) =>
+      left.snapshotRole.localeCompare(right.snapshotRole),
+    );
+    const nextReport: RectangleDropdownCaptureReport = {
+      ...rectangleCaptureReport,
+      captureMode: 'MANUAL_FALLBACK',
+      manualSnapshots,
+    };
+    setRectangleCaptureReport(nextReport);
+    setRectangleDiagnosticsOutput('');
+    setDiagnosticsMessage(
+      `Manual ${snapshotRole.toLowerCase()} snapshot captured. You reported ${userReportedState.toLowerCase()}; the DOM-observed state remains ${snapshot.snapshot.domObservedState}.`,
+    );
+  };
+
+  const copyRectangleDropdownReport = async () => {
+    if (!diagnosticsEnabled || !rectangleCaptureReport) return;
+    const output = serializeRectangleDropdownReport(rectangleCaptureReport);
+    setRectangleDiagnosticsOutput(output);
+    if (!navigator.clipboard?.writeText) {
+      setDiagnosticsMessage('Select and copy the Rectangle report below.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(output);
+      setDiagnosticsMessage('Sanitized Rectangle dropdown report copied.');
+    } catch {
+      setDiagnosticsMessage(
+        'Clipboard unavailable. Select and copy the Rectangle report below.',
+      );
+    }
   };
 
   const copyDiagnostics = async () => {
@@ -1240,10 +1358,13 @@ export function AssistantPanel({
                     className="leqad-button leqad-button--text"
                     onClick={() => {
                       if (diagnosticsEnabled) stopTopRowCapture();
+                      if (diagnosticsEnabled) stopRectangleDropdownCapture();
                       setDiagnosticsEnabled(!diagnosticsEnabled);
                       setDiagnosticsOutput('');
+                      setRectangleDiagnosticsOutput('');
                       setDiagnosticsMessage('');
                       setCaptureReport(null);
+                      setRectangleCaptureReport(null);
                     }}
                   >
                     {diagnosticsEnabled
@@ -1271,6 +1392,26 @@ export function AssistantPanel({
                             : 'Capture Top row'}
                         </button>
                       )}
+                      {onCaptureRectangleDropdown && (
+                        <>
+                          <p>
+                            Rectangle capture is diagnostic only. It records
+                            bounded structure; Aligned Rectangle is an
+                            unverified diagnostic label, not a supported
+                            production target.
+                          </p>
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--secondary"
+                            onClick={beginRectangleDropdownCapture}
+                            disabled={rectangleCapturePending}
+                          >
+                            {rectangleCapturePending
+                              ? 'Waiting for Rectangle menu change…'
+                              : 'Capture Rectangle dropdown'}
+                          </button>
+                        </>
+                      )}
                       {capturePending && (
                         <button
                           type="button"
@@ -1278,6 +1419,15 @@ export function AssistantPanel({
                           onClick={stopTopRowCapture}
                         >
                           Cancel capture
+                        </button>
+                      )}
+                      {rectangleCapturePending && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--text"
+                          onClick={stopRectangleDropdownCapture}
+                        >
+                          Cancel Rectangle capture
                         </button>
                       )}
                       <button
@@ -1295,6 +1445,75 @@ export function AssistantPanel({
                           readOnly
                           aria-label="Recognition diagnostics output"
                           value={diagnosticsOutput}
+                        />
+                      )}
+                      {rectangleCaptureReport && (
+                        <>
+                          {rectangleCaptureReport.status !== 'CANCELLED' &&
+                            (rectangleCaptureReport.status !== 'CAPTURED' ||
+                              rectangleCaptureReport.transitions.at(-1)?.after
+                                .domObservedState === 'UNKNOWN' ||
+                              rectangleCaptureReport.baseline
+                                .domObservedState === 'UNKNOWN') &&
+                            onCaptureRectangleDropdownSnapshot && (
+                              <div>
+                                <p>
+                                  Automatic DOM state stayed unknown or no
+                                  transition was observed. Close the menu before
+                                  the first snapshot, then open it before the
+                                  second. These state labels are your report,
+                                  not verified DOM evidence.
+                                </p>
+                                {!rectangleCaptureReport.manualSnapshots.some(
+                                  (item) => item.snapshotRole === 'BEFORE',
+                                ) && (
+                                  <button
+                                    type="button"
+                                    className="leqad-button leqad-button--secondary"
+                                    onClick={() =>
+                                      captureManualRectangleSnapshot(
+                                        'BEFORE',
+                                        'CLOSED',
+                                      )
+                                    }
+                                  >
+                                    Capture manual before snapshot (I report
+                                    closed)
+                                  </button>
+                                )}
+                                {!rectangleCaptureReport.manualSnapshots.some(
+                                  (item) => item.snapshotRole === 'AFTER',
+                                ) && (
+                                  <button
+                                    type="button"
+                                    className="leqad-button leqad-button--secondary"
+                                    onClick={() =>
+                                      captureManualRectangleSnapshot(
+                                        'AFTER',
+                                        'OPEN',
+                                      )
+                                    }
+                                  >
+                                    Capture manual after snapshot (I report
+                                    open)
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--secondary"
+                            onClick={() => void copyRectangleDropdownReport()}
+                          >
+                            Copy Rectangle dropdown report
+                          </button>
+                        </>
+                      )}
+                      {rectangleDiagnosticsOutput && (
+                        <textarea
+                          readOnly
+                          aria-label="Rectangle dropdown diagnostic output"
+                          value={rectangleDiagnosticsOutput}
                         />
                       )}
                     </>

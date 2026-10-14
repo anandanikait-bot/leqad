@@ -252,6 +252,159 @@ test('captures the actual clicked row once without swallowing its click, then co
   );
 });
 
+test('simulated Rectangle dropdown diagnostic captures a pointer transition and click-through', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page.evaluate(() => {
+    // Remove the hidden compatibility control so this simulation has one exact Rectangle label.
+    document.querySelector('#fixture-rectangle')?.remove();
+    const trigger = document.createElement('button');
+    trigger.id = 'simulated-rectangle-dropdown-trigger';
+    trigger.setAttribute('aria-label', 'Rectangle');
+    trigger.setAttribute('aria-haspopup', 'menu');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.textContent = 'Simulated Rectangle';
+    trigger.style.cssText = 'position:fixed;left:24px;top:128px';
+    trigger.addEventListener('click', () => {
+      const open = trigger.getAttribute('aria-expanded') !== 'true';
+      trigger.setAttribute('aria-expanded', String(open));
+      document.querySelector('#simulated-rectangle-menu')?.remove();
+      if (open) {
+        const menu = document.createElement('div');
+        menu.id = 'simulated-rectangle-menu';
+        menu.setAttribute('role', 'menu');
+        menu.setAttribute('aria-label', 'Simulated rectangle options');
+        menu.style.cssText = 'position:fixed;left:24px;top:168px';
+        const item = document.createElement('button');
+        item.setAttribute('role', 'menuitem');
+        item.setAttribute('aria-label', 'Corner rectangle');
+        item.textContent = 'Simulated corner rectangle';
+        menu.append(item);
+        document.body.append(menu);
+      }
+    });
+    const note = document.createElement('p');
+    note.id = 'simulated-dropdown-notice';
+    note.textContent =
+      'Simulated dropdown fixture only; not Onshape DOM evidence.';
+    document.body.append(trigger, note);
+  });
+  await expect(
+    page.getByText(/simulated dropdown fixture only/i),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .click();
+  await page.locator('#simulated-rectangle-dropdown-trigger').click();
+  await expect(page.locator('#simulated-rectangle-menu')).toBeVisible();
+  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Copy Rectangle dropdown report' })
+    .click();
+  const output = await page
+    .getByLabel('Rectangle dropdown diagnostic output')
+    .inputValue();
+  const report = JSON.parse(output);
+  expect(report.version).toBe('leqad-rectangle-dropdown/1');
+  expect(report.baseline.domObservedState).toBe('CLOSED');
+  expect(report.transitions[0].eventCategory).toBe('POINTER');
+  expect(report.transitions[0].after.domObservedState).toBe('OPEN');
+  expect(report.transitions[0].relationship).toBe('SEPARATE_DOCUMENT_BRANCH');
+  expect(report).not.toHaveProperty('productionRecognition');
+  for (const secret of [
+    'fixture-document',
+    'simulated-rectangle-dropdown-trigger',
+    'simulated-rectangle-menu',
+  ])
+    expect(output).not.toContain(secret);
+});
+
+test('simulated Rectangle dropdown diagnostic observes keyboard activation and open baseline close/reopen', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page.evaluate(() => {
+    document.querySelector('#fixture-rectangle')?.remove();
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-label', 'Rectangle');
+    trigger.setAttribute('aria-haspopup', 'menu');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.id = 'simulated-rectangle-keyboard-trigger';
+    trigger.addEventListener('click', () => {
+      trigger.setAttribute(
+        'aria-expanded',
+        String(trigger.getAttribute('aria-expanded') !== 'true'),
+      );
+    });
+    document.body.append(trigger);
+  });
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .click();
+  await page.locator('#simulated-rectangle-keyboard-trigger').press('Enter');
+  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Copy Rectangle dropdown report' })
+    .click();
+  const keyboardReport = JSON.parse(
+    await page.getByLabel('Rectangle dropdown diagnostic output').inputValue(),
+  );
+  expect(keyboardReport.transitions[0].eventCategory).toBe('KEYBOARD');
+  expect(keyboardReport.transitions[0].after.domObservedState).toBe('OPEN');
+
+  await page
+    .getByRole('button', { name: 'Turn off recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .click();
+  await page.locator('#simulated-rectangle-keyboard-trigger').click();
+  await expect(
+    page.getByText(/Waiting for Rectangle menu change/i),
+  ).toBeVisible();
+  await page.locator('#simulated-rectangle-keyboard-trigger').click();
+  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Copy Rectangle dropdown report' })
+    .click();
+  const reopenReport = JSON.parse(
+    await page.getByLabel('Rectangle dropdown diagnostic output').inputValue(),
+  );
+  expect(reopenReport.baseline.domObservedState).toBe('OPEN');
+  expect(
+    reopenReport.transitions.map(
+      (transition: { after: { domObservedState: string } }) =>
+        transition.after.domObservedState,
+    ),
+  ).toEqual(['CLOSED', 'OPEN']);
+});
+
+test('simulated Rectangle capture cleans up on navigation and fixture unmount', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .click();
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await expect(page.getByText(/Rectangle capture stopped/i)).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('fixture:unmount')));
+  await expect(page.locator('leqad-e2e-host')).toHaveCount(0);
+});
+
 test('unimplemented checks offer direct self-reported continuation in the browser', async ({
   page,
 }) => {

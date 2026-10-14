@@ -8,6 +8,10 @@ import {
   collectRecognitionDiagnostics,
   createTopRowCapture,
 } from '../../src/services/recognitionDiagnostics';
+import {
+  captureManualRectangleDropdownSnapshot,
+  createRectangleDropdownCapture,
+} from '../../src/services/rectangleDropdownCapture';
 
 const host = document.createElement('leqad-e2e-host');
 host.style.position = 'fixed';
@@ -62,6 +66,14 @@ reactRoot.render(
     onClearTarget={highlighter.clear}
     onObserveSketchUi={() => observeSketchGuidanceUi(document)}
     onCaptureTopRow={() => createTopRowCapture(document)}
+    onCaptureRectangleDropdown={() => createRectangleDropdownCapture(document)}
+    onCaptureRectangleDropdownSnapshot={(snapshotRole, userReportedState) =>
+      captureManualRectangleDropdownSnapshot(
+        document,
+        snapshotRole,
+        userReportedState,
+      )
+    }
     onRecognitionDiagnostics={(capture) =>
       collectRecognitionDiagnostics(document, capture)
     }

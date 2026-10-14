@@ -50,6 +50,8 @@ Each `GuidanceActionDefinition` declares:
 
 HINT may explain an action and optionally highlight a validated general toolbar region. SHOW calls the existing exact-target resolver and highlight service. GUIDE runs only a registered recipe. An unsupported level returns a typed unsupported result and a plain explanation.
 
+Production target identities are a closed compile-time and runtime-validated vocabulary. Do not accept a `rectangle-variant:${string}` pattern or a target identity supplied by the caller. Add each future confirmed variant as an explicit registry entry and closed identifier. The legacy `rectangle` semantic target remains compatibility matching only; it is not an exact Rectangle group or variant identity.
+
 ## Guide runner
 
 The runner is independent of DOM recognition. It receives host functions through a narrow interface: `resolveTarget(targetId)`, `highlightTarget(targetId)`, and `observe(transitionId)`. Each function delegates to existing recognition or a registered observer; the runner does not construct selectors or inspect DOM directly.
@@ -72,6 +74,8 @@ The runner may report `READY`, `WAITING`, `UNSUPPORTED`, `MISSING`, `AMBIGUOUS`,
 
 Only one highlight is active. Advancing to another target calls the existing highlighter, which clears the previous overlay. Cancel timers, subscriptions, and highlights on pause, collapse, step change, navigation, target removal, menu close, retry, cancellation, or replacement. A missing or ambiguous target, a closed menu during a wait, or a timeout clears transient guidance and returns to written instructions with an explicit reason and a user-controlled Retry option. A menu transition may advance the guide after it is observed, but the message must describe the observed UI state rather than claim who caused it.
 
+Reuse the existing five-second highlight expiration. A GUIDE step transition replaces the current highlight and its timer; any UI transition that invalidates the target clears it immediately. Each wait is bounded to ten seconds. Retry is an explicit learner action and starts a fresh run; there is no flashing or implicit highlight renewal. HINT may keep using a validated general-area target from the closed registry, so future regional toolbar guidance remains supported.
+
 ## Student controls and stored preferences
 
 Expose HINT, SHOW, and GUIDE as explicit student choices. Keep progressive hint text separate from the selected help level: requesting another HINT may advance the existing hint count, while selecting SHOW or GUIDE does not mutate lesson progress. Persist the selected help level in the versioned panel preferences with a safe default of HINT and preserve old preference records.
@@ -93,6 +97,9 @@ The repository does not establish that Onshape exposes this dropdown, its trigge
 - Reuse the existing bounded structural diagnostic patterns. Record only allowlisted tool labels and structural metadata. Never export arbitrary text, HTML, class names, element IDs, URLs, credentials, account data, or CAD content.
 - Use explicit scan, ancestor, sibling, label, time, and report-size limits. Any limit produces an explicit incomplete/truncated status, never an absent-control claim.
 - Mark a snapshot OPEN/CLOSED only from observed DOM state; otherwise retain the structural baseline/transition and report UNKNOWN.
+- Include bounded, sanitized summaries for unlabeled potential triggers and the bounded event-target ancestor chain. Record only structural enums, attribute-presence booleans, allowlisted ARIA state, visibility, bounded relationships, and relative geometry; do not imply an unlabeled element is actionable when no signal establishes that.
+- Add `Aligned Rectangle` to the exact diagnostic label allowlist with an explicit diagnostic-only/unverified classification. This label does not create a production identity or target.
+- If automatic state detection remains UNKNOWN, offer manual before/after snapshot controls. These controls capture DOM structure while separately recording the user's reported state; `userReportedState` must never be presented as verified DOM state or upgrade an UNKNOWN observation.
 - Use one-shot passive pointer/keyboard event capture per user-operated transition, paired with DOM-state observation; do not infer that a menu opened from an event alone. Listeners must not cancel, stop, or replace user events. Cancel listeners and observers on success, timeout, user cancellation, navigation, or panel unmount.
 - Until the owner supplies a sanitized real capture, the production Rectangle dropdown recipe and all variant targets remain unsupported. Simulated fixtures may exercise the runner but must say they are simulations. Do not alter production Rectangle recognition based on those fixtures.
 
@@ -116,6 +123,7 @@ Reuse the current calm outline and its reduced-motion handling. Keep pointer eve
 - An already-open menu skips the opening wait, and state transitions observed after keyboard interaction follow the same path as pointer interaction. Missing, ambiguous, closed, and timed-out states clear resources and offer written-instruction fallback plus explicit retry.
 - Preference migration preserves existing panel preferences and defaults help to HINT.
 - Rectangle capture enforces allowlisted labels, bounded scans, truncation, safe state diffing, and redaction of arbitrary text, IDs, attribute values, URLs, and private text.
+- Rectangle capture includes diagnostic-only Aligned Rectangle, bounded unlabeled-trigger structure, and manual before/after snapshots whose user-reported state remains separate from DOM-observed state.
 - Capture timeout, cancellation, navigation, and completion remove every listener and observer; a click still reaches the host page unchanged.
 
 ### Integration and browser tests
