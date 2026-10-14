@@ -38,7 +38,11 @@ function referenceTree(name = 'Top', label = name) {
  */
 function nonAriaFeatureList(
   plane: 'Top' | 'Front' | 'Right' = 'Top',
-  options: { alternateOrder?: boolean; duplicates?: number; interveningText?: string } = {},
+  options: {
+    alternateOrder?: boolean;
+    duplicates?: number;
+    interveningText?: string;
+  } = {},
 ) {
   const common = document.createElement('div');
   common.getBoundingClientRect = () => new DOMRect(80, 40, 400, 156);
