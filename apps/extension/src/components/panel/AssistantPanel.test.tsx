@@ -11,6 +11,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
 import type { LessonSession } from '@leqad/lesson-engine';
 import type { OnshapePageContext } from '../../services/onshapePage';
+import type {
+  TopRowCaptureReport,
+  TopRowCaptureTask,
+} from '../../services/recognitionDiagnostics';
 
 const confirmedPage: OnshapePageContext = {
   supported: true,
@@ -248,6 +252,107 @@ describe('AssistantPanel', () => {
     );
     expect(
       screen.queryByLabelText('Recognition diagnostics output'),
+    ).toBeNull();
+  });
+
+  it('captures a row on request and includes only the capture report when copied', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const captured: TopRowCaptureReport = {
+      status: 'CAPTURED',
+      diagnosis: 'TREE_ROLE_NOT_EXPOSED',
+      findings: ['TREE_ROLE_NOT_EXPOSED'],
+      actionableAncestorDistance: 1,
+      structure: [
+        {
+          tag: 'span',
+          role: 'none',
+          ariaLabelPresent: false,
+          ariaLabelledByPresent: false,
+          titlePresent: false,
+          tabIndexPresent: false,
+          planeMatches: ['Top'],
+          defaultGeometryMatch: false,
+          actionable: false,
+          visibility: 'VISIBLE',
+          enabled: 'ENABLED',
+          context: 'UNKNOWN',
+        },
+      ],
+      assessment: null,
+    };
+    let resolveCapture!: (value: {
+      status: 'CAPTURED';
+      report: TopRowCaptureReport;
+    }) => void;
+    const task: TopRowCaptureTask = {
+      promise: new Promise((resolve) => {
+        resolveCapture = resolve;
+      }),
+      cancel: vi.fn(),
+      isActive: () => true,
+    };
+    const onCaptureTopRow = vi.fn(() => task);
+    const onRecognitionDiagnostics = vi.fn((capture?: TopRowCaptureReport) =>
+      JSON.stringify({ capture }),
+    );
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCaptureTopRow={onCaptureTopRow}
+        onRecognitionDiagnostics={onRecognitionDiagnostics}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Capture Top row' }));
+    expect(
+      screen.getByText(/click the visible Top row in Onshape/i),
+    ).toBeTruthy();
+    expect(onCaptureTopRow).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      resolveCapture({ status: 'CAPTURED', report: captured }),
+    );
+    expect(screen.getByText(/Top row structure captured/)).toBeTruthy();
+    await act(async () =>
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Copy recognition diagnostics' }),
+      ),
+    );
+    expect(onRecognitionDiagnostics).toHaveBeenCalledWith(captured);
+    expect(
+      JSON.parse(
+        screen.getByLabelText<HTMLTextAreaElement>(
+          'Recognition diagnostics output',
+        ).value,
+      ).capture,
+    ).toEqual(captured);
+  });
+
+  it('cancels the one-shot row listener when diagnostics are turned off', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const task: TopRowCaptureTask = {
+      promise: new Promise(() => undefined),
+      cancel: vi.fn(),
+      isActive: () => true,
+    };
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCaptureTopRow={() => task}
+        onRecognitionDiagnostics={() => '{}'}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Capture Top row' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
+    );
+    expect(task.cancel).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('button', { name: 'Capture Top row' }),
     ).toBeNull();
   });
 

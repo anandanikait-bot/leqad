@@ -39,11 +39,16 @@ import {
 import type { SemanticTargetId } from '../../services/semanticTargets';
 import type { SemanticTargetRecognition } from '../../services/semanticTargets';
 import type { SketchGuidanceObservation } from '../../services/sketchGuidance';
+import type {
+  TopRowCaptureReport,
+  TopRowCaptureTask,
+} from '../../services/recognitionDiagnostics';
 
 interface AssistantPanelProps {
   onClearTarget?: () => void;
   onObserveSketchUi?: () => SketchGuidanceObservation;
-  onRecognitionDiagnostics?: () => string;
+  onCaptureTopRow?: () => TopRowCaptureTask;
+  onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
@@ -322,6 +327,7 @@ export function AssistantPanel({
   onShowTarget,
   onClearTarget,
   onObserveSketchUi,
+  onCaptureTopRow,
   onRecognitionDiagnostics,
   onCheckStep,
   onSessionChange,
@@ -354,12 +360,17 @@ export function AssistantPanel({
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
   const [diagnosticsOutput, setDiagnosticsOutput] = useState('');
   const [diagnosticsMessage, setDiagnosticsMessage] = useState('');
+  const [capturePending, setCapturePending] = useState(false);
+  const [captureReport, setCaptureReport] =
+    useState<TopRowCaptureReport | null>(null);
   const [cursorCue, setCursorCue] = useState('');
   const dragStart = useRef<DragStart | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const recentSamples = useRef<CursorSample[]>([]);
   const lastIntentAnalysisAt = useRef(Number.NEGATIVE_INFINITY);
   const sessionRef = useRef<LessonSession | null>(initialSession);
+  const captureTaskRef = useRef<TopRowCaptureTask | null>(null);
+  const captureGeneration = useRef(0);
   const learningHistoryRef = useRef<LearningHistory>(
     initialLearningHistory ?? createEmptyLearningHistory(),
   );
@@ -367,6 +378,15 @@ export function AssistantPanel({
   const stepState = step ? stepStates[step.id] : undefined;
   const sketchGuidanceRelevant =
     step?.semanticTarget === 'top-plane' || step?.semanticTarget === 'sketch';
+
+  useEffect(
+    () => () => {
+      captureGeneration.current++;
+      captureTaskRef.current?.cancel();
+      captureTaskRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     onClearTarget?.();
@@ -680,10 +700,48 @@ export function AssistantPanel({
       );
   };
 
+  const beginTopRowCapture = () => {
+    if (!diagnosticsEnabled || !onCaptureTopRow) return;
+    captureTaskRef.current?.cancel();
+    setCaptureReport(null);
+    setDiagnosticsOutput('');
+    setDiagnosticsMessage(
+      'Click the visible Top row in Onshape within 20 seconds. Its click will continue normally.',
+    );
+    setCapturePending(true);
+    const generation = ++captureGeneration.current;
+    const task = onCaptureTopRow();
+    captureTaskRef.current = task;
+    void task.promise.then((result) => {
+      if (captureGeneration.current !== generation) return;
+      captureTaskRef.current = null;
+      setCapturePending(false);
+      if (result.status === 'CAPTURED') {
+        setCaptureReport(result.report);
+        setDiagnosticsMessage(
+          'Top row structure captured. Copy the sanitized report when ready.',
+        );
+      } else if (result.status === 'TIMED_OUT') {
+        setDiagnosticsMessage(
+          'No row was captured. Enable diagnostics and try Capture Top row again.',
+        );
+      } else {
+        setDiagnosticsMessage('Top row capture stopped.');
+      }
+    });
+  };
+
+  const stopTopRowCapture = () => {
+    captureGeneration.current++;
+    captureTaskRef.current?.cancel();
+    captureTaskRef.current = null;
+    setCapturePending(false);
+  };
+
   const copyDiagnostics = async () => {
     if (!diagnosticsEnabled || !onRecognitionDiagnostics) return;
     try {
-      const report = onRecognitionDiagnostics();
+      const report = onRecognitionDiagnostics(captureReport ?? undefined);
       setDiagnosticsOutput(report);
       if (!navigator.clipboard?.writeText) {
         setDiagnosticsMessage('Select and copy the report below.');
@@ -1181,9 +1239,11 @@ export function AssistantPanel({
                     type="button"
                     className="leqad-button leqad-button--text"
                     onClick={() => {
+                      if (diagnosticsEnabled) stopTopRowCapture();
                       setDiagnosticsEnabled(!diagnosticsEnabled);
                       setDiagnosticsOutput('');
                       setDiagnosticsMessage('');
+                      setCaptureReport(null);
                     }}
                   >
                     {diagnosticsEnabled
@@ -1193,10 +1253,32 @@ export function AssistantPanel({
                   {diagnosticsEnabled && (
                     <>
                       <p>
-                        Development diagnostic, local only. Copies a bounded
-                        report about reference-plane labels and structure. No
-                        account or document data.
+                        Local only. Reports bounded feature-tree structure and
+                        known plane-name matches; page text and identifiers are
+                        omitted. This structural scan does not run the
+                        production Show me recognizer.
                       </p>
+                      {onCaptureTopRow && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--secondary"
+                          onClick={beginTopRowCapture}
+                          disabled={capturePending}
+                        >
+                          {capturePending
+                            ? 'Waiting for Top row click…'
+                            : 'Capture Top row'}
+                        </button>
+                      )}
+                      {capturePending && (
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--text"
+                          onClick={stopTopRowCapture}
+                        >
+                          Cancel capture
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="leqad-button leqad-button--secondary"

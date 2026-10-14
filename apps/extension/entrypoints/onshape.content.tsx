@@ -19,7 +19,10 @@ import type {
 import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
 import { evaluateFoundationsStepProgress } from '../src/services/foundationsEvidence';
 import { createSemanticHighlighter } from '../src/services/semanticTargets';
-import { collectRecognitionDiagnostics } from '../src/services/recognitionDiagnostics';
+import {
+  collectRecognitionDiagnostics,
+  createTopRowCapture,
+} from '../src/services/recognitionDiagnostics';
 import { observeSketchGuidanceUi } from '../src/services/sketchGuidance';
 import type { ModelIdentity } from '@leqad/contracts';
 import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
@@ -114,8 +117,9 @@ export default defineContentScript({
                   onShowTarget={highlighter.show}
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={() => observeSketchGuidanceUi(document)}
-                  onRecognitionDiagnostics={() =>
-                    collectRecognitionDiagnostics(document)
+                  onCaptureTopRow={() => createTopRowCapture(document)}
+                  onRecognitionDiagnostics={(capture) =>
+                    collectRecognitionDiagnostics(document, capture)
                   }
                   onCheckStep={(_stepId, signal) => {
                     currentPage = capabilityMonitor.refresh();

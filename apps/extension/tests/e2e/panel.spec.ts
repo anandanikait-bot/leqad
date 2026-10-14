@@ -97,7 +97,7 @@ test('already sketching with unknown permission stays unverified and exports opt
   const output = await page
     .getByLabel('Recognition diagnostics output')
     .inputValue();
-  expect(JSON.parse(output).version).toBe('leqad-recognition/1');
+  expect(JSON.parse(output).version).toBe('leqad-recognition/2');
   expect(output).not.toContain('fixture-document');
   await page
     .getByRole('button', { name: 'Turn off recognition diagnostics' })
@@ -110,6 +110,49 @@ test('already sketching with unknown permission stays unverified and exports opt
   await expect(
     page.getByRole('status', { name: 'Lesson progress' }),
   ).toContainText('has not verified');
+});
+
+test('captures the actual clicked row once without swallowing its click, then copies only structure', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page.getByRole('button', { name: 'Capture Top row' }).click();
+  await expect(page.getByText(/Click the visible Top row/)).toBeVisible();
+  await page.locator('#fixture-top-plane').click();
+  await expect(page.locator('#fixture-top-plane')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByText(/Top row structure captured/)).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Copy recognition diagnostics' })
+    .click();
+  const output = await page
+    .getByLabel('Recognition diagnostics output')
+    .inputValue();
+  const report = JSON.parse(output);
+  expect(report.version).toBe('leqad-recognition/2');
+  expect(report.productionRecognition.status).toBe('NOT_RUN');
+  expect(report.capturedTopRow.diagnosis).toBe(
+    'STRUCTURE_MATCHES_SUPPORTED_RESOLVER',
+  );
+  expect(report.capturedTopRow.structure[0].planeMatches).toEqual(['Top']);
+  for (const secret of [
+    'fixture-document',
+    'fixture-workspace',
+    'aria-pressed="true"',
+    'Top</span>',
+  ])
+    expect(output).not.toContain(secret);
+  await page
+    .getByRole('button', { name: 'Turn off recognition diagnostics' })
+    .click();
+  await expect(page.getByLabel('Recognition diagnostics output')).toHaveCount(
+    0,
+  );
 });
 
 test('unimplemented checks offer direct self-reported continuation in the browser', async ({

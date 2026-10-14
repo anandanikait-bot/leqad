@@ -4,7 +4,10 @@ import { evaluateFoundationsStepProgress } from '../../src/services/foundationsE
 import styles from '../../src/styles/panel.css?inline';
 import { createSemanticHighlighter } from '../../src/services/semanticTargets';
 import { observeSketchGuidanceUi } from '../../src/services/sketchGuidance';
-import { collectRecognitionDiagnostics } from '../../src/services/recognitionDiagnostics';
+import {
+  collectRecognitionDiagnostics,
+  createTopRowCapture,
+} from '../../src/services/recognitionDiagnostics';
 
 const host = document.createElement('leqad-e2e-host');
 host.style.position = 'fixed';
@@ -58,7 +61,10 @@ reactRoot.render(
     onShowTarget={highlighter.show}
     onClearTarget={highlighter.clear}
     onObserveSketchUi={() => observeSketchGuidanceUi(document)}
-    onRecognitionDiagnostics={() => collectRecognitionDiagnostics(document)}
+    onCaptureTopRow={() => createTopRowCapture(document)}
+    onRecognitionDiagnostics={(capture) =>
+      collectRecognitionDiagnostics(document, capture)
+    }
     onCheckStep={(_stepId, signal) => {
       const page = {
         supported: true as const,
