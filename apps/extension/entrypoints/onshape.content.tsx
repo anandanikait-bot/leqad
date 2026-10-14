@@ -19,6 +19,8 @@ import type {
 import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
 import { evaluateFoundationsStepProgress } from '../src/services/foundationsEvidence';
 import { createSemanticHighlighter } from '../src/services/semanticTargets';
+import { recognizeSemanticTarget } from '../src/services/semanticTargets';
+import type { SemanticTargetId } from '../src/services/semanticTargets';
 import {
   collectRecognitionDiagnostics,
   createTopRowCapture,
@@ -28,6 +30,13 @@ import {
   createRectangleDropdownCapture,
 } from '../src/services/rectangleDropdownCapture';
 import { observeSketchGuidanceUi } from '../src/services/sketchGuidance';
+import { GUIDANCE_REGISTRY } from '../src/services/guidanceRegistry';
+import type {
+  GuidanceAreaTargetId,
+  GuidanceTargetId,
+} from '../src/services/guidanceRegistry';
+import { createGuidanceRunner } from '../src/services/guidanceRunner';
+import type { GuidanceRunner } from '../src/services/guidanceRunner';
 import type { ModelIdentity } from '@leqad/contracts';
 import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 import '../src/styles/panel.css';
@@ -40,6 +49,7 @@ export default defineContentScript({
     const progressStore = createLessonProgressStore(browser.storage.local);
     const highlighter = createSemanticHighlighter(document);
     const pageLifecycle = createPageLifecycleCoordinator();
+    let activeGuidanceRunner: GuidanceRunner | null = null;
 
     const clearHighlight = highlighter.clear;
 
@@ -111,6 +121,68 @@ export default defineContentScript({
           onMount(container) {
             const root = createRoot(container);
             let currentPage = observeOnshapeCapabilities(routePage, document);
+            const semanticTargetFor = (
+              targetId: GuidanceTargetId | GuidanceAreaTargetId,
+            ): SemanticTargetId | null => {
+              const definition = Object.values(GUIDANCE_REGISTRY).find(
+                ({ targetId: registered }) => registered === targetId,
+              );
+              return definition?.semanticTarget ?? null;
+            };
+            const guidanceRunner = createGuidanceRunner({
+              getContext: () => {
+                if (
+                  !currentPage.supported ||
+                  currentPage.elementType !== 'part-studio'
+                ) {
+                  return 'UNKNOWN';
+                }
+                return observeSketchGuidanceUi(document).editingAppearsActive
+                  ? 'SKETCH_EDITING'
+                  : 'PART_STUDIO';
+              },
+              resolveTarget: (targetId) => {
+                const semanticTarget = semanticTargetFor(targetId);
+                if (!semanticTarget) return { status: 'MISSING' };
+                const recognition = recognizeSemanticTarget(
+                  document,
+                  semanticTarget,
+                );
+                return recognition.status === 'FOUND'
+                  ? { status: 'FOUND' }
+                  : recognition.status === 'AMBIGUOUS'
+                    ? { status: 'AMBIGUOUS' }
+                    : { status: 'MISSING' };
+              },
+              highlightTarget: (targetId) => {
+                const semanticTarget = semanticTargetFor(targetId);
+                if (!semanticTarget) return false;
+                const recognition = highlighter.show(semanticTarget);
+                return (
+                  recognition.status === 'FOUND' &&
+                  recognition.element?.isConnected === true
+                );
+              },
+              clearHighlight,
+              observe: (observationId) => {
+                if (observationId === 'SKETCH_UI_ACTIVE') {
+                  return {
+                    current: observeSketchGuidanceUi(document)
+                      .editingAppearsActive
+                      ? 'OPEN'
+                      : 'CLOSED',
+                    unsubscribe: () => undefined,
+                  };
+                }
+                // Rectangle menu transitions stay UNKNOWN until the owner
+                // provides authenticated Onshape DOM evidence.
+                return {
+                  current: 'UNKNOWN',
+                  unsubscribe: () => undefined,
+                };
+              },
+            });
+            activeGuidanceRunner = guidanceRunner;
             const renderPanel = () =>
               root.render(
                 <AssistantPanel
@@ -119,6 +191,7 @@ export default defineContentScript({
                   initialPanelPreferences={initialPanelPreferences}
                   initialLearningHistory={initialLearningHistory}
                   onShowTarget={highlighter.show}
+                  guidanceRunner={guidanceRunner}
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={() => observeSketchGuidanceUi(document)}
                   onCaptureTopRow={() => createTopRowCapture(document)}
@@ -173,11 +246,13 @@ export default defineContentScript({
             );
             currentPage = capabilityMonitor.current;
             renderPanel();
-            return { root, capabilityMonitor };
+            return { root, capabilityMonitor, guidanceRunner };
           },
           onRemove(mounted) {
             clearHighlight();
             mounted?.capabilityMonitor.disconnect();
+            mounted?.guidanceRunner.dispose();
+            activeGuidanceRunner = null;
             mounted?.root.unmount();
           },
         });
@@ -206,6 +281,7 @@ export default defineContentScript({
 
     ctx.addEventListener(window, 'wxt:locationchange', () => {
       clearHighlight();
+      activeGuidanceRunner?.cancel();
       // WXT's Navigation API event fires before history/location commits.
       // Read the destination after the synchronous navigation has completed.
       queueMicrotask(() => {
@@ -214,6 +290,8 @@ export default defineContentScript({
     });
     ctx.onInvalidated(() => {
       pageLifecycle.invalidate();
+      activeGuidanceRunner?.dispose();
+      activeGuidanceRunner = null;
       clearHighlight();
     });
     await mountForCurrentPage();

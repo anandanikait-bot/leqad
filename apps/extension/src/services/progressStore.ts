@@ -10,6 +10,8 @@ import type {
   StoredModelVerification,
   StoredUiObservation,
 } from '@leqad/lesson-engine';
+import { GUIDANCE_LEVELS } from './guidanceRegistry';
+import type { GuidanceLevel } from './guidanceRegistry';
 
 export interface ExtensionStorageArea {
   get(key: string): Promise<Record<string, unknown>>;
@@ -20,6 +22,7 @@ export interface PanelPreferences {
   collapsed: boolean;
   position: { left: number; top: number } | null;
   onboardingComplete?: boolean;
+  helpLevel?: GuidanceLevel;
 }
 
 export interface LearningHistory {
@@ -173,7 +176,14 @@ function isLessonSession(value: unknown): value is LessonSession {
   return isLessonSessionBase(value) && isLessonModelState(value.modelState);
 }
 
-function isPanelPreferences(value: unknown): value is PanelPreferences {
+function isPanelPreferencesShape(value: unknown): value is Record<
+  string,
+  unknown
+> & {
+  collapsed: boolean;
+  position: { left: number; top: number } | null;
+  onboardingComplete?: boolean;
+} {
   if (!isRecord(value) || typeof value.collapsed !== 'boolean') return false;
   if (
     value.onboardingComplete !== undefined &&
@@ -189,6 +199,34 @@ function isPanelPreferences(value: unknown): value is PanelPreferences {
     typeof value.position.top === 'number' &&
     Number.isFinite(value.position.top)
   );
+}
+
+function isPanelPreferences(value: unknown): value is PanelPreferences {
+  return (
+    isPanelPreferencesShape(value) &&
+    (value.helpLevel === undefined ||
+      (typeof value.helpLevel === 'string' &&
+        GUIDANCE_LEVELS.includes(value.helpLevel as GuidanceLevel)))
+  );
+}
+
+function normalizePanelPreferences(
+  value: Record<string, unknown> & {
+    collapsed: boolean;
+    position: { left: number; top: number } | null;
+    onboardingComplete?: boolean;
+  },
+): PanelPreferences {
+  return {
+    collapsed: value.collapsed,
+    position: value.position,
+    onboardingComplete: value.onboardingComplete ?? false,
+    helpLevel:
+      typeof value.helpLevel === 'string' &&
+      GUIDANCE_LEVELS.includes(value.helpLevel as GuidanceLevel)
+        ? (value.helpLevel as GuidanceLevel)
+        : 'HINT',
+  };
 }
 
 function isNonnegativeIntegerRecord(
@@ -351,7 +389,10 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
     if (!isPanelPreferences(preferences)) {
       throw new TypeError('Cannot persist invalid panel preferences.');
     }
-    const snapshot = structuredClone(preferences);
+    const snapshot = structuredClone({
+      ...preferences,
+      helpLevel: preferences.helpLevel ?? 'HINT',
+    });
     await enqueueWrite(PREFERENCES_KEY, (writeSequence) => ({
       schemaVersion: STORAGE_SCHEMA_VERSION,
       savedAt: new Date().toISOString(),
@@ -450,21 +491,15 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
       if (
         isRecord(envelope) &&
         envelope.schemaVersion === STORAGE_SCHEMA_VERSION &&
-        isPanelPreferences(envelope.preferences)
+        isPanelPreferencesShape(envelope.preferences)
       ) {
-        return {
-          ...envelope.preferences,
-          onboardingComplete: envelope.preferences.onboardingComplete ?? false,
-        };
+        return normalizePanelPreferences(envelope.preferences);
       }
 
       const legacyResult = await storage.get(LEGACY_PREFERENCES_KEY);
       const legacy = legacyResult[LEGACY_PREFERENCES_KEY];
-      if (isPanelPreferences(legacy)) {
-        const migrated = {
-          ...legacy,
-          onboardingComplete: legacy.onboardingComplete ?? false,
-        };
+      if (isPanelPreferencesShape(legacy)) {
+        const migrated = normalizePanelPreferences(legacy);
         await savePanelPreferences(migrated);
         return migrated;
       }
@@ -472,6 +507,7 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
         collapsed: false,
         position: null,
         onboardingComplete: false,
+        helpLevel: 'HINT',
       };
     },
   };

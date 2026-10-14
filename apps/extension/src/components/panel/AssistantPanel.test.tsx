@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
 import type { LessonSession } from '@leqad/lesson-engine';
 import type { OnshapePageContext } from '../../services/onshapePage';
+import type { GuidanceRunnerHost } from '../../services/guidanceRunner';
 import type {
   TopRowCaptureReport,
   TopRowCaptureTask,
@@ -148,6 +149,99 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it('offers HINT, SHOW, and GUIDE for a registered action without changing lesson completion', async () => {
+    const [panelModule, runnerModule, registryModule] = await Promise.all([
+      import('./AssistantPanel'),
+      import('../../services/guidanceRunner'),
+      import('../../services/guidanceRegistry'),
+    ]);
+    const host: GuidanceRunnerHost = {
+      getContext: () => 'SKETCH_EDITING',
+      resolveTarget: () => ({ status: 'FOUND' }),
+      highlightTarget: () => true,
+      clearHighlight: vi.fn(),
+      observe: (observationId) => ({
+        current: observationId === 'SKETCH_UI_ACTIVE' ? 'OPEN' : 'UNKNOWN',
+        unsubscribe: vi.fn(),
+      }),
+    };
+    const runner = runnerModule.createGuidanceRunner(host);
+    const onSessionChange = vi.fn();
+    render(
+      <panelModule.AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          helpLevel: 'HINT',
+        }}
+        guidanceRunner={runner}
+        onSessionChange={onSessionChange}
+      />,
+    );
+
+    expect(screen.getByRole('group', { name: 'Guidance level' })).toBeTruthy();
+    expect(
+      screen.getByText(/GUIDE is unavailable for the Rectangle tool group/),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+    expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(runner.getState()).toMatchObject({
+      status: 'READY',
+      request: { level: 'SHOW' },
+    });
+    expect(screen.getByText(/highlighted control is ready/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
+    expect(runner.getState()).toMatchObject({ status: 'UNSUPPORTED' });
+    expect(
+      screen.getByText(/Step-by-step guidance.*not available yet/),
+    ).toBeTruthy();
+    expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(
+      registryModule.GUIDANCE_REGISTRY['rectangle-tool-group'].guideRecipe,
+    ).toBeUndefined();
+  });
+
+  it.each(['MISSING', 'AMBIGUOUS'] as const)(
+    'offers a written instruction and explicit Retry guidance for %s targets',
+    async (targetStatus) => {
+      const [panelModule, runnerModule] = await Promise.all([
+        import('./AssistantPanel'),
+        import('../../services/guidanceRunner'),
+      ]);
+      const resolveTarget = vi.fn(() => ({ status: targetStatus }) as const);
+      const runner = runnerModule.createGuidanceRunner({
+        getContext: () => 'SKETCH_EDITING',
+        resolveTarget,
+        highlightTarget: () => true,
+        clearHighlight: vi.fn(),
+        observe: (observationId) => ({
+          current: observationId === 'SKETCH_UI_ACTIVE' ? 'OPEN' : 'UNKNOWN',
+          unsubscribe: vi.fn(),
+        }),
+      });
+      render(
+        <panelModule.AssistantPanel
+          page={confirmedPage}
+          initialSession={restoredSession('draw-rectangle')}
+          guidanceRunner={runner}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+      expect(
+        screen.getByRole('button', { name: 'Retry guidance' }),
+      ).toBeTruthy();
+      expect(screen.getByText(/Follow the written instruction/)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Retry guidance' }));
+      expect(resolveTarget).toHaveBeenCalledTimes(2);
+      expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+    },
+  );
+
   it.each([
     [
       'AMBIGUOUS',

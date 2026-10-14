@@ -19,6 +19,8 @@ export type SemanticTargetId =
   | 'part-studio-tab'
   | 'read-only-indicator';
 
+export const SEMANTIC_HIGHLIGHT_DURATION_MS = 5_000;
+
 export type TargetRecognitionStatus =
   'FOUND' | 'MISSING' | 'AMBIGUOUS' | 'REJECTED';
 export type TargetMatchStrategy =
@@ -545,7 +547,7 @@ export function createSemanticHighlighter(root: ParentNode) {
             'The recognized control became unavailable before highlighting.',
         };
       }
-      timer = view.setTimeout(clear, 5000);
+      timer = view.setTimeout(clear, SEMANTIC_HIGHLIGHT_DURATION_MS);
       return recognition;
     },
   };

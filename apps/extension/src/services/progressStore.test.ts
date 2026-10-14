@@ -287,6 +287,7 @@ describe('learning history and preferences', () => {
     await expect(store.loadPanelPreferences()).resolves.toEqual({
       ...preferences,
       onboardingComplete: false,
+      helpLevel: 'HINT',
     });
   });
 
@@ -298,8 +299,75 @@ describe('learning history and preferences', () => {
       collapsed: false,
       position: null,
       onboardingComplete: false,
+      helpLevel: 'HINT',
     });
   });
+
+  it('defaults old preference envelopes to HINT without losing panel settings', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const storage = memoryStorage();
+    storage.values.set('leqad:panel-preferences:v2', {
+      schemaVersion: 2,
+      savedAt: '2026-10-14T00:00:00.000Z',
+      writeSequence: 1,
+      preferences: {
+        collapsed: true,
+        position: { left: 24, top: 32 },
+        onboardingComplete: true,
+      },
+    });
+
+    await expect(
+      createLessonProgressStore(storage).loadPanelPreferences(),
+    ).resolves.toEqual({
+      collapsed: true,
+      position: { left: 24, top: 32 },
+      onboardingComplete: true,
+      helpLevel: 'HINT',
+    });
+  });
+
+  it('preserves existing preference fields when a stored help level is invalid', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const storage = memoryStorage();
+    storage.values.set('leqad:panel-preferences:v2', {
+      schemaVersion: 2,
+      savedAt: '2026-10-14T00:00:00.000Z',
+      writeSequence: 1,
+      preferences: {
+        collapsed: true,
+        position: { left: 24, top: 32 },
+        onboardingComplete: true,
+        helpLevel: 'AUTOMATIC',
+      },
+    });
+
+    await expect(
+      createLessonProgressStore(storage).loadPanelPreferences(),
+    ).resolves.toEqual({
+      collapsed: true,
+      position: { left: 24, top: 32 },
+      onboardingComplete: true,
+      helpLevel: 'HINT',
+    });
+  });
+
+  it.each(['HINT', 'SHOW', 'GUIDE'] as const)(
+    'saves and restores the selected %s help level',
+    async (helpLevel) => {
+      const { createLessonProgressStore } = await import('./progressStore');
+      const store = createLessonProgressStore(memoryStorage());
+      await store.savePanelPreferences({
+        collapsed: false,
+        position: null,
+        helpLevel,
+      });
+
+      await expect(store.loadPanelPreferences()).resolves.toMatchObject({
+        helpLevel,
+      });
+    },
+  );
 });
 
 describe('ordered writes', () => {

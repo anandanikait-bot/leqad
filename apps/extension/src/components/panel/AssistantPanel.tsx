@@ -49,6 +49,15 @@ import type {
   RectangleDropdownCaptureTask,
   RectangleDropdownManualSnapshot,
 } from '../../services/rectangleDropdownCapture';
+import {
+  GUIDANCE_REGISTRY,
+  guidanceActionForSemanticTarget,
+} from '../../services/guidanceRegistry';
+import type { GuidanceLevel } from '../../services/guidanceRegistry';
+import type {
+  GuidanceRunner,
+  GuidanceRunnerState,
+} from '../../services/guidanceRunner';
 
 interface AssistantPanelProps {
   onClearTarget?: () => void;
@@ -67,6 +76,7 @@ interface AssistantPanelProps {
   onShowTarget?: (
     targetId: SemanticTargetId,
   ) => SemanticTargetRecognition | void;
+  guidanceRunner?: GuidanceRunner;
   onCheckStep?: (
     stepId: string,
     completionSignal: string,
@@ -336,6 +346,7 @@ export function AssistantPanel({
   initialPanelPreferences,
   initialLearningHistory,
   onShowTarget,
+  guidanceRunner,
   onClearTarget,
   onObserveSketchUi,
   onCaptureTopRow,
@@ -367,6 +378,14 @@ export function AssistantPanel({
   const [showReason, setShowReason] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [guidanceMessage, setGuidanceMessage] = useState('');
+  const [helpLevel, setHelpLevel] = useState<GuidanceLevel>(
+    initialPanelPreferences?.helpLevel ?? 'HINT',
+  );
+  const [hintRequested, setHintRequested] = useState(false);
+  const [guidanceState, setGuidanceState] =
+    useState<GuidanceRunnerState | null>(
+      () => guidanceRunner?.getState() ?? null,
+    );
   const [sketchUi, setSketchUi] = useState<SketchGuidanceObservation | null>(
     null,
   );
@@ -388,6 +407,7 @@ export function AssistantPanel({
   const lastIntentAnalysisAt = useRef(Number.NEGATIVE_INFINITY);
   const sessionRef = useRef<LessonSession | null>(initialSession);
   const captureTaskRef = useRef<TopRowCaptureTask | null>(null);
+  const guidanceStepRef = useRef<string | null>(null);
   const captureGeneration = useRef(0);
   const rectangleCaptureTaskRef = useRef<RectangleDropdownCaptureTask | null>(
     null,
@@ -400,6 +420,9 @@ export function AssistantPanel({
   const stepState = step ? stepStates[step.id] : undefined;
   const sketchGuidanceRelevant =
     step?.semanticTarget === 'top-plane' || step?.semanticTarget === 'sketch';
+  const currentGuidanceActionId = guidanceActionForSemanticTarget(
+    step?.semanticTarget ?? null,
+  );
 
   useEffect(
     () => () => {
@@ -474,17 +497,73 @@ export function AssistantPanel({
   }, []);
 
   useEffect(() => {
+    const unsubscribe = guidanceRunner?.subscribe((next) => {
+      setGuidanceState(next);
+      if (next.message && next.status !== 'CANCELLED') {
+        setGuidanceMessage(next.message);
+      }
+    });
+    setGuidanceState(guidanceRunner?.getState() ?? null);
+    return () => {
+      unsubscribe?.();
+      guidanceRunner?.cancel();
+    };
+  }, [guidanceRunner]);
+
+  useEffect(() => {
+    if (!guidanceRunner) return;
+    const running = guidanceRunner.getState();
+    if (
+      mode !== 'Learn' ||
+      collapsed ||
+      stepState?.status === 'PAUSED' ||
+      stepState?.status === 'COMPLETED'
+    ) {
+      if (running.status !== 'IDLE' && running.status !== 'CANCELLED') {
+        setGuidanceState(guidanceRunner.cancel());
+      }
+      guidanceStepRef.current = null;
+      return;
+    }
+    const guidanceIsActive =
+      running.status !== 'IDLE' && running.status !== 'CANCELLED';
+    if (
+      guidanceIsActive &&
+      (guidanceStepRef.current !== step?.id ||
+        running.request?.actionId !==
+          guidanceActionForSemanticTarget(step?.semanticTarget ?? null))
+    ) {
+      setGuidanceState(guidanceRunner.cancel());
+      guidanceStepRef.current = null;
+    }
+  }, [
+    collapsed,
+    guidanceRunner,
+    mode,
+    step?.id,
+    step?.semanticTarget,
+    stepState?.status,
+  ]);
+
+  useEffect(() => {
     const timeout = window.setTimeout(
       () =>
         onPanelPreferencesChange?.({
           collapsed,
           position,
           onboardingComplete,
+          helpLevel,
         }),
       250,
     );
     return () => window.clearTimeout(timeout);
-  }, [collapsed, onboardingComplete, position, onPanelPreferencesChange]);
+  }, [
+    collapsed,
+    helpLevel,
+    onboardingComplete,
+    position,
+    onPanelPreferencesChange,
+  ]);
 
   const clampToViewport = (candidate: Position): Position => {
     const rect = panelRef.current?.getBoundingClientRect();
@@ -665,6 +744,7 @@ export function AssistantPanel({
     setShowReason(false);
     setShowRecovery(false);
     setGuidanceMessage('');
+    setHintRequested(false);
     setCursorCue('');
     recentSamples.current = [];
     lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
@@ -723,6 +803,49 @@ export function AssistantPanel({
       setGuidanceMessage(
         "I couldn't highlight that control. Make sure its toolbar is open and try again.",
       );
+  };
+
+  const selectHelpLevel = (level: GuidanceLevel) => {
+    if (!step.semanticTarget || stepState.status === 'PAUSED') return;
+    setHelpLevel(level);
+    setGuidanceMessage('');
+    if (level === 'HINT') setHintRequested(true);
+    const actionId = guidanceActionForSemanticTarget(step.semanticTarget);
+    if (step.semanticTarget === 'top-plane') {
+      if (level === 'SHOW') showTarget();
+      else if (level === 'GUIDE') {
+        setGuidanceMessage(
+          'Step-by-step guidance is not available for the Top plane. Use Show me to locate the plane, then follow the written action.',
+        );
+      }
+      return;
+    }
+    if (!actionId || !guidanceRunner) {
+      if (level === 'SHOW') showTarget();
+      else if (level === 'GUIDE') {
+        setGuidanceMessage(
+          'Step-by-step guidance for this action is unavailable until its UI transitions are validated. Follow the written lesson action.',
+        );
+      } else {
+        setGuidanceMessage('Use the written hint for this action.');
+      }
+      return;
+    }
+    guidanceStepRef.current = step.id;
+    const next = guidanceRunner.request({
+      version: 1,
+      actionId,
+      level,
+    });
+    setGuidanceState(next);
+    setGuidanceMessage(next.message);
+  };
+
+  const retryGuidance = () => {
+    if (!guidanceRunner || !guidanceState?.retryAvailable) return;
+    const next = guidanceRunner.retry();
+    setGuidanceState(next);
+    setGuidanceMessage(next.message);
   };
 
   const beginTopRowCapture = () => {
@@ -919,6 +1042,11 @@ export function AssistantPanel({
   };
 
   const advanceHintLevel = () => {
+    setHelpLevel('HINT');
+    setHintRequested(true);
+    guidanceStepRef.current = null;
+    if (guidanceRunner) setGuidanceState(guidanceRunner.cancel());
+    setGuidanceMessage('');
     const nextHintLevel = advanceHint(stepState.hintLevel);
     updateCurrentStep({ ...stepState, hintLevel: nextHintLevel });
     recordLearningHistory(step.id, nextHintLevel);
@@ -1007,7 +1135,13 @@ export function AssistantPanel({
 
   const panelStyle = { left: `${position.left}px`, top: `${position.top}px` };
   const visibleHint =
-    stepState.hintLevel > 0 ? step.hints[stepState.hintLevel - 1] : null;
+    stepState.hintLevel > 0
+      ? step.hints[stepState.hintLevel - 1]
+      : hintRequested
+        ? step.hints[0]
+        : null;
+  const visibleHintNumber =
+    stepState.hintLevel > 0 ? stepState.hintLevel : hintRequested ? 1 : 0;
   const canGoNext =
     stepState.status === 'COMPLETED' &&
     currentStepIndex < FOUNDATIONS_FIRST_SKETCH.steps.length - 1;
@@ -1149,7 +1283,7 @@ export function AssistantPanel({
                       <p>{step.action}</p>
                     )}
                     <div className="leqad-help-row">
-                      {step.semanticTarget && (
+                      {step.semanticTarget === 'top-plane' && (
                         <button
                           type="button"
                           className="leqad-button leqad-button--secondary"
@@ -1159,6 +1293,29 @@ export function AssistantPanel({
                           Show me
                         </button>
                       )}
+                      {step.semanticTarget &&
+                        step.semanticTarget !== 'top-plane' && (
+                          <div
+                            className="leqad-guidance-levels"
+                            role="group"
+                            aria-label="Guidance level"
+                          >
+                            {(['HINT', 'SHOW', 'GUIDE'] as const).map(
+                              (level) => (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  className={`leqad-button leqad-button--secondary${helpLevel === level ? ' is-selected' : ''}`}
+                                  aria-pressed={helpLevel === level}
+                                  onClick={() => selectHelpLevel(level)}
+                                  disabled={stepState.status === 'PAUSED'}
+                                >
+                                  {level}
+                                </button>
+                              ),
+                            )}
+                          </div>
+                        )}
                       <button
                         type="button"
                         className="leqad-button leqad-button--text"
@@ -1175,13 +1332,23 @@ export function AssistantPanel({
                         I’m stuck
                       </button>
                     </div>
+                    {currentGuidanceActionId &&
+                      !GUIDANCE_REGISTRY[
+                        currentGuidanceActionId
+                      ].supportedLevels.includes('GUIDE') && (
+                        <p className="leqad-guidance-unavailable" role="status">
+                          {currentGuidanceActionId === 'rectangle-tool-group'
+                            ? 'GUIDE is unavailable for the Rectangle tool group until an authenticated Onshape capture validates its menu transitions.'
+                            : 'GUIDE is unavailable for this action until its required interface transitions are validated.'}
+                        </p>
+                      )}
                     {showReason && (
                       <p className="leqad-explanation">{step.explanation}</p>
                     )}
                     {visibleHint && (
                       <p className="leqad-hint" aria-live="polite">
                         <strong>
-                          Hint {Math.min(stepState.hintLevel, 5)} of 5:
+                          Hint {Math.min(visibleHintNumber, 5)} of 5:
                         </strong>{' '}
                         {visibleHint}
                       </p>
@@ -1202,9 +1369,18 @@ export function AssistantPanel({
                       </div>
                     )}
                     {guidanceMessage && (
-                      <p className="leqad-guidance" aria-live="polite">
+                      <div className="leqad-guidance" aria-live="polite">
                         {guidanceMessage}
-                      </p>
+                        {guidanceState?.retryAvailable && guidanceRunner && (
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--secondary"
+                            onClick={retryGuidance}
+                          >
+                            Retry guidance
+                          </button>
+                        )}
+                      </div>
                     )}
                     {cursorCue && (
                       <p className="leqad-cursor-cue" aria-live="polite">
