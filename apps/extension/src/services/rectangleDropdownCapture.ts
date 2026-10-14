@@ -182,7 +182,7 @@ export interface RectangleDropdownCaptureTask {
   isActive(): boolean;
 }
 
-interface InternalCandidate {
+interface InternalCandidate extends CandidatePriorityInput {
   element: Element;
   label: RectangleDropdownLabel | null;
   classification: CandidateKind;
@@ -190,11 +190,115 @@ interface InternalCandidate {
   summary: RectangleDropdownCandidate;
 }
 
+interface CandidatePriorityInput {
+  element: Element;
+  label: RectangleDropdownLabel | null;
+  inputPathMember: boolean;
+  structuralChange: boolean;
+}
+
+interface CandidateRecord extends CandidatePriorityInput {
+  hasUnlistedName: boolean;
+}
+
 interface InspectionOptions {
   limits?: Partial<RectangleDropdownCaptureLimits>;
   inputPath?: readonly Element[];
   structuralChangeElements?: readonly Element[];
   scanRoot?: ParentNode;
+}
+
+function isDropdownStructure(element: Element): boolean {
+  return (
+    ['menu', 'listbox', 'menuitem', 'option'].includes(safeRole(element)) ||
+    element.hasAttribute('aria-haspopup') ||
+    element.hasAttribute('aria-controls') ||
+    element.hasAttribute('aria-owns')
+  );
+}
+
+function hasBoundedAncestorRelation(
+  left: Element,
+  right: Element,
+  depthLimit: number,
+): boolean {
+  const containsWithinLimit = (descendant: Element, ancestor: Element) => {
+    let current: Element | null = descendant;
+    for (let depth = 0; current && depth <= depthLimit; depth++) {
+      if (current === ancestor) return true;
+      current = current.parentElement;
+    }
+    return false;
+  };
+  return containsWithinLimit(left, right) || containsWithinLimit(right, left);
+}
+
+function referencesElement(source: Element, target: Element): boolean {
+  const targetId = target.getAttribute('id');
+  if (!targetId || targetId.length > 64) return false;
+  for (const attribute of ['aria-controls', 'aria-owns', 'aria-labelledby']) {
+    const value = source.getAttribute(attribute);
+    if (!value || value.length > 128) continue;
+    const ids = value.trim().split(/\s+/);
+    if (ids.length <= 3 && ids.every((id) => id.length <= 64)) {
+      if (ids.includes(targetId)) return true;
+    }
+  }
+  return false;
+}
+
+function explicitlyRelated(left: Element, right: Element): boolean {
+  return referencesElement(left, right) || referencesElement(right, left);
+}
+
+/**
+ * Retain useful Rectangle evidence before the candidate cap is applied.
+ * Exact allowlisted labels lead, followed by the observed input path and
+ * changed nodes. Only bounded DOM/ARIA relationships rank other controls as
+ * related; arbitrary actionable controls retain stable document order last.
+ */
+function prioritizeCandidates<T extends CandidatePriorityInput>(
+  candidates: readonly T[],
+  depthLimit: number,
+): T[] {
+  const anchors = candidates.filter((candidate) => candidate.label !== null);
+  const priority = (candidate: T): number => {
+    if (candidate.label !== null && candidate.inputPathMember) return 0;
+    if (candidate.label !== null) return 1;
+    if (candidate.inputPathMember) return 2;
+    if (candidate.structuralChange) return 3;
+    const related = anchors.some((anchor) => {
+      if (
+        hasBoundedAncestorRelation(
+          candidate.element,
+          anchor.element,
+          depthLimit,
+        ) ||
+        explicitlyRelated(candidate.element, anchor.element)
+      )
+        return true;
+      return (
+        candidate.element.parentElement !== null &&
+        candidate.element.parentElement === anchor.element.parentElement &&
+        isDropdownStructure(candidate.element)
+      );
+    });
+    if (related) return 4;
+    if (anchors.length > 0 && isDropdownStructure(candidate.element)) return 5;
+    return 6;
+  };
+
+  return candidates
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      priority: priority(candidate),
+    }))
+    .sort(
+      (left, right) =>
+        left.priority - right.priority || left.index - right.index,
+    )
+    .map(({ candidate }) => candidate);
 }
 
 function normalizedLabel(value: string): string {
@@ -660,13 +764,7 @@ function inspect(
   let current = walker.nextNode();
   let scannedElements = 0;
   let truncated = false;
-  const found: Array<{
-    element: Element;
-    label: RectangleDropdownLabel | null;
-    hasUnlistedName: boolean;
-    inputPathMember: boolean;
-    structuralChange: boolean;
-  }> = [];
+  const found: CandidateRecord[] = [];
   const inputPathElements = [...inputPath];
   const changeElements = [...structuralChange];
 
@@ -724,8 +822,9 @@ function inspect(
       current = walker.nextNode();
     }
   }
-  if (found.length > limits.candidateRecords) truncated = true;
-  const candidatesToSummarize = found.slice(0, limits.candidateRecords);
+  const prioritized = prioritizeCandidates(found, limits.capturedAncestors);
+  if (prioritized.length > limits.candidateRecords) truncated = true;
+  const candidatesToSummarize = prioritized.slice(0, limits.candidateRecords);
   const referenceElement =
     candidatesToSummarize.find((candidate) => candidate.label === 'Rectangle')
       ?.element ?? candidatesToSummarize[0]?.element;
@@ -1194,11 +1293,19 @@ function withInternalCandidates(
   truncated: boolean,
   scannedElements: number,
 ): RectangleDropdownSnapshot {
-  const state = observedState(candidates);
+  const prioritized = prioritizeCandidates(
+    candidates,
+    RECOGNITION_DIAGNOSTIC_LIMITS.capturedAncestors,
+  );
+  const candidatesToReport = prioritized.slice(
+    0,
+    RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords,
+  );
+  const state = observedState(candidatesToReport);
   const candidateLimitReached =
-    candidates.length > RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords;
+    prioritized.length > RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords;
   const scanIncomplete = truncated || candidateLimitReached;
-  const exact = candidates.filter(({ label }) => label === 'Rectangle');
+  const exact = candidatesToReport.filter(({ label }) => label === 'Rectangle');
   const duplicate = exact.some((candidate, index) =>
     exact
       .slice(index + 1)
@@ -1213,9 +1320,7 @@ function withInternalCandidates(
     domObservedState: duplicate ? 'UNKNOWN' : state.domObservedState,
     stateBasis: duplicate ? 'UNKNOWN' : state.stateBasis,
     ambiguity: duplicate ? 'DUPLICATE_EXACT_LABELS' : null,
-    candidates: candidates
-      .slice(0, RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords)
-      .map(({ summary }) => summary),
+    candidates: candidatesToReport.map(({ summary }) => summary),
     scan: {
       status: scanIncomplete ? 'INCOMPLETE' : 'COMPLETE',
       scannedElements,

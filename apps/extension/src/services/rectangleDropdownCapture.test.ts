@@ -190,6 +190,40 @@ describe('inspectRectangleDropdown', () => {
     expect(snapshot.scan.truncated).toBe(true);
     expect(snapshot.candidates).toHaveLength(1);
   });
+
+  it('prioritizes exact Rectangle evidence after many unrelated controls', () => {
+    const toolbar = document.createElement('div');
+    for (let index = 0; index < 24; index++) {
+      const unrelated = document.createElement('button');
+      unrelated.setAttribute('aria-label', `Unrelated toolbar tool ${index}`);
+      toolbar.append(unrelated);
+    }
+    const rectangle = document.createElement('button');
+    rectangle.setAttribute('aria-label', 'Rectangle');
+    rectangle.setAttribute('aria-haspopup', 'menu');
+    rectangle.setAttribute('aria-expanded', 'false');
+    toolbar.append(rectangle);
+    document.body.append(toolbar);
+
+    const manual = captureManualRectangleDropdownSnapshot(
+      document,
+      'BEFORE',
+      'CLOSED',
+    );
+
+    expect(manual.snapshot.candidates).toContainEqual(
+      expect.objectContaining({
+        label: 'Rectangle',
+        labelClassification: 'GROUP_LABEL',
+      }),
+    );
+    expect(manual.snapshot.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      truncated: true,
+    });
+    expect(manual.snapshot.scan.scannedElements).toBeLessThanOrEqual(5000);
+    expect(manual.snapshot.candidates).toHaveLength(12);
+  });
 });
 
 describe('manual Rectangle dropdown snapshots', () => {
@@ -308,6 +342,60 @@ describe('automatic Rectangle dropdown capture', () => {
       after: { domObservedState: 'OPEN' },
     });
     expect(task.isActive()).toBe(false);
+  });
+
+  it('retains Rectangle evidence when unrelated toolbar buttons precede it', async () => {
+    const toolbar = document.createElement('div');
+    for (let index = 0; index < 24; index++) {
+      const unrelated = document.createElement('button');
+      unrelated.setAttribute('aria-label', `Unrelated toolbar tool ${index}`);
+      toolbar.append(unrelated);
+    }
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-label', 'Rectangle');
+    trigger.setAttribute('aria-haspopup', 'menu');
+    trigger.setAttribute('aria-expanded', 'false');
+    setRect(trigger, { x: 10, y: 10, width: 32, height: 28 });
+    toolbar.append(trigger);
+    document.body.append(toolbar);
+    const task = createRectangleDropdownCapture(document, 1000);
+
+    expect(task.isActive()).toBe(true);
+    trigger.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    trigger.setAttribute('aria-expanded', 'true');
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    const variant = document.createElement('button');
+    variant.setAttribute('role', 'menuitem');
+    variant.setAttribute('aria-label', 'Corner rectangle');
+    menu.append(variant);
+    document.body.append(menu);
+
+    const result = await task.promise;
+    const automatic = result.report.transitions[0]?.after;
+
+    expect(result.status).toBe('INCOMPLETE');
+    expect(result.report.baseline.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      truncated: true,
+    });
+    expect(result.report.baseline.candidates).toContainEqual(
+      expect.objectContaining({ label: 'Rectangle' }),
+    );
+    expect(automatic?.candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Rectangle' }),
+        expect.objectContaining({ label: 'Corner rectangle' }),
+        expect.objectContaining({
+          node: expect.objectContaining({ role: 'menu' }),
+        }),
+      ]),
+    );
+    expect(automatic?.domObservedState).toBe('OPEN');
+    expect(automatic?.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      truncated: true,
+    });
   });
 
   it('captures a keyboard transition without recording the key value', async () => {
