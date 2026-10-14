@@ -27,6 +27,7 @@ export type TargetMatchStrategy =
   | 'VALIDATED_STABLE_ATTRIBUTE'
   | 'ROLE_AND_LABEL'
   | 'VALIDATED_CONTEXT'
+  | 'STRUCTURAL_FEATURE_LIST'
   | 'WEAK_TEXT';
 export type TargetRecognitionConfidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
 export type TargetVisibility =
@@ -97,6 +98,7 @@ const STRATEGY_RANK: Record<TargetMatchStrategy, number> = {
   VALIDATED_STABLE_ATTRIBUTE: 2,
   ROLE_AND_LABEL: 3,
   VALIDATED_CONTEXT: 4,
+  STRUCTURAL_FEATURE_LIST: 5,
   WEAK_TEXT: 5,
 };
 
@@ -177,7 +179,8 @@ function strategyConfidence(
   }
   return strategy === 'ROLE_AND_LABEL' ||
     strategy === 'VALIDATED_STABLE_ATTRIBUTE' ||
-    strategy === 'VALIDATED_CONTEXT'
+    strategy === 'VALIDATED_CONTEXT' ||
+    strategy === 'STRUCTURAL_FEATURE_LIST'
     ? 'MEDIUM'
     : 'LOW';
 }
@@ -213,7 +216,9 @@ function usable(candidate: TargetCandidate): boolean {
     candidate.confidence !== 'LOW' &&
     candidate.contextValid !== false &&
     candidate.visibility === 'VISIBLE' &&
-    candidate.enabled === 'ENABLED' &&
+    (candidate.enabled === 'ENABLED' ||
+      (candidate.strategy === 'STRUCTURAL_FEATURE_LIST' &&
+        candidate.enabled === 'UNKNOWN')) &&
     !candidate.leqadOwned
   );
 }
@@ -271,7 +276,10 @@ export function recognitionFromCandidates(
       confidence: representative.confidence,
       visibility: representative.visibility,
       enabled: representative.enabled,
-      explanation: `Recognized by ${representative.strategy.toLocaleLowerCase().replaceAll('_', ' ')}.`,
+      explanation:
+        representative.strategy === 'STRUCTURAL_FEATURE_LIST'
+          ? 'Identified the visible reference-plane row from its local feature-list structure. Click handling and selected state are unknown.'
+          : `Recognized by ${representative.strategy.toLocaleLowerCase().replaceAll('_', ' ')}.`,
       candidateCount: 1,
     };
   }
@@ -336,12 +344,19 @@ export function findSelectedSemanticTargets(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): HTMLElement[] {
-  return findSemanticTargets(root, targetId).filter(
-    (element) =>
+  return findSemanticTargets(root, targetId).filter((element) => {
+    if (
+      isReferencePlaneTarget(targetId) &&
+      referencePlaneCandidate(element, targetId)?.strategy ===
+        'STRUCTURAL_FEATURE_LIST'
+    )
+      return false;
+    return (
       element.getAttribute('aria-selected') === 'true' ||
       element.getAttribute('aria-pressed') === 'true' ||
-      element.getAttribute('aria-checked') === 'true',
-  );
+      element.getAttribute('aria-checked') === 'true'
+    );
+  });
 }
 
 export function findSelectedSemanticTarget(
@@ -388,6 +403,22 @@ export function createTargetHighlight(
   let mutationObserver: MutationObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
 
+  const targetIsHighlightable = () => {
+    if (
+      !target.isConnected ||
+      isLeqadOwned(target) ||
+      visibilityState(target) !== 'VISIBLE'
+    )
+      return false;
+    if (targetId === undefined) return enabledState(target) === 'ENABLED';
+    const recognition = recognizeSemanticTarget(document, targetId);
+    return (
+      recognition.status === 'FOUND' &&
+      recognition.element === target &&
+      recognition.enabled !== 'DISABLED'
+    );
+  };
+
   const remove = () => {
     if (removed) return;
     removed = true;
@@ -403,14 +434,7 @@ export function createTargetHighlight(
   const refresh = () => {
     frame = null;
     if (removed) return;
-    if (
-      !target.isConnected ||
-      isLeqadOwned(target) ||
-      (targetId !== undefined &&
-        recognizeSemanticTarget(document, targetId).element !== target) ||
-      visibilityState(target) !== 'VISIBLE' ||
-      enabledState(target) !== 'ENABLED'
-    ) {
+    if (!targetIsHighlightable()) {
       remove();
       return;
     }
@@ -448,13 +472,7 @@ export function createTargetHighlight(
           return !element || !isLeqadOwned(element);
         })
       ) {
-        if (
-          !target.isConnected ||
-          isLeqadOwned(target) ||
-          enabledState(target) !== 'ENABLED' ||
-          visibilityState(target) !== 'VISIBLE'
-        )
-          remove();
+        if (!targetIsHighlightable()) remove();
         else scheduleRefresh();
       }
     });

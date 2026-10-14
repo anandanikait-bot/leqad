@@ -35,6 +35,90 @@ test('contextual Top row and all four commands highlight without verifying a cli
   }
 });
 
+test('non-ARIA feature-list simulation highlights only the row and re-resolves after rerender', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  await page.evaluate(() => {
+    document.querySelector('[role="tree"]')?.remove();
+    const common = document.createElement('div');
+    common.dataset.testFeatureList = 'true';
+    common.style.cssText =
+      'position:fixed;left:100px;top:120px;width:320px;height:156px';
+
+    const heading = document.createElement('div');
+    heading.textContent = 'Default geometry';
+    heading.style.cssText =
+      'position:absolute;left:0;top:12px;width:136px;height:28px';
+    const spacer = document.createElement('div');
+    spacer.style.cssText =
+      'position:absolute;left:0;top:48px;width:8px;height:8px';
+    const row = document.createElement('div');
+    row.id = 'fixture-nonaria-top-row';
+    row.style.cssText =
+      'position:absolute;left:12px;top:84px;width:64px;height:26px';
+    const outer = document.createElement('div');
+    const inner = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = 'Top';
+    label.style.cssText = 'display:block;width:40px;height:20px';
+    inner.append(label);
+    outer.append(inner);
+    row.append(outer);
+    row.addEventListener('click', () =>
+      row.setAttribute('data-clicked', 'true'),
+    );
+
+    common.append(
+      document.createElement('div'),
+      document.createElement('div'),
+      document.createElement('div'),
+      heading,
+      spacer,
+      row,
+    );
+    document.body.append(common);
+  });
+
+  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Show me' }).click();
+  const row = page.locator('#fixture-nonaria-top-row');
+  const targetBounds = await row.boundingBox();
+  const outlineBounds = await page
+    .locator('[data-leqad-highlight]')
+    .boundingBox();
+  expect(outlineBounds!.x).toBeCloseTo(targetBounds!.x - 3, 0);
+  expect(outlineBounds!.y).toBeCloseTo(targetBounds!.y - 3, 0);
+  expect(outlineBounds!.width).toBeCloseTo(targetBounds!.width + 6, 0);
+  expect(outlineBounds!.height).toBeCloseTo(targetBounds!.height + 6, 0);
+  await row.click();
+  await expect(row).toHaveAttribute('data-clicked', 'true');
+
+  await page.evaluate(() => {
+    const oldRow = document.querySelector('#fixture-nonaria-top-row');
+    const replacement = oldRow?.cloneNode(true);
+    if (!(replacement instanceof HTMLElement) || !oldRow?.parentElement) return;
+    replacement.removeAttribute('data-clicked');
+    replacement.addEventListener('click', () =>
+      replacement.setAttribute('data-clicked', 'true'),
+    );
+    oldRow.parentElement.replaceChild(replacement, oldRow);
+  });
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show me' }).click();
+  const replacementBounds = await page
+    .locator('#fixture-nonaria-top-row')
+    .boundingBox();
+  const refreshedBounds = await page
+    .locator('[data-leqad-highlight]')
+    .boundingBox();
+  expect(refreshedBounds!.x).toBeCloseTo(replacementBounds!.x - 3, 0);
+  expect(refreshedBounds!.width).toBeCloseTo(replacementBounds!.width + 6, 0);
+  await page.evaluate(() => window.dispatchEvent(new Event('fixture:unmount')));
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+});
+
 test('repeated Show me clears on pause, collapse, completion, restart, and unmount', async ({
   page,
 }) => {

@@ -22,6 +22,23 @@ const planeNames = new Map<string, ReferencePlane>([
 const ROW_SELECTOR =
   '[role="treeitem"],[role="row"],[role="option"],button,[role="button"],[tabindex]';
 const LABEL_SELECTOR = `${ROW_SELECTOR},[aria-label],[aria-labelledby],[title],span,label`;
+const NON_ARIA_ANCESTOR_LIMIT = 8;
+const NON_ARIA_CHILD_LIMIT = 32;
+const NON_ARIA_TEXT_NODE_LIMIT = 64;
+const NON_ARIA_TEXT_LENGTH_LIMIT = 128;
+const NON_ARIA_EXCLUDED_CONTEXT =
+  '[role="tree"],[role="treegrid"],[role="dialog"],dialog,canvas,svg,[role="img"],[role="toolbar"],[role="menu"],[role="menubar"],[role="tablist"],nav,form';
+const EXPLICIT_ACTION_MARKUP =
+  'button,a[href],input,select,textarea,summary,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[role="option"],[role="treeitem"],[role="row"],[tabindex],[contenteditable="true"]';
+
+interface ElementBounds {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  width: number;
+  height: number;
+}
 
 export function planeIdentity(name: string): ReferencePlane | null {
   return planeNames.get(normalizedText(name)) ?? null;
@@ -63,6 +80,289 @@ export function referencePlaneContext(element: Element): ReferencePlaneContext {
   return 'UNKNOWN';
 }
 
+// The authenticated v3 capture exposes plain text inside div wrappers. Keep
+// these reads local and bounded; the result is used only for exact allowlisted
+// structural names and is never exported.
+function boundedPlainText(element: Element): string | null {
+  let text = '';
+  let visited = 0;
+  let incomplete = false;
+
+  const visit = (node: Node): void => {
+    if (incomplete) return;
+    if (++visited > NON_ARIA_TEXT_NODE_LIMIT) {
+      incomplete = true;
+      return;
+    }
+    if (node.nodeType === 3) {
+      text += node.nodeValue ?? '';
+      if (text.length > NON_ARIA_TEXT_LENGTH_LIMIT) incomplete = true;
+      return;
+    }
+    if (
+      node.nodeType === 1 &&
+      (node as Element).matches('[aria-hidden="true"],svg')
+    )
+      return;
+    for (const child of node.childNodes) visit(child);
+  };
+
+  visit(element);
+  return incomplete ? null : text.trim();
+}
+
+function hasExplicitActionMarkup(element: Element): boolean {
+  return (
+    element.matches(EXPLICIT_ACTION_MARKUP) ||
+    Boolean(element.querySelector(EXPLICIT_ACTION_MARKUP))
+  );
+}
+
+function excludedNonAriaContext(element: Element): boolean {
+  return Boolean(element.closest(NON_ARIA_EXCLUDED_CONTEXT));
+}
+
+function isPlainDiv(element: Element): boolean {
+  return (
+    element.tagName === 'DIV' &&
+    !element.hasAttribute('role') &&
+    !element.hasAttribute('tabindex') &&
+    !element.matches('[contenteditable="true"]')
+  );
+}
+
+function readBounds(element: Element): ElementBounds | null {
+  const rect = element.getBoundingClientRect();
+  const values = [
+    rect.top,
+    rect.right,
+    rect.bottom,
+    rect.left,
+    rect.width,
+    rect.height,
+  ];
+  if (values.some((value) => !Number.isFinite(value))) return null;
+  return {
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function containsBounds(container: ElementBounds, content: ElementBounds) {
+  return (
+    content.width > 0 &&
+    content.height > 0 &&
+    container.left <= content.left &&
+    container.top <= content.top &&
+    container.right >= content.right &&
+    container.bottom >= content.bottom
+  );
+}
+
+function overlapsBounds(left: ElementBounds, right: ElementBounds) {
+  return (
+    Math.min(left.right, right.right) > Math.max(left.left, right.left) &&
+    Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top)
+  );
+}
+
+function exactPlaneSpan(
+  row: Element,
+  requested: ReferencePlane,
+): HTMLElement | null {
+  const spans = row.querySelectorAll<HTMLElement>('span');
+  if (spans.length > NON_ARIA_TEXT_NODE_LIMIT) return null;
+  for (const span of spans) {
+    const text = boundedPlainText(span);
+    if (
+      text !== null &&
+      normalizedText(text) === requested.toLowerCase() &&
+      (!semanticName(span) ||
+        planeIdentity(semanticName(span)) === requested) &&
+      visibilityState(span) === 'VISIBLE' &&
+      !isLeqadOwned(span)
+    )
+      return span;
+  }
+  return null;
+}
+
+function exactPlainPlaneBranch(element: Element): ReferencePlane | null {
+  if (!isPlainDiv(element) || hasExplicitActionMarkup(element)) return null;
+  const text = boundedPlainText(element);
+  if (text === null) return null;
+  const plane = planeIdentity(text);
+  if (!plane) return null;
+  const accessibleName = semanticName(element);
+  if (accessibleName && planeIdentity(accessibleName) !== plane) return null;
+  return exactPlaneSpan(element, plane) ? plane : null;
+}
+
+function geometryIdentifiesOneRow(
+  row: Element,
+  label: Element,
+  parent: Element,
+  heading: Element,
+  siblings: Element[],
+): boolean {
+  const rowBounds = readBounds(row);
+  const labelBounds = readBounds(label);
+  const parentBounds = readBounds(parent);
+  const headingBounds = readBounds(heading);
+  if (!rowBounds || !labelBounds || !parentBounds || !headingBounds)
+    return false;
+  if (
+    rowBounds.width <= 0 ||
+    rowBounds.height <= 0 ||
+    labelBounds.width <= 0 ||
+    labelBounds.height <= 0 ||
+    parentBounds.width <= 0 ||
+    parentBounds.height <= 0 ||
+    headingBounds.width <= 0 ||
+    headingBounds.height <= 0 ||
+    !containsBounds(rowBounds, labelBounds) ||
+    !containsBounds(parentBounds, rowBounds) ||
+    !containsBounds(parentBounds, headingBounds)
+  )
+    return false;
+
+  for (const sibling of siblings) {
+    if (sibling === row) continue;
+    const siblingBounds = readBounds(sibling);
+    if (!siblingBounds) return false;
+    if (
+      siblingBounds.width > 0 &&
+      siblingBounds.height > 0 &&
+      overlapsBounds(rowBounds, siblingBounds)
+    )
+      return false;
+  }
+  return true;
+}
+
+function nonAriaFeatureListCandidate(
+  seed: HTMLElement,
+  requested: ReferencePlane,
+): TargetCandidate | null {
+  if (excludedNonAriaContext(seed)) return null;
+
+  let branch: Element | null = seed;
+  for (let depth = 0; branch && depth <= NON_ARIA_ANCESTOR_LIMIT; depth += 1) {
+    if (
+      branch.tagName === 'DIV' &&
+      normalizedText(boundedPlainText(branch)) === requested.toLowerCase()
+    ) {
+      const parent = branch.parentElement;
+      if (
+        parent &&
+        isPlainDiv(branch) &&
+        !hasExplicitActionMarkup(branch) &&
+        isPlainDiv(parent) &&
+        !excludedNonAriaContext(parent) &&
+        !isLeqadOwned(branch) &&
+        !isLeqadOwned(parent)
+      ) {
+        const siblings = Array.from(parent.children);
+        const rowIndex = siblings.indexOf(branch);
+        if (
+          siblings.length >= 3 &&
+          siblings.length <= NON_ARIA_CHILD_LIMIT &&
+          rowIndex >= 0
+        ) {
+          const headingRows = siblings.filter(
+            (sibling) =>
+              isPlainDiv(sibling) &&
+              normalizedText(boundedPlainText(sibling)) === 'default geometry',
+          );
+          const heading = headingRows[0];
+          const headingIndex = heading ? siblings.indexOf(heading) : -1;
+          const label = exactPlaneSpan(branch, requested);
+          if (
+            headingRows.length === 1 &&
+            heading &&
+            headingIndex < rowIndex &&
+            label &&
+            visibilityState(branch as HTMLElement) === 'VISIBLE' &&
+            visibilityState(heading as HTMLElement) === 'VISIBLE'
+          ) {
+            let sawUnlabeledGap = false;
+            let validRelationship = true;
+            for (const sibling of siblings.slice(headingIndex + 1, rowIndex)) {
+              const siblingText = boundedPlainText(sibling);
+              if (siblingText === null) {
+                validRelationship = false;
+                break;
+              }
+              const siblingName = normalizedText(siblingText);
+              if (!siblingName) {
+                if (
+                  !isPlainDiv(sibling) ||
+                  hasExplicitActionMarkup(sibling) ||
+                  semanticName(sibling) ||
+                  isLeqadOwned(sibling)
+                ) {
+                  validRelationship = false;
+                  break;
+                }
+                sawUnlabeledGap = true;
+                continue;
+              }
+
+              const siblingPlane = exactPlainPlaneBranch(sibling);
+              if (
+                !siblingPlane ||
+                visibilityState(sibling as HTMLElement) !== 'VISIBLE'
+              ) {
+                validRelationship = false;
+                break;
+              }
+              const siblingLabel = exactPlaneSpan(sibling, siblingPlane);
+              if (
+                !siblingLabel ||
+                !geometryIdentifiesOneRow(
+                  sibling,
+                  siblingLabel,
+                  parent,
+                  heading,
+                  siblings,
+                )
+              ) {
+                validRelationship = false;
+                break;
+              }
+            }
+
+            if (
+              validRelationship &&
+              sawUnlabeledGap &&
+              enabledState(branch as HTMLElement) !== 'DISABLED' &&
+              geometryIdentifiesOneRow(branch, label, parent, heading, siblings)
+            ) {
+              return {
+                element: branch as HTMLElement,
+                strategy: 'STRUCTURAL_FEATURE_LIST',
+                confidence: 'MEDIUM',
+                rank: 5,
+                visibility: visibilityState(branch as HTMLElement),
+                enabled: 'UNKNOWN',
+                leqadOwned: false,
+                contextValid: true,
+                context: 'NON_ARIA_FEATURE_LIST',
+              };
+            }
+          }
+        }
+      }
+    }
+    branch = branch.parentElement;
+  }
+  return null;
+}
+
 export function referencePlaneCandidate(
   seed: HTMLElement,
   targetId: SemanticTargetId,
@@ -94,30 +394,38 @@ export function referencePlaneCandidate(
     planeIdentity(name) === requested &&
     planeIdentity(rowName) === requested,
   );
-  const exactLongLabel =
-    contextValid &&
-    normalizedText(element.getAttribute('aria-label')) ===
+  if (contextValid) {
+    const exactLongLabel =
+      normalizedText(element.getAttribute('aria-label')) ===
       `${requested.toLowerCase()} plane`;
+    return {
+      element,
+      strategy: exactLongLabel ? 'EXACT_ACCESSIBLE_LABEL' : 'VALIDATED_CONTEXT',
+      confidence: exactLongLabel ? 'HIGH' : 'MEDIUM',
+      rank: exactLongLabel ? 0 : 4,
+      visibility: visibilityState(element),
+      enabled: enabledState(element),
+      leqadOwned: isLeqadOwned(element),
+      contextValid: true,
+      context,
+    };
+  }
+
+  const nonAria = nonAriaFeatureListCandidate(seed, requested);
+  if (nonAria) return nonAria;
+
   return {
     element,
-    strategy: contextValid
-      ? exactLongLabel
-        ? 'EXACT_ACCESSIBLE_LABEL'
-        : 'VALIDATED_CONTEXT'
-      : 'WEAK_TEXT',
-    confidence: contextValid ? (exactLongLabel ? 'HIGH' : 'MEDIUM') : 'LOW',
-    rank: contextValid ? (exactLongLabel ? 0 : 4) : 5,
+    strategy: 'WEAK_TEXT',
+    confidence: 'LOW',
+    rank: 5,
     visibility: visibilityState(element),
     enabled: enabledState(element),
     leqadOwned: isLeqadOwned(element),
-    contextValid,
+    contextValid: false,
     context,
-    ...(contextValid
-      ? {}
-      : {
-          rejectionReason:
-            'The plane label has no validated actionable row in the Default geometry feature tree.',
-        }),
+    rejectionReason:
+      'The plane label has no validated row in the Default geometry feature list.',
   };
 }
 

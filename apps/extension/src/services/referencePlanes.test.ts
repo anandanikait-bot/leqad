@@ -27,12 +27,224 @@ function referenceTree(name = 'Top', label = name) {
   return { tree, group, row, text };
 }
 
+/**
+ * Sanitized non-ARIA fixture, based on authenticated Onshape v3 observations:
+ * a Top span nested in divs, a shared parent with six children, Default
+ * geometry two sibling positions before Top, and an unlabeled sibling between.
+ * The three leading empty children only preserve the observed count; their
+ * actual contents are unknown. Front/Right use this shape only as simulated
+ * variants because their live sibling relationships were not captured.
+ */
+function nonAriaFeatureList(
+  plane: 'Top' | 'Front' | 'Right' = 'Top',
+  options: { alternateOrder?: boolean; duplicates?: number } = {},
+) {
+  const common = document.createElement('div');
+  common.getBoundingClientRect = () => new DOMRect(80, 40, 400, 156);
+
+  const heading = document.createElement('div');
+  const headingText = document.createElement('span');
+  headingText.textContent = 'Default geometry';
+  headingText.getBoundingClientRect = () => new DOMRect(92, 60, 120, 20);
+  heading.append(headingText);
+  heading.getBoundingClientRect = () => new DOMRect(88, 56, 136, 28);
+
+  const spacer = document.createElement('div');
+  spacer.getBoundingClientRect = () => new DOMRect(88, 88, 8, 8);
+
+  const rows: Array<{ row: HTMLDivElement; label: HTMLSpanElement }> = [];
+  for (let index = 0; index < (options.duplicates ?? 1); index += 1) {
+    const row = document.createElement('div');
+    const outer = document.createElement('div');
+    const inner = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = plane;
+    const rowLeft = 96 + index * 100;
+    label.getBoundingClientRect = () => new DOMRect(rowLeft + 12, 103, 40, 20);
+    row.getBoundingClientRect = () => new DOMRect(rowLeft, 100, 64, 26);
+    inner.append(label);
+    outer.append(inner);
+    row.append(outer);
+    rows.push({ row, label });
+  }
+
+  // The default order mirrors the observed -2 / -1 / 0 sibling relationship.
+  // The alternate order is deliberately simulated and proves that recognition
+  // depends on shared structure, not a fixed offset or child count.
+  if (options.alternateOrder) {
+    common.append(heading, spacer, document.createElement('div'));
+    for (const { row } of rows) common.append(row);
+    for (let index = 0; index < 3; index += 1)
+      common.append(document.createElement('div'));
+  } else {
+    for (let index = 0; index < 3; index += 1)
+      common.append(document.createElement('div'));
+    common.append(heading, spacer, ...rows.map(({ row }) => row));
+  }
+  document.body.append(common);
+  return {
+    common,
+    heading,
+    spacer,
+    rows,
+    row: rows[0]!.row,
+    label: rows[0]!.label,
+  };
+}
+
 afterEach(() => {
   document.body.replaceChildren();
   Reflect.deleteProperty(document, 'elementFromPoint');
 });
 
 describe('context-scoped reference-plane recognition', () => {
+  it('recognizes the observed non-ARIA Top branch and highlights its measured row bounds', async () => {
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const { common, row, label } = nonAriaFeatureList();
+    const recognition = recognizeSemanticTarget(document, 'top-plane');
+
+    expect(recognition).toMatchObject({
+      status: 'FOUND',
+      element: row,
+      matchStrategy: 'STRUCTURAL_FEATURE_LIST',
+      candidateCount: 1,
+      enabled: 'UNKNOWN',
+    });
+    expect(recognition.explanation).toContain(
+      'Click handling and selected state are unknown',
+    );
+    expect(recognition.element).not.toBe(label);
+    expect(recognition.element).not.toBe(common);
+
+    const highlighter = createSemanticHighlighter(document);
+    highlighter.show('top-plane');
+    const outline = document.querySelector<HTMLElement>(
+      '[data-leqad-highlight="true"]',
+    );
+    expect(outline?.style.left).toBe('93px');
+    expect(outline?.style.top).toBe('97px');
+    expect(outline?.style.width).toBe('70px');
+    expect(outline?.style.height).toBe('32px');
+    expect(outline?.style.pointerEvents).toBe('none');
+    highlighter.clear();
+    expect(outline?.isConnected).toBe(false);
+  });
+
+  it.each(['Front', 'Right'] as const)(
+    'recognizes a simulated %s row using the same structural adapter',
+    (plane) => {
+      const { row } = nonAriaFeatureList(plane, { alternateOrder: true });
+      const id = `${plane.toLowerCase()}-plane` as
+        'front-plane' | 'right-plane';
+      expect(recognizeSemanticTarget(document, id)).toMatchObject({
+        status: 'FOUND',
+        element: row,
+        matchStrategy: 'STRUCTURAL_FEATURE_LIST',
+      });
+    },
+  );
+
+  it('does not depend on the observed sibling offset or six-child count', () => {
+    const { row, common } = nonAriaFeatureList('Top', {
+      alternateOrder: true,
+    });
+    expect(common.children).toHaveLength(7);
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'FOUND',
+      element: row,
+    });
+  });
+
+  it('reports duplicate exact plane rows in one non-ARIA region as ambiguous', () => {
+    nonAriaFeatureList('Top', { duplicates: 2 });
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'AMBIGUOUS',
+      element: null,
+      candidateCount: 2,
+    });
+  });
+
+  it.each(['camera toolbar', 'viewport label', 'sketch dialog'] as const)(
+    'rejects a non-ARIA Top decoy in a %s',
+    (context) => {
+      const { common } = nonAriaFeatureList();
+      if (context === 'sketch dialog') {
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.append(common);
+        document.body.append(dialog);
+      } else {
+        const container = document.createElement('div');
+        if (context === 'camera toolbar') {
+          container.setAttribute('role', 'toolbar');
+          container.setAttribute('aria-label', 'View controls');
+        } else {
+          container.setAttribute('role', 'img');
+          container.setAttribute('aria-label', 'Viewport');
+        }
+        container.append(common);
+        document.body.append(container);
+      }
+      expect(recognizeSemanticTarget(document, 'top-plane').status).toBe(
+        'REJECTED',
+      );
+    },
+  );
+
+  it('rejects an unrelated exact Top text span without the shared Default geometry sibling', () => {
+    const viewport = document.createElement('div');
+    viewport.setAttribute('role', 'img');
+    const label = document.createElement('span');
+    label.textContent = 'Top';
+    viewport.append(label);
+    document.body.append(viewport);
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'REJECTED',
+      confidence: 'LOW',
+      candidateCount: 1,
+    });
+  });
+
+  it('rejects Default geometry and Top branches that only share a distant ancestor', () => {
+    const { common, heading, row } = nonAriaFeatureList();
+    const headingContainer = document.createElement('div');
+    const rowContainer = document.createElement('div');
+    headingContainer.append(heading);
+    rowContainer.append(row);
+    common.replaceChildren(headingContainer, rowContainer);
+    expect(recognizeSemanticTarget(document, 'top-plane').status).toBe(
+      'REJECTED',
+    );
+  });
+
+  it('rejects a row whose measured bounds include the Default geometry sibling', () => {
+    const { row, heading, common } = nonAriaFeatureList();
+    row.getBoundingClientRect = () => new DOMRect(80, 40, 400, 156);
+    expect(heading.getBoundingClientRect().top).toBeLessThan(
+      row.getBoundingClientRect().bottom,
+    );
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'REJECTED',
+      confidence: 'LOW',
+    });
+    expect(common.getBoundingClientRect().height).toBe(156);
+  });
+
+  it('rejects hidden or collapsed non-ARIA reference rows', () => {
+    const { row } = nonAriaFeatureList();
+    row.parentElement!.hidden = true;
+    expect(recognizeSemanticTarget(document, 'top-plane').status).toBe(
+      'REJECTED',
+    );
+  });
+
+  it('does not turn a structurally recognized row into selected-plane evidence', () => {
+    const { row } = nonAriaFeatureList();
+    row.setAttribute('aria-selected', 'true');
+    expect(recognizeSemanticTarget(document, 'top-plane').element).toBe(row);
+    expect(findSelectedSemanticTargets(document, 'top-plane')).toEqual([]);
+  });
+
   it('reports conflicting visible Sketch dialog plane observations as unknown', async () => {
     const { observedSketchDialogPlane } = await import('./referencePlanes');
     for (const plane of ['Top', 'Front']) {
