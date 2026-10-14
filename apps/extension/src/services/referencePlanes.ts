@@ -312,6 +312,25 @@ function nonAriaFeatureListCandidate(
                 continue;
               }
 
+              // Onshape's built-in Default geometry also contains Origin,
+              // immediately before the three reference planes. The v3 live
+              // capture showed an unlabeled-to-diagnostics sibling between
+              // Default geometry and Top; its exact text was never exported.
+              // Accept only the documented Origin label here, not arbitrary
+              // intervening feature names. Origin may have its own UI controls.
+              if (siblingName === 'origin') {
+                if (
+                  !isPlainDiv(sibling) ||
+                  isLeqadOwned(sibling) ||
+                  visibilityState(sibling as HTMLElement) !== 'VISIBLE'
+                ) {
+                  validRelationship = false;
+                  break;
+                }
+                sawUnlabeledGap = true;
+                continue;
+              }
+
               const siblingPlane = exactPlainPlaneBranch(sibling);
               if (
                 !siblingPlane ||
