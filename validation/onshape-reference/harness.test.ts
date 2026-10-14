@@ -503,6 +503,21 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     const before = sketchCapture.observations[0]!;
     const after = sketchCapture.observations[1]!;
 
+    const inheritedAriaDisabled = structuredClone(sketchCapture);
+    inheritedAriaDisabled.observations[0]!.nodes[0]!.aria.disabled = 'TRUE';
+    expect(evaluateCapture(inheritedAriaDisabled)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const disabledFieldsetAncestor = structuredClone(sketchCapture);
+    disabledFieldsetAncestor.observations[0]!.nodes[0]!.accessibility.nativeDisabledAttributePresent =
+      true;
+    expect(evaluateCapture(disabledFieldsetAncestor)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
     const ariaDisabledSketch = structuredClone(sketchCapture);
     ariaDisabledSketch.observations[0]!.nodes.find(
       (node) => node.label === 'Sketch',
