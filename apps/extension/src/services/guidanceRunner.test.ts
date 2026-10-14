@@ -194,6 +194,40 @@ describe('deterministic guidance runner', () => {
     expect(environment.calls).not.toContain('resolve:rectangle-tool-group');
   });
 
+  it('explains a Sketch step already satisfied by observable sketch-editing UI without highlighting', () => {
+    const environment = createHost({ context: 'SKETCH_EDITING' });
+    const runner = createGuidanceRunner(environment.host);
+    const result = runner.request({
+      version: 1,
+      actionId: 'sketch',
+      level: 'SHOW',
+    });
+    expect(result).toMatchObject({
+      status: 'READY',
+      activeTargetId: null,
+      retryAvailable: false,
+    });
+    expect(result.message).toMatch(/Sketch editing already appears active/);
+    expect(environment.calls).not.toContain('highlight:sketch-toolbar-control');
+  });
+
+  it('reports when Retry sees the same unknown context instead of silently repeating the message', () => {
+    const environment = createHost({ context: 'UNKNOWN' });
+    const runner = createGuidanceRunner(environment.host);
+    const first = runner.request({
+      version: 1,
+      actionId: 'sketch',
+      level: 'SHOW',
+    });
+    expect(first.status).toBe('FALLBACK');
+    expect(first.message).toMatch(/mark this step done/);
+    const retry = runner.retry();
+    expect(retry.status).toBe('FALLBACK');
+    expect(retry.message).toMatch(/Checked again/);
+    expect(retry.message).toMatch(/No newly recognizable interface state/);
+    expect(environment.calls).not.toContain('highlight:sketch-toolbar-control');
+  });
+
   it('supports a registry-validated general toolbar area for a future HINT', () => {
     const registry: GuidanceRegistry = {
       ...GUIDANCE_REGISTRY,
