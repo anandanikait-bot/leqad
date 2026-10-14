@@ -211,6 +211,35 @@ describe('Onshape capability observations', () => {
     expect(page.elementType).toBe('unknown');
   });
 
+  it('recognizes a visible Sketch dialog with a supported plane for guidance without changing capability or model evidence', async () => {
+    const { observeOnshapeCapabilities, observeOnshapeGuidanceContext, parseOnshapePage } =
+      await import('./onshapePage');
+    const { observeSketchGuidanceUi } = await import('./sketchGuidance');
+    const dialog = document.createElement('section');
+    dialog.setAttribute('role', 'dialog');
+    dialog.getBoundingClientRect = () => new DOMRect(20, 40, 240, 250);
+    const heading = document.createElement('h2');
+    heading.textContent = 'Sketch 3';
+    const planeField = document.createElement('div');
+    planeField.setAttribute('aria-label', 'Sketch plane Top plane');
+    planeField.getBoundingClientRect = () => new DOMRect(30, 80, 190, 28);
+    dialog.append(heading, planeField);
+    document.body.append(dialog);
+    const page = parseOnshapePage(
+      'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+    );
+
+    expect(observeSketchGuidanceUi(document)).toEqual({
+      editingAppearsActive: true,
+      dialogPlane: 'Top',
+    });
+    expect(observeOnshapeGuidanceContext(page, document)).toBe('SKETCH_EDITING');
+    expect(observeOnshapeCapabilities(page, document)).toMatchObject({
+      elementType: 'unknown',
+      editability: 'unknown',
+    });
+  });
+
   it('keeps guidance context UNKNOWN without a unique usable control, or with a known different element type', async () => {
     const { observeOnshapeGuidanceContext, parseOnshapePage } =
       await import('./onshapePage');
