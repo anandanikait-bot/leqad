@@ -94,6 +94,26 @@ function visibleCommandControls(
     number,
     ReferenceCapture['observations'][number]['nodes'][number]
   >();
+  const blockedByAncestor = (
+    command: ReferenceCapture['observations'][number]['nodes'][number],
+  ): boolean => {
+    const visited = new Set<number>([command.nodeIndex]);
+    let parentIndex = command.parentIndex;
+    while (parentIndex !== null) {
+      if (visited.has(parentIndex)) return true;
+      visited.add(parentIndex);
+      const parent = byId.get(parentIndex);
+      if (!parent) return true;
+      if (
+        parent.aria.disabled === 'TRUE' ||
+        parent.accessibility.nativeDisabledAttributePresent ||
+        parent.aria.hidden === 'TRUE'
+      )
+        return true;
+      parentIndex = parent.parentIndex;
+    }
+    return false;
+  };
   for (const labelNode of observation.nodes) {
     if (!labelNode.label || !labels.includes(labelNode.label)) continue;
     let node: typeof labelNode | undefined = labelNode;
@@ -121,7 +141,7 @@ function visibleCommandControls(
       if (actionable && node.accessibility.nameAttributePresent && !node.label)
         break;
       if (actionable) {
-        controls.set(node.nodeIndex, node);
+        if (!blockedByAncestor(node)) controls.set(node.nodeIndex, node);
         break;
       }
       node = node.parentIndex === null ? undefined : byId.get(node.parentIndex);
