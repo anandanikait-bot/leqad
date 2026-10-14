@@ -496,6 +496,44 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
     const before = sketchCapture.observations[0]!;
     const after = sketchCapture.observations[1]!;
 
+    // A label and manually asserted state do not establish a CAD command.
+    for (const index of [0, 1]) {
+      const textOnly = structuredClone(sketchCapture);
+      const target = textOnly.observations[index]!.nodes[1]!;
+      target.tag = 'SPAN';
+      target.role = null;
+      target.accessibility.roleAttributePresent = false;
+      expect(evaluateCapture(textOnly)).toMatchObject({
+        status: 'INSUFFICIENT_EVIDENCE',
+        reason: 'TRANSITION_UNVERIFIED',
+      });
+    }
+    const unchangedFinish = structuredClone(sketchCapture);
+    unchangedFinish.observations[0]!.nodes.push({
+      ...after.nodes[1]!,
+      nodeIndex: 2,
+      parentIndex: null,
+    });
+    expect(evaluateCapture(unchangedFinish)).toMatchObject({
+      status: 'INSUFFICIENT_EVIDENCE',
+      reason: 'TRANSITION_UNVERIFIED',
+    });
+
+    const nestedLabel = structuredClone(sketchCapture);
+    nestedLabel.observations[1]!.nodes[1]!.label = null;
+    nestedLabel.observations[1]!.nodes[1]!.childIndexes = [2];
+    nestedLabel.observations[1]!.nodes.push({
+      ...after.nodes[1]!,
+      nodeIndex: 2,
+      parentIndex: 1,
+      tag: 'SPAN',
+      role: null,
+    });
+    expect(evaluateCapture(nestedLabel)).toMatchObject({
+      status: 'PASS',
+      evidenceLevel: 'SIMULATED',
+    });
+
     expect(
       evaluateCapture({
         ...sketchCapture,
@@ -567,6 +605,39 @@ describe('independent reference capture contract (synthetic fixtures)', () => {
       status: 'PASS',
       reason: 'TARGET_MATCHED_LOCAL_EVIDENCE_GLOBAL_DEPTH_LIMIT',
     });
+  });
+
+  it('rejects a text-only Sketch SHOW reference despite correct product self-report', () => {
+    const original = makeCapture().observations[0]!;
+    const capture = makeCapture({
+      scenarioId: 'sketch-show',
+      targetId: 'sketch-command',
+      observations: [
+        {
+          ...original,
+          stateId: 'POINT',
+          nodes: original.nodes.map((node) =>
+            node.nodeIndex === 1
+              ? { ...node, label: 'Sketch', tag: 'SPAN', role: null }
+              : node,
+          ),
+        },
+      ],
+    });
+    expect(
+      compareReferenceContract({
+        capture,
+        approval: 'APPROVED',
+        freshness: 'CURRENT',
+        product: {
+          scenarioId: 'sketch-show',
+          targetId: 'sketch-command',
+          outcome: 'RECOGNIZED',
+          menuEvidence: 'NOT_APPLICABLE',
+          highlight: 'CORRECT',
+        },
+      }),
+    ).toMatchObject({ status: 'INSUFFICIENT_EVIDENCE' });
   });
 
   it('detects tampering and refuses to approve a synthetic capture', async () => {

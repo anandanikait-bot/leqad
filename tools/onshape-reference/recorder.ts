@@ -29,6 +29,9 @@ const PENDING_DIRECTORY = resolve(
   'validation/onshape-reference/captures/pending',
 );
 
+// Only static messages created by this recorder may be displayed on failure.
+class RecorderSessionError extends Error {}
+
 function assertNotCi(): void {
   if (process.env.CI === 'true')
     throw new Error(
@@ -56,13 +59,19 @@ function humanStatesFor(stateId: 'BEFORE' | 'AFTER'): HumanState[] {
     : ['SKETCH_ACTIVE', 'SKETCH_INACTIVE', 'UNKNOWN'];
 }
 
-async function askWithinSession(
+export async function askWithinSession(
   prompt: string,
   deadline: number,
+  phase: 'START' | 'SIGN_IN' | 'OBSERVATION' = 'OBSERVATION',
 ): Promise<string> {
+  const timeoutMessage =
+    phase === 'SIGN_IN'
+      ? 'Sign-in reached its 30-minute time limit.'
+      : phase === 'START'
+        ? 'Start confirmation reached its 30-minute time limit.'
+        : 'Observation session reached its 10-minute time limit.';
   const remaining = deadline - Date.now();
-  if (remaining <= 0)
-    throw new Error('Observation session reached its 10-minute time limit.');
+  if (remaining <= 0) throw new RecorderSessionError(timeoutMessage);
   const readline = createInterface({ input: stdin, output: stdout });
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -71,9 +80,7 @@ async function askWithinSession(
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           readline.close();
-          reject(
-            new Error('Observation session reached its 10-minute time limit.'),
-          );
+          reject(new RecorderSessionError(timeoutMessage));
         }, remaining);
       }),
     ]);
@@ -100,7 +107,20 @@ async function selectHumanState(
   }
 }
 
-async function scanPage(page: Page) {
+async function assertAuthorizedCapturePage(page: Page): Promise<void> {
+  const pages = page.context().pages();
+  if (page.isClosed() || pages.length !== 1 || pages[0] !== page)
+    throw new RecorderSessionError(
+      "Use the recorder's original Chrome tab and close all other tabs before READY and both snapshots. No capture was saved.",
+    );
+  if (!(await page.evaluate(isSupportedOnshapePartStudioLocation)))
+    throw new RecorderSessionError(
+      'The original tab is not on the supported Onshape workspace route. No capture was saved; no URL or identifier was recorded.',
+    );
+}
+
+export async function captureAuthorizedSnapshot(page: Page) {
+  await assertAuthorizedCapturePage(page);
   return await page.evaluate(capturePageSnapshot, {
     maxElements: 10_000,
     maxDepth: 10,
@@ -112,7 +132,7 @@ async function scanPage(page: Page) {
 }
 
 function snapshotSummary(
-  snapshot: Awaited<ReturnType<typeof scanPage>>,
+  snapshot: Awaited<ReturnType<typeof captureAuthorizedSnapshot>>,
 ): string {
   return `${snapshot.scan.status}; ${snapshot.scan.visitedElements} elements inspected; ${snapshot.nodes.length} structural nodes retained; DOM state ${snapshot.domState}.`;
 }
@@ -126,13 +146,15 @@ async function snapshotState(
   stateId: 'POINT' | 'BEFORE' | 'AFTER';
   humanState: HumanState;
   domState: DomState;
-  nodes: Awaited<ReturnType<typeof scanPage>>['nodes'];
+  nodes: Awaited<ReturnType<typeof captureAuthorizedSnapshot>>['nodes'];
   events: CaptureEvent[];
-  scan: Awaited<ReturnType<typeof scanPage>>['scan'];
+  scan: Awaited<ReturnType<typeof captureAuthorizedSnapshot>>['scan'];
 }> {
   if (Date.now() >= deadline)
-    throw new Error('Observation session reached its 10-minute time limit.');
-  const snapshot = await scanPage(page);
+    throw new RecorderSessionError(
+      'Observation session reached its 10-minute time limit.',
+    );
+  const snapshot = await captureAuthorizedSnapshot(page);
   stdout.write(`DOM observation: ${snapshotSummary(snapshot)}\n`);
   if (snapshot.scan.status !== 'COMPLETE') {
     stdout.write(
@@ -253,8 +275,9 @@ async function webglSupport(
 export async function runReferenceCapture(): Promise<void> {
   assertNotCi();
   const confirmation = await askWithinSession(
-    'This creates a clean temporary Chrome profile, uses no Leqad extension, and deletes the profile on exit. Type START to begin: ',
+    'This creates a clean temporary Chrome profile without Leqad. Chrome stores your session data locally in this profile until cleanup on exit. Type START to begin: ',
     Date.now() + MAX_SIGN_IN_MS,
+    'START',
   );
   if (confirmation.trim() !== 'START') {
     stdout.write('No browser launched.\n');
@@ -299,26 +322,19 @@ export async function runReferenceCapture(): Promise<void> {
     });
     const signInDeadline = signInDeadlineFromLaunch(Date.now());
     stdout.write(
-      'Chrome opened with a fresh profile and extensions disabled. Sign into Onshape manually, then open an authorized disposable Part Studio.\n',
+      'Chrome opened with a fresh profile and extensions disabled. You have 30 minutes to sign in and open an authorized disposable Part Studio in this original tab. Close any extra tabs opened during sign-in before READY; capture never switches tabs automatically.\n',
     );
     const ready = await askWithinSession(
       'When the Part Studio is open, type READY. If you do not have an authenticated authorized session, type STOP: ',
       signInDeadline,
+      'SIGN_IN',
     );
     if (ready.trim().toUpperCase() !== 'READY') {
       stdout.write('No authenticated capture made.\n');
       return;
     }
     const deadline = observationDeadlineAfterPartStudioReady(Date.now());
-    const supportedPartStudioRoute = await page.evaluate(
-      isSupportedOnshapePartStudioLocation,
-    );
-    if (!supportedPartStudioRoute) {
-      stdout.write(
-        'The active tab is not on the supported Onshape Part Studio workspace route. No capture was made; no URL or identifier was recorded.\n',
-      );
-      return;
-    }
+    await assertAuthorizedCapturePage(page);
     const authorization = await askWithinSession(
       'Confirm this is an authorized disposable Part Studio and you will not edit CAD geometry. Type YES: ',
       deadline,
@@ -342,7 +358,9 @@ export async function runReferenceCapture(): Promise<void> {
     stdout.write(
       'Observation session ended. No CAD controls were clicked by the recorder.\n',
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof RecorderSessionError)
+      stdout.write(`${error.message}\n`);
     stdout.write(
       'Reference capture stopped safely after a local browser/session error. No unsanitized error details were recorded.\n',
     );

@@ -275,9 +275,23 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   const otherLabelCandidates = labeledCandidates.filter(
     (element) => !sketchLabels.has(labelOf(element) ?? ''),
   );
-  const fallbackCandidates = Array.from(
-    new Set([...structuralCandidates, ...genericFallbackCandidates]),
+  const structuralSet = new Set(structuralCandidates);
+  const genericCandidates = genericFallbackCandidates.filter(
+    (element) => !structuralSet.has(element) && !labelOf(element),
   );
+  // Deterministic coverage across the bounded scan, including both ends.
+  // These are samples of unknown structure, never identified Sketch targets.
+  const sample = (elements: Element[], budget: number): Element[] => {
+    if (elements.length <= budget) return elements;
+    if (budget <= 0) return [];
+    if (budget === 1) return [elements[Math.floor(elements.length / 2)]!];
+    return Array.from(
+      { length: budget },
+      (_, index) =>
+        elements[Math.round((index * (elements.length - 1)) / (budget - 1))]!,
+    );
+  };
+  const fallbackCandidates = [...structuralCandidates, ...genericCandidates];
   const selectedSketch = preferredSketchCandidates.slice(
     0,
     limits.maxCandidates,
@@ -287,7 +301,14 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     afterSketchBudget,
     Math.min(8, Math.max(1, Math.floor(limits.maxCandidates / 4))),
   );
-  const selectedStructure = fallbackCandidates.slice(0, structuralBudget);
+  const genericBudget = Math.min(
+    genericCandidates.length,
+    Math.floor(structuralBudget / 2),
+  );
+  const selectedStructure = [
+    ...sample(structuralCandidates, structuralBudget - genericBudget),
+    ...sample(genericCandidates, genericBudget),
+  ];
   const remainingAfterStructure =
     limits.maxCandidates - selectedSketch.length - selectedStructure.length;
   const selectedOtherLabels = otherLabelCandidates.slice(
@@ -295,15 +316,13 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     remainingAfterStructure,
   );
   const usedFallbacks = new Set(selectedStructure);
-  const additionalStructure = fallbackCandidates
-    .filter((element) => !usedFallbacks.has(element))
-    .slice(
-      0,
-      limits.maxCandidates -
-        selectedSketch.length -
-        selectedStructure.length -
-        selectedOtherLabels.length,
-    );
+  const additionalStructure = sample(
+    fallbackCandidates.filter((element) => !usedFallbacks.has(element)),
+    limits.maxCandidates -
+      selectedSketch.length -
+      selectedStructure.length -
+      selectedOtherLabels.length,
+  );
   const candidates = [
     ...selectedSketch,
     ...selectedStructure,
@@ -319,7 +338,13 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   if (preferredSketchCandidates.length > selectedSketch.length)
     sketchCandidateLimitReached = true;
 
-  const relevant = new Set<Element>();
+  // Retain sampled candidates before their context so ancestors and early
+  // siblings cannot consume the output budget ahead of later samples.
+  const primaryCandidates = [...selectedSketch, ...selectedStructure];
+  const relevant = new Set<Element>(primaryCandidates);
+  for (const candidate of primaryCandidates)
+    if (candidate.parentElement) relevant.add(candidate.parentElement);
+  for (const candidate of candidates) relevant.add(candidate);
   for (const candidate of candidates) {
     relevant.add(candidate);
     let ancestor = candidate.parentElement;
@@ -432,10 +457,11 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   );
   let domState = 'UNKNOWN';
   if (!nodeLimitReached && !outputLimitReached) {
-    if (menuVisible) domState = 'MENU_VISIBLE';
-    else if (has('Finish Sketch')) domState = 'SKETCH_CONTROLS_VISIBLE';
+    if (has('Finish Sketch')) domState = 'SKETCH_CONTROLS_VISIBLE';
     else if (has('Sketch') || has('Start sketch') || has('Create sketch'))
       domState = 'SKETCH_COMMAND_VISIBLE';
+    // Menu roles stay independently visible in the sanitized node records.
+    else if (menuVisible) domState = 'MENU_VISIBLE';
     else if (has('Top')) domState = 'TOP_LABEL_VISIBLE';
     else if (has('Rectangle')) domState = 'RECTANGLE_TRIGGER_VISIBLE';
     else if (has('Part Studio')) domState = 'PART_STUDIO_CONTROLS_VISIBLE';

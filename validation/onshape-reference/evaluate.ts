@@ -85,17 +85,43 @@ function isIncomplete(capture: ReferenceCapture): boolean {
   );
 }
 
-function hasVisibleLabel(
+function visibleCommandControls(
   observation: ReferenceCapture['observations'][number],
   labels: readonly string[],
-): boolean {
-  return observation.nodes.some(
-    (node) =>
-      node.label !== null &&
-      labels.includes(node.label) &&
-      node.visibility === 'VISIBLE' &&
-      node.bounds !== null,
-  );
+): ReferenceCapture['observations'][number]['nodes'] {
+  const byId = new Map(observation.nodes.map((node) => [node.nodeIndex, node]));
+  const controls = new Map<
+    number,
+    ReferenceCapture['observations'][number]['nodes'][number]
+  >();
+  for (const labelNode of observation.nodes) {
+    if (!labelNode.label || !labels.includes(labelNode.label)) continue;
+    let node: typeof labelNode | undefined = labelNode;
+    const visited = new Set<number>();
+    while (node && !visited.has(node.nodeIndex)) {
+      visited.add(node.nodeIndex);
+      if (
+        node.visibility !== 'VISIBLE' ||
+        node.clipping !== 'NONE' ||
+        !node.bounds ||
+        node.bounds.width <= 0 ||
+        node.bounds.height <= 0 ||
+        node.aria.hidden === 'TRUE'
+      )
+        break;
+      if (node.label && !labels.includes(node.label)) break;
+      if (
+        node.tag === 'BUTTON' ||
+        node.role === 'BUTTON' ||
+        node.role === 'MENUITEM'
+      ) {
+        controls.set(node.nodeIndex, node);
+        break;
+      }
+      node = node.parentIndex === null ? undefined : byId.get(node.parentIndex);
+    }
+  }
+  return [...controls.values()];
 }
 
 function isDescendantOf(
@@ -124,6 +150,11 @@ function countDistinctLabelBranches(
       : capture.observations;
   return Math.max(
     ...observations.map((observation) => {
+      if (
+        capture.targetId === 'sketch-command' ||
+        capture.targetId === 'finish-sketch-command'
+      )
+        return visibleCommandControls(observation, labels).length;
       const visible = observation.nodes
         .filter(
           (node) =>
@@ -211,8 +242,12 @@ export function compareReferenceContract(
       after.humanState !== 'SKETCH_ACTIVE' ||
       before.domState !== 'SKETCH_COMMAND_VISIBLE' ||
       after.domState !== 'SKETCH_CONTROLS_VISIBLE' ||
-      !hasVisibleLabel(before, expectedLabel['sketch-command']) ||
-      !hasVisibleLabel(after, expectedLabel['finish-sketch-command'])
+      visibleCommandControls(before, expectedLabel['sketch-command']).length !==
+        1 ||
+      visibleCommandControls(before, expectedLabel['finish-sketch-command'])
+        .length !== 0 ||
+      visibleCommandControls(after, expectedLabel['finish-sketch-command'])
+        .length !== 1
     ) {
       return result(
         'INSUFFICIENT_EVIDENCE',

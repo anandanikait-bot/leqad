@@ -225,4 +225,83 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(serialized).not.toContain('Private Sketch toolbar');
     expect(serialized).not.toContain('hidden diagnostic structure');
   });
+
+  it('samples late unlabeled controls after 120 competitors without inventing their identity', () => {
+    document.body.innerHTML =
+      Array.from(
+        { length: 120 },
+        () => '<button>Private unrelated action</button>',
+      ).join('') +
+      '<div><button aria-expanded="true" tabindex="0">Private unnamed Sketch control</button></div>';
+
+    const snapshot = capturePageSnapshot({
+      maxCandidates: 32,
+      maxOutputNodes: 100,
+      maxOutputBytes: 9_000,
+    });
+
+    expect(
+      snapshot.nodes.some(
+        (node) =>
+          node.tag === 'BUTTON' &&
+          node.aria.expanded === 'TRUE' &&
+          node.accessibility.tabIndexAttributePresent &&
+          node.label === null,
+      ),
+    ).toBe(true);
+    expect(snapshot.domState).toBe('UNKNOWN');
+    expect(snapshot.scan.candidateLimitReached).toBe(true);
+    expect(snapshot.scan.status).toBe('INCOMPLETE_CAPTURE');
+    expect(JSON.stringify(snapshot)).not.toContain(
+      'Private unnamed Sketch control',
+    );
+  });
+
+  it('retains a genuinely deep Sketch target with UNKNOWN ancestry visibility', () => {
+    document.body.innerHTML =
+      '<div>'.repeat(18) +
+      '<button aria-label="Finish Sketch">Finish Sketch</button>' +
+      '</div>'.repeat(18);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot({ maxDepth: 5 });
+    const target = snapshot.nodes.find(
+      (node) => node.label === 'Finish Sketch',
+    );
+
+    expect(target).toMatchObject({
+      visibility: 'UNKNOWN',
+      clipping: 'UNKNOWN',
+    });
+    expect(target?.bounds).not.toBeNull();
+    expect(snapshot.scan.depthLimitReached).toBe(true);
+    expect(snapshot.scan.status).toBe('INCOMPLETE_CAPTURE');
+    expect(snapshot.domState).toBe('UNKNOWN');
+  });
+
+  it.each(['Sketch', 'Finish Sketch'])(
+    'keeps %s state when an unrelated menu is visible',
+    (label) => {
+      document.body.innerHTML = `<button>${label}</button><div role="menu"><div role="menuitem">Private unrelated menu</div></div>`;
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(10, 20, 80, 24),
+      );
+
+      const snapshot = capturePageSnapshot();
+
+      expect(snapshot.domState).toBe(
+        label === 'Sketch'
+          ? 'SKETCH_COMMAND_VISIBLE'
+          : 'SKETCH_CONTROLS_VISIBLE',
+      );
+      expect(
+        snapshot.nodes.some(
+          (node) => node.role === 'MENU' && node.visibility === 'VISIBLE',
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(snapshot)).not.toContain('Private unrelated menu');
+    },
+  );
 });
