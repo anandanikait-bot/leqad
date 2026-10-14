@@ -135,6 +135,12 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     }
     return false;
   };
+  const safeLabelOf = (element: Element) => {
+    const label = labelOf(element);
+    return label && !hasConflictingNamedControlAncestor(element, label)
+      ? label
+      : null;
+  };
   const boolOf = (element: Element, key: string) => {
     const value = element.getAttribute(`aria-${key}`)?.trim().toLowerCase();
     if (value === 'true') return 'TRUE';
@@ -256,8 +262,8 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
         parent = parent.parentElement;
       }
       if (parent && parent !== root) depthLimitReached = true;
-      const label = labelOf(element);
-      if (label && !hasConflictingNamedControlAncestor(element, label)) {
+      const label = safeLabelOf(element);
+      if (label) {
         recognizedLabelCount += 1;
         labeledCandidates.push(element);
       } else if (
@@ -413,7 +419,7 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
       tag: tagNames.includes(element.tagName.toUpperCase())
         ? element.tagName.toUpperCase()
         : 'OTHER',
-      label: labelOf(element),
+      label: safeLabelOf(element),
       role: roleOf(element),
       aria: {
         expanded: boolOf(element, 'expanded'),
@@ -426,9 +432,7 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
           element.hasAttribute('aria-label') ||
           element.hasAttribute('aria-labelledby') ||
           element.hasAttribute('title'),
-        nativeDisabledAttributePresent:
-          nativeControls.has(element.tagName.toUpperCase()) &&
-          element.hasAttribute('disabled'),
+        nativeDisabledAttributePresent: element.hasAttribute('disabled'),
         roleAttributePresent: element.hasAttribute('role'),
         tabIndexAttributePresent: element.hasAttribute('tabindex'),
       },
