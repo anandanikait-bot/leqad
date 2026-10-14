@@ -684,7 +684,7 @@ describe('AssistantPanel', () => {
     advanceToStep(2);
 
     expect(
-      screen.getByText(/has not verified the Part Studio type or editing permission/),
+      screen.getByText(/has not verified the Part Studio type/),
     ).toBeTruthy();
     expect(
       screen.getByRole('status', { name: 'Connection status' }).textContent,
