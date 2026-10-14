@@ -465,6 +465,8 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
     trigger.setAttribute('aria-haspopup', 'menu');
     trigger.setAttribute('aria-expanded', 'false');
     trigger.id = 'simulated-rectangle-keyboard-trigger';
+    trigger.style.cssText =
+      'position:fixed;right:16px;bottom:16px;z-index:2147483647';
     trigger.addEventListener('click', () => {
       trigger.setAttribute(
         'aria-expanded',
@@ -473,13 +475,26 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
     });
     document.body.append(trigger);
   });
+  const trigger = page.locator('#simulated-rectangle-keyboard-trigger');
+  await expect(trigger).toBeVisible();
+  expect(
+    await trigger.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return (
+        document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        ) === element
+      );
+    }),
+  ).toBe(true);
   await page
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
     .getByRole('button', { name: 'Capture Rectangle dropdown' })
     .click();
-  await page.locator('#simulated-rectangle-keyboard-trigger').press('Enter');
+  await trigger.press('Enter');
   await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
@@ -499,7 +514,6 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
   await page
     .getByRole('button', { name: 'Capture Rectangle dropdown' })
     .click();
-  const trigger = page.locator('#simulated-rectangle-keyboard-trigger');
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   // The capture batches DOM mutations into requestAnimationFrame. Flush that
