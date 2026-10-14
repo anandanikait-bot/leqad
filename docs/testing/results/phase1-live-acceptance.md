@@ -2,6 +2,8 @@
 
 **Acceptance:** INCOMPLETE — the owner reported extension/panel loading and a Top-plane recognition failure on Windows Onshape. These are pre-fix observations, not acceptance of the new build. The table below is the still-BLOCKED post-fix acceptance run; see the [sprint report](top-plane-recognition.md).
 
+The current non-ARIA adapter source is commit e4ad2a310a251e4684ccfdf48fe34d87958032e3. Hosted CI [run 38510905966](https://github.com/anandanikait-bot/leqad/actions/runs/38510905966) passed, and its [Chrome/Edge artifact 11869538592](https://github.com/anandanikait-bot/leqad/actions/runs/38510905966/artifacts/11869538592) contains the tested build. Each browser ZIP is 129,414 bytes with SHA-256 244cc70661fbb423158d599046e86bc650947a7bb03f6864698f52f28229cd8f; the downloaded packages are byte-identical. The earlier diagnostic artifact does not contain the adapter. The real results below remain BLOCKED until owner testing is complete.
+
 Copy this report for a test run or fill it in after testing. Every row requires exactly **PASS**, **FAIL**, or **BLOCKED** and a short observed result. A build, fixture, skipped automated test, or intended outcome is not a live PASS. Keep untested rows BLOCKED.
 
 An equivalent [CSV checklist](phase1-live-acceptance.csv) is available for a spreadsheet. Use the environment fields below with either format; do not treat the two copies as separate runs.
