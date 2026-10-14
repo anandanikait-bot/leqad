@@ -14,6 +14,7 @@ Confirmed offline defects in the reviewed code, reproduced by controlled regress
 - A hidden stronger match suppresses a visible supported weaker match.
 - Nested labels and interactive descendants can describe one row, rather than independent controls.
 - An overlay can remain on a recycled, still-visible node whose semantic identity changed.
+- Hosted CI exposed a production SPA integration defect: WXT dispatches its Navigation API location-change event before `location.href` commits. Synchronous mounting reads the old document and ignores the destination. The listener now clears immediately and defers reading the committed route to a microtask. The production regression also requires a fresh lesson context after navigation.
 - Panel Show me can falsely describe success when no callback reports a mounted highlight; stale highlights survive some lesson transitions.
 
 The label mismatch is a plausible contributor to the live failure. Missing semantics, unsupported nesting, or a different actionable element remain hypotheses. No production Onshape-specific selector or generated class was added. The ARIA structures in tests are controlled contracts, **not captured real Onshape DOM**. If Onshape does not expose these relationships, recognition deliberately rejects the row; the owner diagnostic is needed before a narrowly justified adapter can be added.
@@ -59,12 +60,12 @@ The highlighter uses one temporary observer for the active overlay, coalesces re
 | Unit/component suite                     | 202 PASS across 15 files; reviewed base had 164 tests. All existing suites retained; 38 additional tests.                              |
 | Full browser suite                       | 9 PASS / 0 FAIL / 1 policy SKIP, including seven panel flows. Three new browser flows and an extended production load/navigation case. |
 | Chrome and Edge production builds        | PASS, 408.00 kB each                                                                                                                   |
-| Chrome and Edge ZIPs                     | PASS, 124,189 bytes each; root manifest inspected                                                                                      |
-| Local inner ZIP SHA-256 (each)           | `b7998853281c339e1dd236d3337a4a033e2da717f6c64e447ba8b2b96d2f8b75`                                                                     |
+| Chrome and Edge ZIPs                     | PASS, 124,216 bytes each; root manifest inspected                                                                                      |
+| Local inner ZIP SHA-256 (each)           | `872893e13fa2c3592e81f3cb43f769965564a235e16c8ec6ed3914aa988b9daf`                                                                     |
 
 New cases were observed failing before the relevant fixes, including unsupported bare labels/decoys, hidden stronger candidates, missing diagnostic/controller integration, nested interactive-row deduplication, label traversal/truncation, conflicting dialogs, and concise rejected-state explanations. Full-suite results are from the integrated implementation, not isolated test extrapolation.
 
-CI's exact source/run/artifact results are pinned in PR #1 after its single meaningful sprint run. CI archives are downloaded and measured separately before any checksum equivalence is claimed. An automated fixture PASS cannot fill a live result below.
+The initial sprint [CI run 38490449579](https://github.com/anandanikait-bot/leqad/actions/runs/38490449579) passed all static checks, 202 unit/component tests, both builds and nine browser cases; its new production SPA regression failed because the highlight remained after `pushState`. Packaging/upload were skipped. This was diagnosed against WXT's installed Navigation API watcher; no unchanged retry was performed. A follow-up commit fixes the affected route event ordering and strengthens the context assertion. The follow-up CI's exact source/run/artifact results are pinned in PR #1. CI archives are downloaded and measured separately before any checksum equivalence is claimed. An automated fixture PASS cannot fill a live result below.
 
 ## Owner: shortest no-DevTools procedure
 

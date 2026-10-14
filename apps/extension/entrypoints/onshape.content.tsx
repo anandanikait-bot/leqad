@@ -184,7 +184,12 @@ export default defineContentScript({
     };
 
     ctx.addEventListener(window, 'wxt:locationchange', () => {
-      void mountForCurrentPage();
+      clearHighlight();
+      // WXT's Navigation API event fires before history/location commits.
+      // Read the destination after the synchronous navigation has completed.
+      queueMicrotask(() => {
+        if (!ctx.isInvalid) void mountForCurrentPage();
+      });
     });
     ctx.onInvalidated(() => {
       pageLifecycle.invalidate();

@@ -111,6 +111,7 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
     );
     await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
     await expect(page.locator('leqad-assistant')).toHaveCount(1);
+    await expect(page.getByText('Step 1 of 8 · Visited')).toBeVisible();
   } finally {
     await context.close();
   }
