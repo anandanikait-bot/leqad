@@ -1,6 +1,6 @@
 # Adaptive Visual Guidance Design
 
-**Status:** proposed for owner review. This document records the approved design direction and is not an implementation plan.
+**Status:** approved for implementation planning. This document records the design direction and is not an implementation plan.
 
 ## Goal
 
@@ -29,10 +29,7 @@ Expose a versioned, runtime-validated request with a small closed vocabulary:
 ```ts
 type GuidanceLevel = 'HINT' | 'SHOW' | 'GUIDE';
 type GuidanceActionId =
-  | 'sketch'
-  | 'rectangle'
-  | 'dimension'
-  | 'finish-sketch';
+  'sketch' | 'rectangle-tool-group' | 'dimension' | 'finish-sketch';
 
 interface GuidanceRequest {
   version: 1;
@@ -45,7 +42,7 @@ Only this request crosses the future teacher boundary. It carries no CSS selecto
 
 Each `GuidanceActionDefinition` declares:
 
-- Its exact registered target identity. A Rectangle variant receives its own action/target ID only after a real capture confirms that exact label and its structural relationship.
+- Its exact registered target identity. `rectangle-tool-group` identifies the toolbar group; individual Rectangle variants have separate target identities and are registered only after a real capture confirms each exact label and structural relationship.
 - Required current UI context, represented by a closed enum such as `PART_STUDIO` or `SKETCH_EDITING`.
 - Which of HINT, SHOW, and GUIDE are supported.
 - Static hint content, an optional validated region target, and an optional declarative GUIDE recipe.
@@ -71,9 +68,9 @@ type GuidanceStep =
     };
 ```
 
-The runner may report `READY`, `WAITING`, `UNSUPPORTED`, `AMBIGUOUS`, `TIMED_OUT`, or `CANCELLED`. A guide step completing means only that its instruction or UI observation completed; it never updates the lesson step state. The runner never calls `.click()` or dispatches input events.
+The runner may report `READY`, `WAITING`, `UNSUPPORTED`, `MISSING`, `AMBIGUOUS`, `TIMED_OUT`, or `CANCELLED`. At start, it resolves the current UI state: if a validated menu is already open, it skips the trigger and open-wait steps. Registered observers report the same open transition whether it followed a pointer or keyboard action. A guide step completing means only that its instruction or UI observation completed; it never updates the lesson step state. The runner never calls `.click()` or dispatches input events.
 
-Only one highlight is active. Advancing to another target calls the existing highlighter, which clears the previous overlay. Cancel on pause, collapse, step change, navigation, target removal, menu close, or replacement. A menu transition may advance the guide after it is observed, but the message must describe the observed UI state rather than claim who caused it.
+Only one highlight is active. Advancing to another target calls the existing highlighter, which clears the previous overlay. Cancel timers, subscriptions, and highlights on pause, collapse, step change, navigation, target removal, menu close, retry, cancellation, or replacement. A missing or ambiguous target, a closed menu during a wait, or a timeout clears transient guidance and returns to written instructions with an explicit reason and a user-controlled Retry option. A menu transition may advance the guide after it is observed, but the message must describe the observed UI state rather than claim who caused it.
 
 ## Student controls and stored preferences
 
@@ -83,7 +80,7 @@ An unsupported GUIDE level is visibly unavailable with a reason. Keep the existi
 
 ## Rectangle dropdown diagnostics and first recipe
 
-The first multi-step recipe is the Rectangle tool group:
+The first multi-step recipe is for the Rectangle tool group, whose identity is separate from its individual menu variants:
 
 1. Identify the exact Rectangle dropdown trigger.
 2. Wait for an observed open transition.
@@ -92,13 +89,14 @@ The first multi-step recipe is the Rectangle tool group:
 The repository does not establish that Onshape exposes this dropdown, its trigger semantics, its menu structure, or any individual Rectangle variant. Therefore:
 
 - Add an opt-in **Capture Rectangle dropdown** diagnostic that requires the user to open the menu manually.
-- Capture a CLOSED state before the user's click, an OPEN state after the UI transition, and a bounded structural diff showing which controls appeared, disappeared, changed, or moved to a separate/portal branch.
+- Capture a baseline and bounded structural diff showing which controls appeared, disappeared, changed, or moved to another document branch. If capture starts with the menu already OPEN, report that baseline and ask the user to close/reopen manually when both CLOSED and OPEN states are needed.
 - Reuse the existing bounded structural diagnostic patterns. Record only allowlisted tool labels and structural metadata. Never export arbitrary text, HTML, class names, element IDs, URLs, credentials, account data, or CAD content.
 - Use explicit scan, ancestor, sibling, label, time, and report-size limits. Any limit produces an explicit incomplete/truncated status, never an absent-control claim.
-- Use a one-shot passive click capture that does not cancel, stop, or replace the user's event. Cancel listeners and observers on success, timeout, user cancellation, navigation, or panel unmount.
-- Until the owner supplies a sanitized real capture, the real Rectangle dropdown recipe and variant targets remain unsupported. Simulated fixtures may exercise the runner but must say they are simulations. Do not alter production Rectangle recognition based on those fixtures.
+- Mark a snapshot OPEN/CLOSED only from observed DOM state; otherwise retain the structural baseline/transition and report UNKNOWN.
+- Use one-shot passive pointer/keyboard event capture per user-operated transition, paired with DOM-state observation; do not infer that a menu opened from an event alone. Listeners must not cancel, stop, or replace user events. Cancel listeners and observers on success, timeout, user cancellation, navigation, or panel unmount.
+- Until the owner supplies a sanitized real capture, the production Rectangle dropdown recipe and all variant targets remain unsupported. Simulated fixtures may exercise the runner but must say they are simulations. Do not alter production Rectangle recognition based on those fixtures.
 
-The capture should report whether menu descendants are nested under the trigger or rendered elsewhere. A relationship may be described as associated only when observed from DOM relationships or matching accessibility references; otherwise report UNKNOWN. Attribute values that can contain IDs or private text are never serialized.
+The capture should report whether menu descendants are nested under the trigger or rendered elsewhere. Describe a non-descendant as a separate document branch; do not infer framework-level portal behavior. A relationship may be described as associated only when observed from DOM relationships or matching accessibility references; otherwise report UNKNOWN. Attribute values that can contain IDs or private text are never serialized.
 
 ## Privacy and observability contract
 
@@ -115,6 +113,7 @@ Reuse the current calm outline and its reduced-motion handling. Keep pointer eve
 - Request schema accepts only registered level/action IDs and rejects selectors, scripts, unknown IDs, and unexpected fields.
 - Registry definitions declare target identity, required context, supported levels, and guidance-only evidence requirements.
 - Runner transitions deterministically through instruction, highlight, wait, timeout, ambiguity, cancellation, and close/reopen events without invoking clicks or lesson transitions.
+- An already-open menu skips the opening wait, and state transitions observed after keyboard interaction follow the same path as pointer interaction. Missing, ambiguous, closed, and timed-out states clear resources and offer written-instruction fallback plus explicit retry.
 - Preference migration preserves existing panel preferences and defaults help to HINT.
 - Rectangle capture enforces allowlisted labels, bounded scans, truncation, safe state diffing, and redaction of arbitrary text, IDs, attribute values, URLs, and private text.
 - Capture timeout, cancellation, navigation, and completion remove every listener and observer; a click still reaches the host page unchanged.
