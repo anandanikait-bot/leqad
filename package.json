@@ -10,13 +10,18 @@
   },
   "scripts": {
     "dev": "pnpm --filter @leqad/extension run dev",
-    "lint": "eslint apps packages scripts playwright.config.ts",
+    "lint": "eslint apps packages scripts tools validation playwright.config.ts vitest.reference.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "build": "pnpm --recursive --if-present run build",
     "build:edge": "pnpm --filter @leqad/extension run build:edge",
     "package:browsers": "pnpm --filter @leqad/extension run package:browsers",
     "test:e2e": "pnpm --filter @leqad/extension run build:browsers && playwright test",
+    "reference:validate": "node --experimental-strip-types tools/onshape-reference/cli.ts validate",
+    "reference:test": "vitest run --config vitest.reference.config.ts",
+    "reference:capture": "node --experimental-strip-types tools/onshape-reference/recorder.ts",
+    "reference:approve": "node --experimental-strip-types tools/onshape-reference/cli.ts approve",
+    "reference:evaluate": "node --experimental-strip-types tools/onshape-reference/cli.ts evaluate",
     "format:check": "prettier --check ."
   },
   "devDependencies": {

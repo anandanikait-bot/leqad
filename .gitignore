@@ -5,6 +5,8 @@ dist/
 coverage/
 playwright-report/
 test-results/
+/validation/onshape-reference/captures/pending/*.json
+/validation/onshape-reference/captures/pending/*.json.sha256
 .pnpm-store/
 .superpowers/
 .env
