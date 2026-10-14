@@ -811,6 +811,18 @@ export function AssistantPanel({
     setGuidanceMessage('');
     if (level === 'HINT') setHintRequested(true);
     const actionId = guidanceActionForSemanticTarget(step.semanticTarget);
+    if (step.id === 'start-sketch') {
+      const currentSketchUi = onObserveSketchUi?.();
+      if (currentSketchUi?.editingAppearsActive) {
+        guidanceRunner?.cancel();
+        setGuidanceState(guidanceRunner?.getState() ?? null);
+        setSketchUi(currentSketchUi);
+        setGuidanceMessage(
+          'Sketch editing already appears active. There is no Sketch button to highlight for this step now. If you started this sketch, mark the step done and continue; model geometry is not verified.',
+        );
+        return;
+      }
+    }
     if (step.semanticTarget === 'top-plane') {
       if (level === 'SHOW') showTarget();
       else if (level === 'GUIDE') {
@@ -1050,7 +1062,7 @@ export function AssistantPanel({
     const nextHintLevel = advanceHint(stepState.hintLevel);
     updateCurrentStep({ ...stepState, hintLevel: nextHintLevel });
     recordLearningHistory(step.id, nextHintLevel);
-    setShowRecovery(true);
+    setShowRecovery(nextHintLevel >= step.hints.length);
   };
 
   const pauseOrResume = () => {
@@ -1199,7 +1211,7 @@ export function AssistantPanel({
               <p className="leqad-readonly-note">
                 {page.editability === 'read-only'
                   ? 'This document view is read-only. Editing guidance is unavailable.'
-                  : 'Leqad cannot confirm an editable Part Studio here. Informational guidance remains available.'}
+                  : 'Leqad has not verified the Part Studio type or editing permission. Visual guidance may still work, but lesson completion needs separate evidence.'}
               </p>
             )}
             <nav className="leqad-nav" aria-label="Leqad modes">
