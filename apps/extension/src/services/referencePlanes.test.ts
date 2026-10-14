@@ -38,7 +38,7 @@ function referenceTree(name = 'Top', label = name) {
  */
 function nonAriaFeatureList(
   plane: 'Top' | 'Front' | 'Right' = 'Top',
-  options: { alternateOrder?: boolean; duplicates?: number } = {},
+  options: { alternateOrder?: boolean; duplicates?: number; interveningText?: string } = {},
 ) {
   const common = document.createElement('div');
   common.getBoundingClientRect = () => new DOMRect(80, 40, 400, 156);
@@ -51,7 +51,13 @@ function nonAriaFeatureList(
   heading.getBoundingClientRect = () => new DOMRect(88, 56, 136, 28);
 
   const spacer = document.createElement('div');
-  spacer.getBoundingClientRect = () => new DOMRect(88, 88, 8, 8);
+  // Onshape documents Origin between Default geometry and Top.
+  // Leave the older empty-gap fixture as a controlled simulation.
+  if (options.interveningText) spacer.textContent = options.interveningText;
+  spacer.getBoundingClientRect = () =>
+    options.interveningText
+      ? new DOMRect(88, 84, 136, 16)
+      : new DOMRect(88, 88, 8, 8);
 
   const rows: Array<{ row: HTMLDivElement; label: HTMLSpanElement }> = [];
   for (let index = 0; index < (options.duplicates ?? 1); index += 1) {
@@ -144,6 +150,25 @@ describe('context-scoped reference-plane recognition', () => {
       });
     },
   );
+
+  it('accepts the documented Origin row between Default geometry and Top', () => {
+    const { row } = nonAriaFeatureList('Top', {
+      interveningText: 'Origin',
+    });
+    expect(recognizeSemanticTarget(document, 'top-plane')).toMatchObject({
+      status: 'FOUND',
+      element: row,
+      matchStrategy: 'STRUCTURAL_FEATURE_LIST',
+      enabled: 'UNKNOWN',
+    });
+  });
+
+  it('rejects unrelated intervening text instead of guessing a plane row', () => {
+    nonAriaFeatureList('Top', { interveningText: 'Unrelated feature' });
+    expect(recognizeSemanticTarget(document, 'top-plane').status).toBe(
+      'REJECTED',
+    );
+  });
 
   it('does not depend on the observed sibling offset or six-child count', () => {
     const { row, common } = nonAriaFeatureList('Top', {
