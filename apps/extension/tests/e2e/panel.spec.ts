@@ -51,8 +51,10 @@ test('non-ARIA feature-list simulation highlights only the row and re-resolves a
     heading.style.cssText =
       'position:absolute;left:0;top:12px;width:136px;height:28px';
     const spacer = document.createElement('div');
+    // Actual Onshape default geometry normally lists Origin before Top.
+    spacer.textContent = 'Origin';
     spacer.style.cssText =
-      'position:absolute;left:0;top:48px;width:8px;height:8px';
+      'position:absolute;left:0;top:48px;width:136px;height:26px';
     const row = document.createElement('div');
     row.id = 'fixture-nonaria-top-row';
     row.style.cssText =
