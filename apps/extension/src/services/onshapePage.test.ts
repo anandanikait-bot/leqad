@@ -252,7 +252,10 @@ describe('Onshape capability observations', () => {
       ),
     ).toBe('UNKNOWN');
     expect(
-      observeOnshapeGuidanceContext(parseOnshapePage('https://cad.onshape.com/'), document),
+      observeOnshapeGuidanceContext(
+        parseOnshapePage('https://cad.onshape.com/'),
+        document,
+      ),
     ).toBe('UNKNOWN');
   });
 
