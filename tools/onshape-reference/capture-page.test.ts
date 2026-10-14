@@ -141,6 +141,38 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     },
   );
 
+  it('does not reintroduce conflicting Sketch text through retained sibling structure', () => {
+    document.body.innerHTML =
+      '<button aria-label="Private command"><span>Sketch</span><span><i role="button" tabindex="0">Private other control</i></span></button>';
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot();
+
+    expect(snapshot.nodes.some((node) => node.label === 'Sketch')).toBe(false);
+    expect(snapshot.domState).toBe('UNKNOWN');
+    expect(JSON.stringify(snapshot)).not.toContain('Private command');
+  });
+
+  it('retains a disabled fieldset ancestor as sanitized structural evidence', () => {
+    document.body.innerHTML =
+      '<fieldset disabled><button aria-label="Sketch">Sketch</button></fieldset>';
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot();
+
+    expect(
+      snapshot.nodes.some(
+        (node) =>
+          node.tag === 'OTHER' &&
+          node.accessibility.nativeDisabledAttributePresent,
+      ),
+    ).toBe(true);
+  });
+
   it('uses the higher-precedence allowlisted aria-label over a private title', () => {
     document.body.innerHTML =
       '<button aria-label="Sketch" title="private toolbar name">fallback text</button>';
