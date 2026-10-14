@@ -737,7 +737,7 @@ describe('AssistantPanel', () => {
     advanceToStep(2);
 
     expect(
-      screen.getByText(/cannot confirm an editable Part Studio/),
+      screen.getByText(/has not verified the Part Studio type or editing permission/),
     ).toBeTruthy();
     expect(
       screen.getByRole('status', { name: 'Connection status' }).textContent,
@@ -1019,7 +1019,7 @@ describe('AssistantPanel', () => {
         'Reference planes provide stable places to begin a sketch.',
       ),
     ).toBeTruthy();
-    expect(screen.getByText('RECOVERY')).toBeTruthy();
+    expect(screen.queryByText('RECOVERY')).toBeNull();
   });
 
   it('keeps lesson progress unverified when no UI evidence can be read', async () => {
