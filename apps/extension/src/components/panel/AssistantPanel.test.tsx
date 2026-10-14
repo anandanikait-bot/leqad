@@ -149,7 +149,7 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
-  it('does not suggest recovery from the first I’m stuck hint without an observed failure', async () => {
+  it('does not suggest recovery from the first stuck hint', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
@@ -169,9 +169,11 @@ describe('AssistantPanel', () => {
     expect(screen.getByText('RECOVERY')).toBeTruthy();
   });
 
-  it('explains already-active sketch mode instead of highlighting a nonexistent Sketch button', async () => {
+  it('explains active sketches without highlighting Sketch', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
-    const { createGuidanceRunner } = await import('../../services/guidanceRunner');
+    const { createGuidanceRunner } = await import(
+      '../../services/guidanceRunner'
+    );
     const highlightTarget = vi.fn(() => true);
     const runner = createGuidanceRunner({
       getContext: () => 'SKETCH_EDITING',
@@ -196,7 +198,9 @@ describe('AssistantPanel', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
-    expect(screen.getByText(/Sketch editing already appears active/)).toBeTruthy();
+    expect(
+      screen.getByText(/Sketch editing already appears active/),
+    ).toBeTruthy();
     expect(screen.getByText(/mark the step done and continue/)).toBeTruthy();
     expect(highlightTarget).not.toHaveBeenCalled();
     expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
