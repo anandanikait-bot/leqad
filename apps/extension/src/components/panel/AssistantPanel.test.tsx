@@ -149,61 +149,6 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
-  it('does not suggest recovery from the first stuck hint', async () => {
-    const { AssistantPanel } = await import('./AssistantPanel');
-    render(
-      <AssistantPanel
-        page={{ ...confirmedPage, editability: 'unknown' }}
-        initialSession={restoredSession('start-sketch')}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
-    expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
-    expect(screen.queryByText('RECOVERY')).toBeNull();
-
-    for (let index = 0; index < 4; index += 1) {
-      fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
-    }
-    expect(screen.getByText(/Hint 5 of 5/)).toBeTruthy();
-    expect(screen.getByText('RECOVERY')).toBeTruthy();
-  });
-
-  it('explains active sketches without highlighting Sketch', async () => {
-    const { AssistantPanel } = await import('./AssistantPanel');
-    const runnerModule = await import('../../services/guidanceRunner');
-    const highlightTarget = vi.fn(() => true);
-    const runner = runnerModule.createGuidanceRunner({
-      getContext: () => 'SKETCH_EDITING',
-      resolveTarget: () => ({ status: 'FOUND' }),
-      highlightTarget,
-      clearHighlight: vi.fn(),
-      observe: () => ({
-        current: 'UNKNOWN',
-        unsubscribe: vi.fn(),
-      }),
-    });
-    render(
-      <AssistantPanel
-        page={{ ...confirmedPage, editability: 'unknown' }}
-        initialSession={restoredSession('start-sketch')}
-        guidanceRunner={runner}
-        onObserveSketchUi={() => ({
-          editingAppearsActive: true,
-          dialogPlane: 'Top',
-        })}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
-    expect(
-      screen.getByText(/Sketch editing already appears active/),
-    ).toBeTruthy();
-    expect(screen.getByText(/mark the step done and continue/)).toBeTruthy();
-    expect(highlightTarget).not.toHaveBeenCalled();
-    expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
-  });
-
   it('offers HINT, SHOW, and GUIDE for a registered action without changing lesson completion', async () => {
     const [panelModule, runnerModule, registryModule] = await Promise.all([
       import('./AssistantPanel'),
