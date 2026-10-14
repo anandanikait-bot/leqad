@@ -477,6 +477,17 @@ export function createGuidanceRunner(
     }
 
     const context = host.getContext();
+    if (request.actionId === 'sketch' && context === 'SKETCH_EDITING') {
+      return publish({
+        request,
+        status: 'READY',
+        contentId: action.hintContentId,
+        activeTargetId: null,
+        message:
+          'Sketch editing already appears active. No Sketch button needs highlighting now. If you entered this sketch, mark the step done and continue; geometry is not verified.',
+        retryAvailable: false,
+      });
+    }
     if (context !== action.requiredContext) {
       return publish(
         writtenFallback(
@@ -484,7 +495,9 @@ export function createGuidanceRunner(
           action,
           'FALLBACK',
           context === 'UNKNOWN'
-            ? 'The current CAD interface context is unclear. Follow the written instruction and retry when the required tools are visible.'
+            ? request.actionId === 'sketch'
+              ? 'Leqad cannot identify the Sketch toolbar or a supported active-sketch control. If the Sketch dialog is already open, mark this step done and continue. Otherwise, make the Sketch toolbar visible and choose SHOW again.'
+              : 'Leqad cannot identify the required Onshape editing controls. Make the relevant toolbar visible and choose SHOW again; repeating Retry without a UI change cannot reveal an unidentified control.'
             : `This action needs the ${action.requiredContext === 'PART_STUDIO' ? 'Part Studio' : 'active sketch'} interface. Follow the written instructions and retry there.`,
         ),
       );
@@ -623,7 +636,22 @@ export function createGuidanceRunner(
     },
     request: start,
     retry() {
-      return lastRequest && state.retryAvailable ? start(lastRequest) : state;
+      if (!lastRequest || !state.retryAvailable) return state;
+      const prior = state;
+      const next = start(lastRequest);
+      if (
+        next.retryAvailable &&
+        next.status === prior.status &&
+        next.contentId === prior.contentId &&
+        (prior.message === next.message ||
+          prior.message.startsWith(`Checked again: ${next.message}`))
+      ) {
+        return publish({
+          ...next,
+          message: `Checked again: ${next.message} No newly recognizable interface state was detected; try again after the Onshape UI changes.`,
+        });
+      }
+      return next;
     },
     cancel,
     dispose() {
