@@ -211,9 +211,12 @@ describe('Onshape capability observations', () => {
     expect(page.elementType).toBe('unknown');
   });
 
-  it('recognizes a visible Sketch dialog with a supported plane for guidance without changing capability or model evidence', async () => {
-    const { observeOnshapeCapabilities, observeOnshapeGuidanceContext, parseOnshapePage } =
-      await import('./onshapePage');
+  it('treats a sketch dialog as guidance-only evidence', async () => {
+    const {
+      observeOnshapeCapabilities,
+      observeOnshapeGuidanceContext,
+      parseOnshapePage,
+    } = await import('./onshapePage');
     const { observeSketchGuidanceUi } = await import('./sketchGuidance');
     const dialog = document.createElement('section');
     dialog.setAttribute('role', 'dialog');
@@ -233,7 +236,9 @@ describe('Onshape capability observations', () => {
       editingAppearsActive: true,
       dialogPlane: 'Top',
     });
-    expect(observeOnshapeGuidanceContext(page, document)).toBe('SKETCH_EDITING');
+    expect(observeOnshapeGuidanceContext(page, document)).toBe(
+      'SKETCH_EDITING',
+    );
     expect(observeOnshapeCapabilities(page, document)).toMatchObject({
       elementType: 'unknown',
       editability: 'unknown',
