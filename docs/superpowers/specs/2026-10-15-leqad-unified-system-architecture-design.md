@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-15  
 **Status:** Written architecture specification for owner review — **not implementation approval**  
-**Architecture branch:** \`design/leqad-unified-architecture-2026-10-15\`  
+**Architecture branch:** `design/leqad-unified-architecture-2026-10-15`  
 **Scope:** Long-term system contracts, public V1 boundaries, and phased validation; no Phase 1 code changes  
 **Primary platform:** Onshape via Chrome/Edge extension; independently validated adapters may follow
 
@@ -58,7 +58,7 @@ Five architectural areas; do not build separate services merely to reflect the d
 
 Proposed data flow:
 
-\`\`\`text
+```text
 Student goal/choice ----------------------> Design Brief
     |                                           |
 Lesson/task objective                     Concept alternatives (if needed)
@@ -87,7 +87,7 @@ Lesson/task objective                     Concept alternatives (if needed)
                   AI Teacher -> bounded, honest explanation
                       |
                  Student next action
-\`\`\`
+```
 
 The Teacher and Design Planner consume facts and declared capability boundaries, not unrestricted browser DOM or arbitrary CAD document contents.
 
@@ -95,12 +95,12 @@ The Teacher and Design Planner consume facts and declared capability boundaries,
 
 The registry describes **validated behavior under named conditions**, not merely commands known to exist in a CAD application's menus.
 
-A versioned \`CapabilityRecord\` must identify:
+A versioned `CapabilityRecord` must identify:
 
-- \`platform\`, \`adapterVersion\`, operation/target identity and relevant application/version constraints;
+- `platform`, `adapterVersion`, operation/target identity and relevant application/version constraints;
 - separate abilities for **semantic tool localization**, **vision-assisted suggested localization**, **guidance**, **UI-state observation**, **committed-model verification**, **modification verification**, and **recovery**;
 - permission/document prerequisites, available evidence sources, known limitation states, verification/test scenarios, and evidence date;
-- \`VALIDATED\`, \`PARTIAL\`, \`UNKNOWN\`, or \`UNAVAILABLE\` per capability, **not** a single undifferentiated "supported" flag.
+- `VALIDATED`, `PARTIAL`, `UNKNOWN`, or `UNAVAILABLE` per capability, **not** a single undifferentiated "supported" flag.
 
 Runtime negotiation checks current page, permission, model-document identity, revision, UI freshness and adapter conditions. A test on a previous browser build or Onshape UI variant cannot by itself establish current support.
 
@@ -120,16 +120,16 @@ Earlier owner testing found reliable Top-plane highlight in one Onshape session,
 
 1. **Semantic first.** Inspect bounded, allowed UI evidence: accessible roles/names, tooltips, labels, validated relationships and known command context. Require a unique eligible target. Prefer this low-latency, no-image route.
 2. **Vision fallback by express consent.** If recognition fails or is ambiguous, offer screenshot-assisted locating. For Phase 1.5, retain the approved sequence **SHOW → Leqad Chrome toolbar icon → confirm one screenshot**. Semantic recognition runs first.
-3. **Model-produced location is only a proposal.** Input: authorized visible screenshot, actual pixel dimensions and a closed allowlisted target identity (initially \`sketch-toolbar-control\`). Output: \`FOUND | NOT_FOUND | UNCERTAIN\`, a bounded reason and a bounding rectangle **only** for FOUND.
+3. **Model-produced location is only a proposal.** Input: authorized visible screenshot, actual pixel dimensions and a closed allowlisted target identity (initially `sketch-toolbar-control`). Output: `FOUND | NOT_FOUND | UNCERTAIN`, a bounded reason and a bounding rectangle **only** for FOUND.
 4. **Independent validation.** Enforce strict schema, target identity, finite bounds, screenshot containment, plausible control dimensions, capture/viewport mapping, tab/document identity, UI generation, freshness and permitted current context. Abstain when a conversion, overlap, or identity cannot be trusted; do not silently clamp or reuse an old rectangle.
 5. **Temporary UX.** Display a subtle click-through outline marked **"AI-suggested location — confirm it surrounds Sketch."** Clear after a short period (Phase 1.5 proposes ≤5 seconds) or immediately after relevant UI, zoom, scroll, focus, tab, document or step changes.
-6. **Fail-safe fallback.** On ambiguity, denial, timeout, stale state or unavailable AI, use truthful text guidance and existing optional manual calibration. A vision proposal never becomes semantic \`FOUND\`, feature PASS or persistent coordinate calibration.
+6. **Fail-safe fallback.** On ambiguity, denial, timeout, stale state or unavailable AI, use truthful text guidance and existing optional manual calibration. A vision proposal never becomes semantic `FOUND`, feature PASS or persistent coordinate calibration.
 
 ### 6.3 Privacy and deployment
 
 Phase 1.5 is a **developer prototype** using the already-designed consented browser capture and local server; it is not a requirement for end users to install Node. A production service needs independently reviewed authentication, least-privilege permissions, rate limits, image handling, retention disclosures, security controls and consent design. No background capture, implicit re-capture, screenshots on installation, or screenshot retention in lesson progress. No generic arbitrary-page monitoring.
 
-The Phase 1.5 exact consent and validation contract in \`docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md\` remains authoritative for that narrow prototype. The unified design **does not expand** it to arbitrary controls or authorise automatic capture.
+The Phase 1.5 exact consent and validation contract in `docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md` remains authoritative for that narrow prototype. The unified design **does not expand** it to arbitrary controls or authorise automatic capture.
 
 ### 6.4 Future evolution, gated
 
@@ -139,10 +139,10 @@ After collecting approved reference examples and validating precision, uniquenes
 
 Verifier inputs: a bounded task objective and rubric-relevant geometric target, a current document/feature identity, adapter observations and their provenance, and declared capability. It does not receive an AI answer as a trusted fact.
 
-The \`EvidenceReport\` contract includes:
+The `EvidenceReport` contract includes:
 
-- \`objectiveId\`, \`documentIdentity\`, \`revision/feature identity\`, \`observedAt\`, evidence source/method and adapter version;
-- \`PASS | FAIL | UNKNOWN\` **per check**, not an aggregate invented boolean;
+- `objectiveId`, `documentIdentity`, `revision/feature identity`, `observedAt`, evidence source/method and adapter version;
+- `PASS | FAIL | UNKNOWN` **per check**, not an aggregate invented boolean;
 - only supported observed values with explicit units and trust classification: API/model-confirmed, UI-confirmed, inferred, self-reported, unknown;
 - contradictions, validity window, stale state and diagnostic explanation, plus recoverable next checks.
 
@@ -174,9 +174,9 @@ The deterministic lesson experience continues to function when the AI provider i
 
 ### 8.3 Learning Evaluator and Skill Profile
 
-Skill states: \`NOT_ASSESSED\`, \`PRACTICING\`, \`DEMONSTRATED\`, \`TRANSFERRED\`. They summarize evidence, not the student's worth or an irreversible ranking.
+Skill states: `NOT_ASSESSED`, `PRACTICING`, `DEMONSTRATED`, `TRANSFERRED`. They summarize evidence, not the student's worth or an irreversible ranking.
 
-\`SkillEvidence\` includes skill/rubric/task/version, independent CAD evidence references, kind of assistance relevant to the assessed action, independent modification or transfer context, source/time and assessment explanation. Separate:
+`SkillEvidence` includes skill/rubric/task/version, independent CAD evidence references, kind of assistance relevant to the assessed action, independent modification or transfer context, source/time and assessment explanation. Separate:
 
 - correctness of CAD result;
 - reliability of the supporting evidence;
@@ -204,15 +204,15 @@ Keep learning records minimal, understandable, reviewable and resettable, initia
 
 A clear sketch or single choice may skip unnecessary concept generation. No need to generate exactly three images. V1 validates one bracket or mounting-plate reference workflow first, then adds families based on evidence.
 
-### 9.2 \`DesignBrief\` and provenance
+### 9.2 `DesignBrief` and provenance
 
-Each important parameter has a stable ID, value/units when known, constraint severity, source type (\`MEASURED\`, \`SOURCED\`, \`DERIVED\`, \`STUDENT_DECISION\`, \`AI_SUGGESTED\`, \`UNKNOWN\`), source citation or student declaration, confirmation state, revision, dependencies and tolerances where applicable.
+Each important parameter has a stable ID, value/units when known, constraint severity, source type (`MEASURED`, `SOURCED`, `DERIVED`, `STUDENT_DECISION`, `AI_SUGGESTED`, `UNKNOWN`), source citation or student declaration, confirmation state, revision, dependencies and tolerances where applicable.
 
 A student-reported measurement is not a certified physical measurement. Derived values point to current inputs and calculation. AI suggestions are provisional even if plausible. Conflict detection is scoped to explicit implemented geometric/constraint rules; it does not certify function, stress, fit or manufacturing quality.
 
-\`ConceptRevision\` references the brief version and student choice/feedback, labels images non-dimensional, and preserves prior alternatives for reasoning and audit. Imagery never supplies hidden engineering dimensions.
+`ConceptRevision` references the brief version and student choice/feedback, labels images non-dimensional, and preserves prior alternatives for reasoning and audit. Imagery never supplies hidden engineering dimensions.
 
-### 9.3 \`FeaturePlan\` and deterministic validation
+### 9.3 `FeaturePlan` and deterministic validation
 
 A plan identifies project ID, plan/brief/concept versions, platform capability snapshot, ordered dependencies, known feature types, parameter references, expected user action, teaching objective, critical modeling check and verification method.
 
@@ -224,15 +224,15 @@ The validator uses explicit rules for:
 - implemented bounded geometric checks and known requirement conflicts;
 - revision consistency and explicit student approval.
 
-Output \`READY_FULL\`, \`READY_PARTIAL\`, \`NEEDS_INFORMATION\`, \`CONFLICTING\`, or \`UNSUPPORTED\`, with per-operation reasons. READY_FULL means prerequisites for a fully supported **plan** are satisfied; it is **not** runtime evidence that the CAD model was constructed correctly.
+Output `READY_FULL`, `READY_PARTIAL`, `NEEDS_INFORMATION`, `CONFLICTING`, or `UNSUPPORTED`, with per-operation reasons. READY_FULL means prerequisites for a fully supported **plan** are satisfied; it is **not** runtime evidence that the CAD model was constructed correctly.
 
 **Critical modeling objectives** are objective-specific, declared before building, necessary for the project's stated geometric success criteria or for its required independent modification. A V1 project may be advertised **fully guided and verified** only if a validated independent method exists for *every* critical objective under the active runtime conditions. An UNKNOWN after execution is not a PASS and must be visibly unresolved. Noncritical checks and unsupported physical performance must be disclosed.
 
 For ambitious unsupported designs, Leqad keeps the high-level idea, distinguishes concept exploration from verified construction, and proposes supported subprojects. An independently verified component never means the overall mechanism is certified.
 
-### 9.4 \`PlanRevision\` lifecycle and approval
+### 9.4 `PlanRevision` lifecycle and approval
 
-\`\`\`text
+```text
 DRAFT -> VALIDATING -> PROPOSED -> APPROVED
                                   |
                      approved input or capability changes
@@ -244,7 +244,7 @@ DRAFT -> VALIDATING -> PROPOSED -> APPROVED
                       REVALIDATE if needed
                               |
                       new APPROVED version
-\`\`\`
+```
 
 A requirement change triggers dependency impact analysis and re-evaluation of affected calculations, concepts, features and checkpoints. Show the difference, preserve valid unaffected work, mark affected plan checks unverified, and request student approval before changing the accepted plan. If the student rejects, retain the original approved version and identify the incompatibility of the new request. Updating a draft preview needs no approval. **No plan approval automatically mutates geometry.**
 
@@ -310,7 +310,7 @@ Do not use automated CI or simulated UI fixtures as substitutes for approved liv
 | 6 | Public V1 after owner review | Security, privacy, accessibility, real-CAD and learner outcome gates |
 | Future | Broader part complexity and separately validated CAD adapters | Platform/operation-specific acceptance before compatibility claims |
 
-Current owner-reported evidence: Top-plane highlight worked in an earlier live Onshape session; Sketch SHOW was approximate/manual calibration. The ongoing \`phase1-hardening\` work includes **an opt-in sanitized Sketch-control diagnostic**, not a proven production Sketch fix. No complete eight-step live acceptance or independent committed-geometry verification is established here. The diagnostics, AI teaching, vision fallback, learning profiles and Design Studio must not be represented as production-complete based on this architecture document.
+Current owner-reported evidence: Top-plane highlight worked in an earlier live Onshape session; Sketch SHOW was approximate/manual calibration. The ongoing `phase1-hardening` work includes **an opt-in sanitized Sketch-control diagnostic**, not a proven production Sketch fix. No complete eight-step live acceptance or independent committed-geometry verification is established here. The diagnostics, AI teaching, vision fallback, learning profiles and Design Studio must not be represented as production-complete based on this architecture document.
 
 Preserve Phase 1's active pull request, current branch and acceptance records. Do not merge, refactor broadly, or advance to Phase 1.5 implementation solely because this spec exists.
 
@@ -320,7 +320,7 @@ This unified document is an **architecture charter**, deliberately **not** a one
 
 1. Current Phase 1 control-recognition/live acceptance remains the immediate actionable effort.
 2. Review and complete the pre-existing Phase 1.5 narrow teacher and consented vision-grounding specification after Phase 1 acceptance.
-3. Define/test Onshape model connector and \`EvidenceReport\` contracts under Phase 2, including negative/unknown examples.
+3. Define/test Onshape model connector and `EvidenceReport` contracts under Phase 2, including negative/unknown examples.
 4. Define learning-rubric/teaching policy contracts bounded by verified evidence and privacy constraints.
 5. Define Design Studio contracts and initial bracket reference project, then iterate individual supported features.
 
@@ -328,12 +328,12 @@ This unified document is an **architecture charter**, deliberately **not** a one
 
 ## 14. Existing reference documents and change control
 
-- Canonical mission and gates: \`docs/product/leqad-master-vision-roadmap.md\`.
-- Historical specification: \`docs/product/TutorCAD_Product_and_System_Design.md\` (preserve unchanged).
-- Engineering reference: \`docs/product/leqad-master-implementation-spec.md\`.
-- Current phase matrix: \`docs/product/phase-feature-matrix.md\` on \`phase1-hardening\`.
-- Current narrow image grounding spec: \`docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md\` on \`phase1-hardening\`.
-- Phase 1 current tests and live checklist: \`docs/testing/results/phase1-live-acceptance.md\` on \`phase1-hardening\`.
+- Canonical mission and gates: `docs/product/leqad-master-vision-roadmap.md`.
+- Historical specification: `docs/product/TutorCAD_Product_and_System_Design.md` (preserve unchanged).
+- Engineering reference: `docs/product/leqad-master-implementation-spec.md`.
+- Current phase matrix: `docs/product/phase-feature-matrix.md` on `phase1-hardening`.
+- Current narrow image grounding spec: `docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md` on `phase1-hardening`.
+- Phase 1 current tests and live checklist: `docs/testing/results/phase1-live-acceptance.md` on `phase1-hardening`.
 - Active development PR: https://github.com/anandanikait-bot/leqad/pull/1.
 
 The master roadmap remains the canonical high-level product vision. If this owner-reviewed design is approved, reconcile any language differences through an explicit docs-only change with a decision log; do not silently overwrite historical text or expand active development scope.
