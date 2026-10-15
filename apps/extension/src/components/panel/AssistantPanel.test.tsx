@@ -150,6 +150,90 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it.each([
+    { context: 'UNKNOWN', status: 'FALLBACK' },
+    { context: 'SKETCH_EDITING', status: 'MISSING' },
+  ] as const)(
+    'keeps Corner Rectangle teaching visible when SHOW returns $status',
+    async ({ context, status }) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      const { createGuidanceRunner } =
+        await import('../../services/guidanceRunner');
+      const onSessionChange = vi.fn();
+      const runner = createGuidanceRunner({
+        getContext: () => context,
+        resolveTarget: () => ({ status: 'MISSING' }),
+        highlightTarget: () => false,
+        clearHighlight: () => undefined,
+        observe: () => ({ current: 'OPEN', unsubscribe: () => undefined }),
+      });
+      render(
+        <AssistantPanel
+          page={{ ...confirmedPage, editability: 'unknown' }}
+          initialSession={restoredSession('draw-rectangle')}
+          guidanceRunner={runner}
+          onSessionChange={onSessionChange}
+        />,
+      );
+
+      const instruction =
+        /Open the Rectangle dropdown with its arrow, choose Corner Rectangle/;
+      expect(screen.getByText(instruction)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+      expect(runner.getState().status).toBe(status);
+      expect(screen.getByText(instruction)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
+      expect(
+        screen.getByText(/GUIDE is unavailable for the Rectangle tool group/),
+      ).toBeTruthy();
+      expect(screen.getByText(instruction)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Why?' }));
+      expect(
+        screen.getByText(/Center Point Rectangle starts from the center/),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+      expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          /The group icon can show the last-used Rectangle variant/,
+        ),
+      ).toBeTruthy();
+      expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+      expect(onSessionChange).not.toHaveBeenCalled();
+      runner.dispose();
+    },
+  );
+
+  it('resumes existing 2.0.0 self-reported Rectangle progress after the teaching correction', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const session = restoredSession('draw-rectangle');
+    session.steps['draw-rectangle'] = {
+      status: 'COMPLETED',
+      hintLevel: 0,
+      verification: 'UNKNOWN',
+      resumeState: null,
+      outcome: 'SELF_REPORTED',
+    };
+    const save = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={session}
+        onSessionChange={save}
+      />,
+    );
+    expect(screen.getByText('Step 4 of 8 · Marked done')).toBeTruthy();
+    expect(screen.getByText(/choose Corner Rectangle/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(save.mock.lastCall?.[0]).toMatchObject({
+      lessonVersion: '2.0.0',
+      currentStepId: 'apply-dimensions',
+      steps: {
+        'draw-rectangle': { outcome: 'SELF_REPORTED', verification: 'UNKNOWN' },
+      },
+    });
+  });
+
   it.each([true, false])(
     'ignores an older save settlement when the latest save failed=%s',
     async (latestFails) => {
@@ -1051,7 +1135,7 @@ describe('AssistantPanel', () => {
       'Understand what you will build',
       'Select the Top reference plane',
       'Enter sketch-editing mode',
-      'Draw one rectangle',
+      'Draw one closed rectangle with Corner Rectangle',
       'Set the rectangle to 40 mm by 30 mm',
       'Finish sketch editing',
       'Recognize what the sketch created',
@@ -1118,7 +1202,9 @@ describe('AssistantPanel', () => {
     );
 
     expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
-    expect(screen.getByText('Draw one rectangle')).toBeTruthy();
+    expect(
+      screen.getByText('Draw one closed rectangle with Corner Rectangle'),
+    ).toBeTruthy();
   });
 
   it('requests semantic highlights only on steps with a target', async () => {

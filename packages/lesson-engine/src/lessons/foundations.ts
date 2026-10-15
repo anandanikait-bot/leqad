@@ -98,30 +98,33 @@ export const FOUNDATIONS_FIRST_SKETCH = {
     },
     {
       id: 'draw-rectangle',
-      goal: 'Draw one rectangle',
+      goal: 'Draw one closed rectangle with Corner Rectangle',
       action:
-        'Choose the Rectangle tool, then click two opposite corners to create a closed four-sided profile.',
+        'Open the Rectangle dropdown with its arrow, choose Corner Rectangle, then click a first corner and its diagonally opposite corner to draw one closed four-edge profile.',
       explanation:
-        'A rectangle tool can create the four connected lines efficiently. Seeing an active tool does not prove that rectangle geometry exists, so continue without verification if Leqad cannot inspect it.',
+        'Corner Rectangle is the simplest introduction to this axis-aligned sketch because you place two opposite corners. Center Point Rectangle starts from the center; Aligned Rectangle establishes a line direction, then a perpendicular width. The group icon can show the last-used variant, so deliberately choose Corner Rectangle from the dropdown. Step 5 adds dimensions. Selecting a tool does not verify geometry; marking this step done is self-reported.',
       semanticTarget: 'rectangle',
       completionSignal: 'rectangle-created',
       requiredEvidence: 'UI_CONFIRMED',
       completionMode: 'UI_VERIFICATION',
       allowUnverifiedContinuation: true,
       hints: [
-        'Find Rectangle in the sketch toolbar.',
-        'Choose a first corner near the sketch origin.',
-        'Move diagonally and click the opposite corner.',
-        'Make sure four connected sides form a closed profile.',
-        'Press Escape once to leave the Rectangle tool without leaving the sketch.',
+        'The group icon can show the last-used Rectangle variant. Open its dropdown arrow instead of relying on the icon.',
+        'Choose Corner Rectangle explicitly. If Leqad cannot identify the dropdown, choose Corner Rectangle manually; geometry stays unverified.',
+        'Click the first corner near the sketch origin, then click the diagonally opposite corner.',
+        'Check that four connected edges make one closed profile. Set its dimensions separately in Step 5.',
+        'Press Escape once to leave Corner Rectangle without leaving the sketch.',
       ],
       commonErrors: [
+        'Assuming the last-used group icon invokes Corner Rectangle.',
+        'Using the center-first or direction-first procedure of another Rectangle variant.',
         'Clicking only once and leaving the rectangle unfinished.',
         'Drawing separate lines that do not form a closed profile.',
       ],
       recoveryActions: [
-        'Undo the incomplete geometry and use Rectangle again with two corner clicks.',
-        'Zoom in and check that adjacent endpoints meet.',
+        'Press Escape to leave the active tool. Open the Rectangle dropdown arrow and choose Corner Rectangle deliberately.',
+        'If Leqad cannot identify the dropdown, choose Corner Rectangle manually; geometry stays unverified.',
+        'Undo the incomplete profile and use two opposite corner clicks. Check that adjacent endpoints meet before continuing.',
       ],
     },
     {

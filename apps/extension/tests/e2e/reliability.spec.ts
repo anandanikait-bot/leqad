@@ -13,6 +13,44 @@ async function reachStep(page: Page, step: number) {
   }
 }
 
+test('Corner Rectangle teaching survives simulated SHOW failure and self-reported reload', async ({
+  page,
+}) => {
+  await reachStep(page, 4);
+  await page.locator('#fixture-sketch').click();
+  await page
+    .locator('#fixture-rectangle')
+    .evaluate((button) => button.remove());
+  const instruction = page.getByText(
+    /Open the Rectangle dropdown with its arrow, choose Corner Rectangle/,
+  );
+  await expect(instruction).toBeVisible();
+  await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+  await expect(page.getByText(/Follow the written instruction/)).toBeVisible();
+  await expect(instruction).toBeVisible();
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Why?', exact: true }).click();
+  await expect(
+    page.getByText(/Center Point Rectangle starts from the center/),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'HINT', exact: true }).click();
+  await expect(page.getByText(/Hint 1 of 5/)).toBeVisible();
+  await expect(
+    page.getByText(/The group icon can show the last-used Rectangle variant/),
+  ).toBeVisible();
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.reload();
+  await expect(page.getByText('Step 4 of 8 · Marked done')).toBeVisible();
+  await expect(instruction).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(
+    page.getByText(
+      /Use Dimension to set one horizontal side to 40 mm and one vertical side to 30 mm/,
+    ),
+  ).toBeVisible();
+});
+
 test('simulated command identity conflicts fall back; inert and replaced controls lose their outlines', async ({
   page,
 }) => {
