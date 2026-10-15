@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { askWithinSession, serializePendingCapture } from './recorder.ts';
-import { MAX_CAPTURE_BYTES, type ReferenceCapture } from '../../validation/onshape-reference/schema.ts';
+import {
+  MAX_CAPTURE_BYTES,
+  type ReferenceCapture,
+} from '../../validation/onshape-reference/schema.ts';
 
 describe('bounded sanitized capture serialization', () => {
   it('fits a dense reviewed report without losing any fields', () => {
