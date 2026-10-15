@@ -20,10 +20,113 @@ function visibleButton(name: string): HTMLButtonElement {
   return button;
 }
 
+
+/** Sanitized structural fixture from the owner's successful icon/text clicks. */
+function sketchCommandRow(label = 'Sketch') {
+  const command = document.createElement('div');
+  command.getBoundingClientRect = () => new DOMRect(20, 30, 60, 28);
+  const iconContainer = document.createElement('div');
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  iconContainer.append(icon);
+  const text = document.createElement('span');
+  text.textContent = label;
+  command.append(iconContainer, text);
+
+  let wrapped: HTMLElement = command;
+  for (let depth = 0; depth < 3; depth += 1) {
+    const wrapper = document.createElement('div');
+    wrapper.append(wrapped);
+    wrapped = wrapper;
+  }
+  const strip = document.createElement('div');
+  strip.getBoundingClientRect = () => new DOMRect(10, 28, 720, 32);
+  strip.append(wrapped);
+  for (let index = 0; index < 11; index += 1) {
+    strip.append(document.createElement('div'));
+  }
+  document.body.append(strip);
+  return { command, text, icon, strip };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   document.body.replaceChildren();
   Reflect.deleteProperty(document, 'elementFromPoint');
+});
+
+
+describe('Sketch toolbar structural recognition (sanitized owner capture)', () => {
+  it('recognizes one icon-and-exact-label control in a horizontal command strip', async () => {
+    const { command } = sketchCommandRow();
+    const { recognizeSemanticTarget, createSemanticHighlighter } =
+      await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch')).toMatchObject({
+      status: 'FOUND',
+      element: command,
+      matchStrategy: 'VALIDATED_CONTEXT',
+      confidence: 'MEDIUM',
+      candidateCount: 1,
+    });
+    const highlighter = createSemanticHighlighter(document);
+    expect(highlighter.show('sketch').status).toBe('FOUND');
+    expect(document.querySelectorAll('[data-leqad-highlight]')).toHaveLength(1);
+    highlighter.clear();
+  });
+
+  it('abstains from labeling a lone icon-and-text card a CAD command', async () => {
+    const { strip } = sketchCommandRow();
+    strip.getBoundingClientRect = () => new DOMRect(10, 28, 120, 380);
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch').status).not.toBe('FOUND');
+  });
+
+  it('rejects text without an SVG sibling and rejects Finish Sketch', async () => {
+    const one = sketchCommandRow();
+    one.icon.remove();
+    sketchCommandRow('Finish Sketch');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch').status).not.toBe('FOUND');
+  });
+
+  it('abstains on competing visually plausible Sketch controls', async () => {
+    sketchCommandRow();
+    sketchCommandRow();
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch')).toMatchObject({
+      status: 'AMBIGUOUS',
+      element: null,
+      candidateCount: 2,
+    });
+  });
+
+  it('abstains if a normal semantic Sketch button competes with the structural target', async () => {
+    sketchCommandRow();
+    visibleButton('Sketch');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch').status).toBe('AMBIGUOUS');
+  });
+
+  it('does not highlight a structural control disabled by an ancestor', async () => {
+    const { strip } = sketchCommandRow();
+    strip.setAttribute('inert', '');
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const highlighter = createSemanticHighlighter(document);
+    expect(highlighter.show('sketch').status).not.toBe('FOUND');
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    highlighter.clear();
+  });
+
+  it('removes the temporary outline when the structural label changes', async () => {
+    const { text } = sketchCommandRow();
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const highlighter = createSemanticHighlighter(document);
+    expect(highlighter.show('sketch').status).toBe('FOUND');
+    text.textContent = 'Extrude';
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    highlighter.clear();
+  });
 });
 
 describe('findSemanticTarget', () => {
