@@ -186,7 +186,9 @@ export function serializePendingCapture(capture: ReferenceCapture): string {
       ? readable
       : `${JSON.stringify(capture)}\n`;
   if (new TextEncoder().encode(serialized).byteLength > MAX_CAPTURE_BYTES)
-    throw new Error('This sanitized capture exceeds the export limit and was not saved.');
+    throw new Error(
+      'This sanitized capture exceeds the export limit and was not saved.',
+    );
   return serialized;
 }
 
