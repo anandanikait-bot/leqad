@@ -1,4 +1,54 @@
 import { describe, expect, it } from 'vitest';
+import type {
+  Evidence,
+  EvidenceLevel,
+  ModelSource,
+  VerificationDecision,
+} from '@leqad/contracts';
+
+const identity = {
+  documentId: 'document-a',
+  workspaceId: 'workspace-a',
+  elementId: 'element-a',
+  revision: 'revision-a',
+};
+
+function decision(
+  status: VerificationDecision['status'],
+  level: EvidenceLevel = 'UI_CONFIRMED',
+  source: ModelSource = 'UI',
+): VerificationDecision {
+  const evidence: Evidence[] =
+    level === 'UNKNOWN'
+      ? []
+      : [
+          {
+            id: 'evidence-1',
+            fact: { sketchModeVisible: true },
+            source,
+            identity,
+            revision: 'revision-a',
+            observedAt: '2026-10-13T11:59:00.000Z',
+            detectorVersion: 'test/1.0.0',
+            expiresAt: null,
+            level,
+          },
+        ];
+
+  return {
+    status,
+    evidenceLevel: level,
+    observedFact: level === 'UNKNOWN' ? null : evidence[0]!.fact,
+    identity,
+    observedAt: '2026-10-13T11:59:00.000Z',
+    revision: 'revision-a',
+    explanation: 'Test decision.',
+    missingRequirements:
+      status === 'UNKNOWN' ? ['A supported observation'] : [],
+    recoveryAction: status === 'PASS' ? null : 'Try again.',
+    evidence,
+  };
+}
 
 describe('lesson step transitions', () => {
   it('does not complete a step when the learner action is merely observed', async () => {
@@ -15,7 +65,7 @@ describe('lesson step transitions', () => {
     expect(observed.status).not.toBe('COMPLETED');
   });
 
-  it('completes a step only after verification returns PASS', async () => {
+  it('completes a step only after a passing decision satisfies its evidence requirement', async () => {
     const { createInitialLessonStepState, transitionLessonStep } =
       await import('./transitions');
     let state = createInitialLessonStepState();
@@ -26,10 +76,13 @@ describe('lesson step transitions', () => {
 
     state = transitionLessonStep(state, {
       type: 'VERIFICATION_RESULT',
-      status: 'PASS',
+      decision: decision('PASS'),
+      requiredEvidence: 'UI_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
     });
 
     expect(state.status).toBe('COMPLETED');
+    expect(state.outcome).toBe('UI_VERIFIED');
   });
 
   it('keeps a step unknown when verification is unavailable', async () => {
@@ -43,10 +96,132 @@ describe('lesson step transitions', () => {
 
     state = transitionLessonStep(state, {
       type: 'VERIFICATION_RESULT',
-      status: 'UNKNOWN',
+      decision: decision('UNKNOWN', 'UNKNOWN', 'INFERRED'),
+      requiredEvidence: 'UI_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
     });
 
     expect(state.status).toBe('UNKNOWN');
+    expect(state.outcome).toBe('UNABLE_TO_VERIFY');
+  });
+
+  it('does not complete from a passing decision below the required evidence level', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = createInitialLessonStepState();
+    state = transitionLessonStep(state, { type: 'START' });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+    state = transitionLessonStep(state, { type: 'CHECK_PROGRESS' });
+
+    state = transitionLessonStep(state, {
+      type: 'VERIFICATION_RESULT',
+      decision: decision('PASS'),
+      requiredEvidence: 'API_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
+    });
+
+    expect(state.status).toBe('UNKNOWN');
+    expect(state.verification).toBe('UNKNOWN');
+    expect(state.outcome).toBe('UNABLE_TO_VERIFY');
+  });
+
+  it('does not let explicit mock fixture evidence complete a production transition', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = createInitialLessonStepState();
+    state = transitionLessonStep(state, { type: 'START' });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+    state = transitionLessonStep(state, { type: 'CHECK_PROGRESS' });
+
+    state = transitionLessonStep(state, {
+      type: 'VERIFICATION_RESULT',
+      decision: decision('PASS', 'INFERRED', 'MOCK'),
+      requiredEvidence: 'INFERRED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
+    });
+
+    expect(state.status).toBe('UNKNOWN');
+  });
+
+  it('does not complete from evidence that expired before the transition', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = createInitialLessonStepState();
+    state = transitionLessonStep(state, { type: 'START' });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+    state = transitionLessonStep(state, { type: 'CHECK_PROGRESS' });
+    const stale = decision('PASS');
+    stale.evidence[0]!.expiresAt = '2026-10-13T11:59:30.000Z';
+
+    state = transitionLessonStep(state, {
+      type: 'VERIFICATION_RESULT',
+      decision: stale,
+      requiredEvidence: 'UI_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
+    });
+
+    expect(state.status).toBe('UNKNOWN');
+  });
+
+  it('does not complete from evidence whose nested identity is stale', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = createInitialLessonStepState();
+    state = transitionLessonStep(state, { type: 'START' });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+    state = transitionLessonStep(state, { type: 'CHECK_PROGRESS' });
+    const stale = decision('PASS', 'API_CONFIRMED', 'API');
+    stale.evidence[0]!.identity = {
+      ...identity,
+      revision: 'stale-revision',
+    };
+
+    state = transitionLessonStep(state, {
+      type: 'VERIFICATION_RESULT',
+      decision: stale,
+      requiredEvidence: 'API_CONFIRMED',
+      evaluatedAt: '2026-10-13T12:00:00.000Z',
+    });
+
+    expect(state).toMatchObject({
+      status: 'UNKNOWN',
+      verification: 'UNKNOWN',
+      outcome: 'UNABLE_TO_VERIFY',
+    });
+  });
+
+  it('records informational acknowledgement without inventing verification', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = transitionLessonStep(createInitialLessonStepState(), {
+      type: 'START',
+    });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+
+    state = transitionLessonStep(state, { type: 'ACKNOWLEDGE' });
+
+    expect(state).toMatchObject({
+      status: 'COMPLETED',
+      outcome: 'ACKNOWLEDGED',
+      verification: null,
+    });
+  });
+
+  it('records continue-without-verification as self-reported unknown', async () => {
+    const { createInitialLessonStepState, transitionLessonStep } =
+      await import('./transitions');
+    let state = transitionLessonStep(createInitialLessonStepState(), {
+      type: 'START',
+    });
+    state = transitionLessonStep(state, { type: 'BEGIN_STEP' });
+
+    state = transitionLessonStep(state, { type: 'CONTINUE_UNVERIFIED' });
+
+    expect(state).toMatchObject({
+      status: 'COMPLETED',
+      outcome: 'SELF_REPORTED',
+      verification: 'UNKNOWN',
+    });
   });
 
   it('allows an explicit progress check without claiming that an action was observed', async () => {

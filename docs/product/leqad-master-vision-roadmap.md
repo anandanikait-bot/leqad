@@ -11,9 +11,9 @@
 
 **Leqad is an AI-powered CAD learning platform that helps people learn 3D modeling directly inside the CAD software they use.** Starting with Onshape, Leqad replaces passive, disconnected tutorials with interactive, step-by-step instruction, contextual visual highlights, and eventually a collaborative **AI teacher + CAD verifier** that provides constructive feedback grounded in what the learner actually did.
 
-Longer term, Leqad will help a learner describe an idea, compare AI-generated *concept illustrations*, clarify requirements and dimensions, approve a feasible design plan, build the model themselves, understand mistakes, modify the result independently, and prepare it for manufacturing. Its teaching and design intelligence should work across **supported CAD platforms**, each with a separately tested adapter.
+Longer term, Leqad will help a learner describe an idea, compare AI-generated _concept illustrations_, clarify requirements and dimensions, approve a feasible design plan, build the model themselves, understand mistakes, modify the result independently, and prepare it for manufacturing. Its teaching and design intelligence should work across **supported CAD platforms**, each with a separately tested adapter.
 
-**Short pitch:** *Learn CAD by building. Leqad guides you inside your CAD software, helps you understand your mistakes, and grows with your skills.*
+**Short pitch:** _Learn CAD by building. Leqad guides you inside your CAD software, helps you understand your mistakes, and grows with your skills._
 
 **Product promise:** Help people progress from "I have an idea, but don't know how to model it" to "I can design, revise, explain, and make this part myself."
 
@@ -26,7 +26,7 @@ This document records the intended destination and development sequence. It is *
 - Video tutorials do not know the learner's current CAD state or where they are stuck.
 - Beginners may reproduce clicks without understanding sketches, design intent, constraints, features, and dimensions.
 - Generic AI chat can explain CAD but may guess what is happening on screen and mistake an attempted action for a successful model change.
-- Turning a physical need into a dimensioned model requires clarification, interface measurements, feasibility decisions, and iteration; beginners often need help with that *before* they draw.
+- Turning a physical need into a dimensioned model requires clarification, interface measurements, feasibility decisions, and iteration; beginners often need help with that _before_ they draw.
 - Learners working on projects such as robotics need conceptual understanding and engineering feedback, not only command discovery.
 
 ### Solution: an in-workflow learning partner
@@ -73,13 +73,13 @@ A standardized evidence packet is supplied to the teacher. The **verifier** owns
 
 Evidence vocabulary:
 
-| Category | What it establishes | What it cannot establish |
-| --- | --- | --- |
-| API/model-confirmed | Supported committed features, parameters, dimensions, revision | Unexposed or unsupported model facts |
-| UI-confirmed | A specific fresh, recognized interface state | Committed CAD geometry merely from clicking |
-| Inferred | A plausible interpretation with limitations | Automatic verification of model completion |
-| Self-reported | The student's assertion of progress | Independently confirmed CAD correctness |
-| UNKNOWN | Evidence is missing, stale, contradictory, or unsupported | A silent PASS |
+| Category            | What it establishes                                            | What it cannot establish                    |
+| ------------------- | -------------------------------------------------------------- | ------------------------------------------- |
+| API/model-confirmed | Supported committed features, parameters, dimensions, revision | Unexposed or unsupported model facts        |
+| UI-confirmed        | A specific fresh, recognized interface state                   | Committed CAD geometry merely from clicking |
+| Inferred            | A plausible interpretation with limitations                    | Automatic verification of model completion  |
+| Self-reported       | The student's assertion of progress                            | Independently confirmed CAD correctness     |
+| UNKNOWN             | Evidence is missing, stale, contradictory, or unsupported      | A silent PASS                               |
 
 All decisions must respect document/feature identity, source, timestamps, revision, trust level, and contradiction handling. No made-up coordinates, selectors, dimensions, measurements, or model facts.
 
@@ -122,19 +122,19 @@ Over time, reduce unnecessary hints as the learner demonstrates understanding. L
 
 ## 5. Phase roadmap and acceptance gates
 
-**Rule:** Phases are ordered by *dependencies and evidence*, not by arbitrary deadlines. Partial prototyping in a future phase may occur only without bypassing acceptance gates or silently changing current scope.
+**Rule:** Phases are ordered by _dependencies and evidence_, not by arbitrary deadlines. Partial prototyping in a future phase may occur only without bypassing acceptance gates or silently changing current scope.
 
-| Phase | Deliverable | Gate to advance |
-| --- | --- | --- |
-| **0 — Capability prototype** | Evidence for real Onshape access, UI observations, official model/API capabilities, revision behavior, and extension behavior; explicit capability matrix | Critical assumptions are confirmed or limitations documented; do not claim untested capabilities |
-| **1 — Foundations alpha (CURRENT)** | Reliable WXT/React extension, lesson engine, evidence boundaries, HINT/SHOW/GUIDE, semantic highlights, local bounded cursor intent, eight-step First Sketch lesson, persistence, recovery, accessibility | Full required lesson and recovery scenarios tested in an authorized real Onshape session, across supported zoom/reload, without false advancement |
-| **1.5 — First intelligent interaction** | Narrow conversational AI teacher for First Sketch; optional AI-assisted Sketch-tool location after explicit one-shot screenshot consent; manual fallback | Real question → grounded reply → authorized capture (if chosen) → correct temporary outline → student manual action; errors, consent and stale results tested |
-| **2 — Model truth + collaborative feedback** | Secure Onshape connector, normalized model snapshots, committed-feature/parameter/revision verification, contextual diagnosis and evidence passed to teacher | Representative real model scenarios yield correct supported PASS/FAIL/UNKNOWN plus helpful evidence-grounded explanation; no false success |
-| **3 — Custom Part Studio** | Structured need/brief, 2–3 concept images for ambiguity, learner selection and feedback, dimension provenance, feasibility rules, constrained feature planning and stepwise CAD guidance | Reference single-part builds work without invented critical dimensions; learner can inspect, revise, complete, and modify a validated plan |
-| **4 — Robotics and manufacturing** | Vetted component references, basic FDM printability, fits/tolerances, part-specific domain guidance, print preparation and export | Reference models and manufacturer-source audits pass; unsupported engineering guarantees never made |
-| **5 — Beginner beta** | Broader curricula, learner testing, feedback quality evaluations, accessibility, compatibility, performance, recovery, privacy/retention/export/deletion, educator capabilities where justified | Beginner usability and product acceptance targets met in documented environments |
-| **6 — V1** | Reliable supported-platform product and user onboarding, deployment, support and release documentation | Security, accessibility, privacy, end-to-end real CAD validation and owner release review pass |
-| **Future — Multi-CAD expansion** | Verified integrations for additional CAD applications, potentially Fusion, SOLIDWORKS, FreeCAD and others | Each adapter individually passes capability, usability, security and regression gates before compatibility is advertised |
+| Phase                                        | Deliverable                                                                                                                                                                                               | Gate to advance                                                                                                                                               |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 — Capability prototype**                 | Evidence for real Onshape access, UI observations, official model/API capabilities, revision behavior, and extension behavior; explicit capability matrix                                                 | Critical assumptions are confirmed or limitations documented; do not claim untested capabilities                                                              |
+| **1 — Foundations alpha (CURRENT)**          | Reliable WXT/React extension, lesson engine, evidence boundaries, HINT/SHOW/GUIDE, semantic highlights, local bounded cursor intent, eight-step First Sketch lesson, persistence, recovery, accessibility | Full required lesson and recovery scenarios tested in an authorized real Onshape session, across supported zoom/reload, without false advancement             |
+| **1.5 — First intelligent interaction**      | Narrow conversational AI teacher for First Sketch; optional AI-assisted Sketch-tool location after explicit one-shot screenshot consent; manual fallback                                                  | Real question → grounded reply → authorized capture (if chosen) → correct temporary outline → student manual action; errors, consent and stale results tested |
+| **2 — Model truth + collaborative feedback** | Secure Onshape connector, normalized model snapshots, committed-feature/parameter/revision verification, contextual diagnosis and evidence passed to teacher                                              | Representative real model scenarios yield correct supported PASS/FAIL/UNKNOWN plus helpful evidence-grounded explanation; no false success                    |
+| **3 — Custom Part Studio**                   | Structured need/brief, 2–3 concept images for ambiguity, learner selection and feedback, dimension provenance, feasibility rules, constrained feature planning and stepwise CAD guidance                  | Reference single-part builds work without invented critical dimensions; learner can inspect, revise, complete, and modify a validated plan                    |
+| **4 — Robotics and manufacturing**           | Vetted component references, basic FDM printability, fits/tolerances, part-specific domain guidance, print preparation and export                                                                         | Reference models and manufacturer-source audits pass; unsupported engineering guarantees never made                                                           |
+| **5 — Beginner beta**                        | Broader curricula, learner testing, feedback quality evaluations, accessibility, compatibility, performance, recovery, privacy/retention/export/deletion, educator capabilities where justified           | Beginner usability and product acceptance targets met in documented environments                                                                              |
+| **6 — V1**                                   | Reliable supported-platform product and user onboarding, deployment, support and release documentation                                                                                                    | Security, accessibility, privacy, end-to-end real CAD validation and owner release review pass                                                                |
+| **Future — Multi-CAD expansion**             | Verified integrations for additional CAD applications, potentially Fusion, SOLIDWORKS, FreeCAD and others                                                                                                 | Each adapter individually passes capability, usability, security and regression gates before compatibility is advertised                                      |
 
 ### Phase 0: status and remaining dependency
 
@@ -242,30 +242,30 @@ These are durable requirements across every phase:
 
 ## 8. Feature preservation matrix
 
-| Feature | Target phase | Current characterization |
-| --- | --- | --- |
-| Onshape browser extension, panel, local state | 1 | Reported implemented; full live acceptance pending |
-| First Sketch lesson, HINT/SHOW/GUIDE, highlights | 1 | Reported implemented/fixture-tested; live workflow pending |
-| Local cursor intent and calibration | 1 | Reported implemented; not evidence of completed CAD |
-| One-shot screenshot-assisted Sketch location | 1.5 | Design for review; not current production capability |
-| Narrow conversational teacher | 1.5 | Proposed |
-| Official CAD-model reads / committed geometry verification | 2 | Planned; evidence contracts exist earlier |
-| Teacher collaboration with model verifier | 2 | Planned integration |
-| Contextual diagnoses in an unrelated project | 2 onward | Planned/limited pilot may precede full support |
-| Generated alternative concept images | 3 | Planned |
-| Student selection/correction/combining concepts | 3 | Planned |
-| Dimension questioning, traceability and validation | 3 | Planned |
-| Approved feature plan and guided custom-part build | 3 | Planned |
-| Robotics component libraries | 4 | Planned |
-| Printability, fit/tolerance and export guidance | 4 | Planned (limited lessons earlier) |
-| Learning profiles and educator tools | 5 or later | Planned with privacy review |
-| Fusion / SOLIDWORKS / FreeCAD / other CAD adapters | Future | Planned individually; no compatibility claim |
+| Feature                                                    | Target phase | Current characterization                                   |
+| ---------------------------------------------------------- | ------------ | ---------------------------------------------------------- |
+| Onshape browser extension, panel, local state              | 1            | Reported implemented; full live acceptance pending         |
+| First Sketch lesson, HINT/SHOW/GUIDE, highlights           | 1            | Reported implemented/fixture-tested; live workflow pending |
+| Local cursor intent and calibration                        | 1            | Reported implemented; not evidence of completed CAD        |
+| One-shot screenshot-assisted Sketch location               | 1.5          | Design for review; not current production capability       |
+| Narrow conversational teacher                              | 1.5          | Proposed                                                   |
+| Official CAD-model reads / committed geometry verification | 2            | Planned; evidence contracts exist earlier                  |
+| Teacher collaboration with model verifier                  | 2            | Planned integration                                        |
+| Contextual diagnoses in an unrelated project               | 2 onward     | Planned/limited pilot may precede full support             |
+| Generated alternative concept images                       | 3            | Planned                                                    |
+| Student selection/correction/combining concepts            | 3            | Planned                                                    |
+| Dimension questioning, traceability and validation         | 3            | Planned                                                    |
+| Approved feature plan and guided custom-part build         | 3            | Planned                                                    |
+| Robotics component libraries                               | 4            | Planned                                                    |
+| Printability, fit/tolerance and export guidance            | 4            | Planned (limited lessons earlier)                          |
+| Learning profiles and educator tools                       | 5 or later   | Planned with privacy review                                |
+| Fusion / SOLIDWORKS / FreeCAD / other CAD adapters         | Future       | Planned individually; no compatibility claim               |
 
 Update implementation status in the living `ROADMAP.md`, `docs/implementation-progress.md`, and dated test reports on the active development branch. **Never silently change a feature from planned to implemented or live-verified.**
 
 ## 9. Brand direction (provisional, protected)
 
-- Public-facing name: **Leqad**; *TutorCAD* names the preserved earlier product specification, not the shipped brand.
+- Public-facing name: **Leqad**; _TutorCAD_ names the preserved earlier product specification, not the shipped brand.
 - Primary token **Dull Violet Black:** `#0D1C43`.
 - Secondary token **Hay's Russet:** `#793327`.
 - Warm off-white: `#F5EFE7`.
@@ -275,7 +275,7 @@ The user's preferred reference logo has an **isometric cube**, a **curved rising
 
 ## 10. Success metrics and quality gates
 
-Measure both engineering reliability and *real learning*:
+Measure both engineering reliability and _real learning_:
 
 - Task completion and accuracy on real CAD models.
 - Evidence-backed outcomes; **zero automatic completions from insufficient evidence**.
@@ -332,4 +332,4 @@ When updating the vision, record the decision, reason, date and affected phases.
 
 ---
 
-**North star:** *Leqad succeeds when people can imagine a part, understand how to design it, build and improve it themselves, and carry those skills into future CAD projects and supported tools.*
+**North star:** _Leqad succeeds when people can imagine a part, understand how to design it, build and improve it themselves, and carry those skills into future CAD projects and supported tools._

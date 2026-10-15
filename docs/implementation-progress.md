@@ -1,8 +1,22 @@
 # Leqad implementation progress
 
-## Current milestone
+## Current milestone — October 15 reliability and Foundations
 
-Phase 1 implementation is present in the repository: a WXT Manifest V3 extension with a Shadow DOM React panel, local Foundations guidance, Onshape route and semantic-target services, bounded local cursor intent, local progress persistence, and basic CAD evidence contracts. The final local checks pass; GitHub publication and external browser/Onshape validation are the remaining tasks.
+The current sprint starts from PR #1 at `c64c701` and preserves the existing
+Foundations extension. The [dated validation record](testing/results/2026-10-15-foundations-reliability.md)
+contains the fresh baseline, reproduced defects, corrections and checks. The
+[feature matrix](product/phase-feature-matrix.md) is the current scope/status
+index; the [new live run](testing/results/2026-10-15-foundations-live-acceptance.md)
+remains BLOCKED pending owner testing in Chrome and Edge.
+
+AI teaching and screenshot grounding are Phase 1.5 future work. The October 15
+design remains a candidate without implementation. Phase 2 model verification
+and Phase 3 Custom Part Studio are separate. Original specifications and all
+historical results below are preserved; older totals are not current evidence.
+
+## Historical milestone and implementation record
+
+The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Manifest V3 foundation remains buildable, and the required repository audit is recorded in `docs/phase1-hardening-audit.md`. The audit confirmed critical gaps in evidence enforcement, Onshape capability detection, per-document persistence, the eight-step Foundations experience, guidance lifecycle, and public documentation. These deliveries are being repaired in the assignment's required order before live validation.
 
 ## Product sources
 
@@ -13,33 +27,91 @@ Phase 1 implementation is present in the repository: a WXT Manifest V3 extension
 ## Repository and environment
 
 - Intended repository: `anandanikait-bot/leqad`.
-- Local branch: `main`.
+- Local repair branch: `phase1-hardening`, created from `origin/main` at `afce72a3fa6ddf0f48d7503c7cc1ca1ee7eb8e04`.
 - Configured origin: `https://github.com/anandanikait-bot/leqad.git`.
-- The GitHub remote was empty before implementation. `main` has now been pushed without force; the final remote SHA will be checked again after this status update is committed.
+- The GitHub remote contains the baseline on `main`. Repair commits will be pushed to `phase1-hardening` without force and proposed through a pull request.
 - Runtime: Node 24.19.0, pnpm 11.25.0, Chromium at `/usr/bin/chromium`.
 - The workspace uses WXT 0.21.4 and `@wxt-dev/module-react` 1.2.2 with React and TypeScript. CRXJS had only been initialized, so WXT is the selected framework. There is no Phase 2 API shell.
 
 ## Implemented
 
 - Reproducible pnpm workspace, strict TypeScript, lint, test, browser fixture, and CI configuration.
-- Zod contracts for model identity, normalized features, snapshots, evidence, and verification results; pure evidence helpers cover matches, mismatches, unknown facts, and stale evidence.
-- Deterministic lesson state transitions that do not equate a click or UI action with verified CAD progress.
+- Validated evidence and verification-decision contracts expose trust level, observed fact, document identity, observation time, revision, missing requirements, explanation, and recovery. Source/level mismatches are rejected.
+- The CAD evaluator enforces explicit production and fixture evidence policies, specific feature identity, current document/revision, evidence expiry, exact units, explicit numerical tolerances, and contradictory-evidence handling.
+- Evidence records must carry the same revision in their outer field and nested document identity. A stale embedded revision is rejected by the shared contract before it can satisfy CAD policy or complete a lesson transition.
+- Deterministic lesson transitions receive the complete decision and declared evidence requirement. A bare status, stale evidence, insufficient trust level, or mock evidence cannot complete a production step.
 - WXT Chrome Manifest V3 build, Onshape-only content entrypoint, React mounted in a Shadow DOM, and a branded draggable/collapsible Leqad panel.
-- Exact Onshape origin and document-route recognition; semantic target recognition and removable visual highlighting.
-- Foundations progress stays unknown unless an editable workspace shows an explicitly selected accessible Top-plane control and sketch-mode controls. “Top view” is not treated as the Top plane.
+- Exact Onshape origin and workspace/version/microversion route recognition without inferring editability or element type from a workspace URL. Context-matched UI/API observations can identify editable, read-only, Part Studio, and other states; unknown remains explicit.
+- Foundations UI decisions use scoped, expiring observations that distinguish target recognition, plane selection, sketch controls, sketch-plane association, geometry, and committed state. Wrong-document, stale, ambiguous, hidden, disabled, and contradictory plane evidence remains unknown. “Top view” is not treated as the Top plane.
+- A shared navigation generation guard rejects stale asynchronous initialization after document, workspace, element, history, or content-context changes.
+- Content lifecycle listeners are registered before asynchronous initialization, and the live route is rechecked before UI creation and activation. Onshape capability observations refresh after relevant DOM changes and again at verification time, so editability can be revoked rather than remaining captured from startup.
 - Cursor-intent tracking reuses the recognized target and retries discovery at most twice per second when no target is available.
-- Bounded local cursor-intent estimator and extension-storage persistence with document/revision recovery checks.
-- One Foundations sketch lesson with progressive hints and mistake recovery.
+- Bounded local cursor-intent estimator and schema-versioned extension persistence. Model sessions are isolated by document/workspace/element, learning history and preferences are independent, and per-key write queues prevent delayed older writes from winning.
+- Persistence reads wait for in-flight writes to the same key. Restored UI observations are reconciled against their expiry even when the document revision is unchanged, and invalidation preserves an explicitly paused lesson.
+- Persisted model state separates expiring UI observations, verified model facts, evidence references, freshness, and uncertainty. Unknown or changed revisions clear this state while retaining the lesson location, hints, visits, concepts, and attempts.
+- The complete eight-step Foundations lesson, “Your First Sketch,” covers Part Studio and sketch concepts, Top-plane selection, sketch mode, rectangle creation, 40 mm by 30 mm design intent, finishing, the 2D-to-3D relationship, and independent practice.
+- Lesson progress distinguishes acknowledgement, supported UI verification, model verification, inability to verify, and self-reported continuation. Next, Back, Show me, Why, I’m stuck, Pause, Resume, Restart lesson, and explicit continuation without verification are implemented without converting unverified actions into passing evidence.
+- Typed semantic recognition reports its target, strategy, confidence, visibility, enabled state, ambiguity, and rejection reason. The first-lesson tools are recognized by accessible labels and related semantics; no unvalidated Onshape selectors or fixed screen coordinates are claimed.
+- Highlights track target and ancestor layout with throttled, bounded observers; handle resize, scroll, replacement, removal, hidden/disabled state, and reduced motion; and allow all pointer input through to the CAD page.
+- Local cursor intent is capped at 20 samples, analyzed at most 20 times per second, limited to active lesson targets, stopped during pause/inactive modes/unmount, and never used as verification evidence.
+- Panel positioning observes measured content-size changes and reclamps within the viewport; it also handles viewport resize, pointer cancellation, keyboard movement, accessible status text, Phase 1 preview labels, and first-run onboarding.
+- A page lifecycle coordinator keys each mount to the full Onshape route identity, rejects delayed stale initialization, prevents duplicate mounts for repeated context events, and disposes the prior React root before context changes.
+- Public project documentation now covers architecture, local development, Chrome/Edge loading, test-track limits, live Onshape validation, contribution and conduct rules, security reporting/review, the product roadmap, and a newly created evidence-labeled Onshape capability matrix. The reported Phase 0 originals remain explicitly unavailable.
+- A genuine Chromium screenshot of the controlled fixture is published with a fixture label. No screenshot is represented as live Onshape.
+- Apache-2.0 is prepared as a documented proposal. No root license has been added because the assignment requires explicit owner approval for the final license decision.
 - Chromium fixture tests against an Onshape-like page. These verify the fixture behavior only.
 
 ## Validation and limits
 
-- `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (52 tests), `pnpm format:check`, and `pnpm build` pass.
-- `pnpm test:e2e` builds the extension and reports three Chromium fixture/manifest tests passed. The direct unpacked-extension test is skipped because the managed browser policy blocks extension installs.
+- After Delivery 1, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (64 tests in 11 files), `pnpm format:check`, and `pnpm build` pass.
+- After Delivery 2, the focused regression suites pass 41 tests. The full suite passes 87 tests in 12 files; lint, typecheck, formatting, and build pass. Local Playwright reports three passed and one skipped because of the managed extension-install policy.
+- After Delivery 3, the full suite passes 100 tests in 12 files; lint, typecheck, formatting, and build pass. Local Playwright again reports three passed and one managed-policy skip.
+- After Delivery 4, the full suite passes 115 tests in 12 files; lint, typecheck, formatting, and the WXT production build pass. Local Playwright passes three fixture/manifest tests and skips one direct extension-load test under the managed policy.
+- After Delivery 5, the full suite passes 142 tests in 12 files; lint, typecheck, formatting, and the WXT production build pass. Local Playwright passes three fixture/manifest tests and skips one direct extension-load test under the managed policy.
+- After Delivery 6, the full suite passes 142 tests in 12 files; lint, typecheck, formatting, and Chrome and Edge WXT production builds pass. Both browser packages zip successfully. Local Playwright passes five fixture/manifest tests and skips one direct extension-load test under the managed policy.
+- After final independent review corrections, lint, typecheck, and formatting pass; the full suite passes 154 tests in 12 files. Chrome and Edge production builds each total 398.02 kB, and both 120.58 kB zip packages are produced. Local Playwright passes five fixture/manifest tests and skips one direct unpacked-extension test because the managed browser policy blocks extension installs.
+- `pnpm test:e2e` builds both browser variants and reports five Chromium fixture/manifest tests passed. The direct unpacked-extension test is skipped because the managed browser policy blocks extension installs.
+- GitHub Actions run #2 on `main` completed successfully with 52 unit tests and all four Playwright tests passing. This is distinct from the local managed-browser skip.
 - This environment's managed Chromium policy at `/etc/chromium/policies/managed/extensions.json` blocks unpacked extensions (`ExtensionInstallBlocklist: ["*"]`). A direct built-extension load therefore cannot be completed here. The MV3 manifest and extension build can still be validated, and the browser fixture can still run.
 - No live Onshape session or authenticated editable Part Studio is available. Onshape DOM recognition, actual highlights, lesson flow, and reload behavior still need live browser validation; fixture results are not compatibility claims.
 - The complete Phase 2 model-verification backend and live Onshape API integration remain deferred.
 
-## Remaining Phase 1 work
+## Current repair status
 
-The implementation and local checks are committed. Phase 1 still needs direct extension loading in an unrestricted browser and live testing in an editable Onshape document. The current managed browser policy blocks the first check, and no live Onshape account/session is available for the second.
+- Initial repository, source, test, history, secret, and missing-artifact audit: complete.
+- Delivery 1, verification correctness: complete and locally verified. It covers evidence trust boundaries, completion policy, current evidence, feature identity, unit/tolerance behavior, contradiction handling, and regression tests.
+- Delivery 2, environment correctness: complete and locally verified. It covers explicit context capability states, exact observation scoping, workspace/version/microversion routes, conservative Part Studio/editability detection, separated first-sketch UI observations, and stale initialization rejection.
+- Delivery 3, session correctness: complete and locally verified. It covers versioned storage and migration, independent learning history/model state/preferences, per-context sessions, revision reconciliation, invalid-data fallback, service-worker restart, ordered writes, pause recovery, and lesson-version rejection.
+- Delivery 4, lesson correctness and completion: complete and locally verified. It covers all eight ordered Foundations steps, progressive assistance, navigation and restart, reload recovery, honest evidence outcomes, unverified continuation, separate Top-plane and sketch-mode observations, and model-dependent dimension verification boundaries.
+- Delivery 5, UI and guidance: complete and locally verified. It covers typed target recognition, ambiguity and rejection behavior, bounded highlights, local cursor intent, measured panel positioning, accessibility, accurate capability messaging, preview labels, structured errors, and first-run onboarding.
+- Delivery 6, stability and testing: complete and locally verified. It covers lifecycle deduplication and cleanup, delayed storage/navigation races, bounded observers and cursor analysis, the full eight-step browser fixture, minimal-permission Chrome and Edge manifests, reproducible zip packages, and CI checks for frozen install, lint, typecheck, unit tests, formatting, both builds, browser tests, and uploaded artifacts.
+- Delivery 7, open-source preparation: complete pending the owner's separate license decision. It covers the expanded README, contribution/community/security files, issue and pull-request templates, architecture/setup/testing documentation, roadmap, proposed Apache-2.0 implications, repeated current/history secret scans, manifest/telemetry/execution review, and an honestly labeled fixture screenshot.
+- Independent final review: complete with no critical findings. All important findings were corrected with regressions covering embedded evidence revisions, initialization/navigation races, live capability revocation, unavailable-verification continuation, persistence read/write ordering, expired UI evidence, content-size panel clamping, and ancestor-driven highlight movement. The reported pause-on-reload issue was also corrected.
+- Delivery 8: blocked until an unrestricted browser and authenticated editable Onshape Part Studio are available. Independent work continues before that gate.
+
+## Earlier validation snapshot — 2026-10-13
+
+See [`docs/testing/results/phase1-final-validation.md`](testing/results/phase1-final-validation.md) for the complete report and [`docs/testing/live-setup.md`](testing/live-setup.md) for the owner-executable setup.
+
+- Local lint, typecheck, formatting, and all 154 unit/component tests pass on the final validation candidate `db7b243`.
+- Chrome and Edge MV3 builds and ZIP packages succeed. The local Playwright run reports five passes and one unpacked-extension skip under managed browser policy.
+- The pull request's [hosted Actions run](https://github.com/anandanikait-bot/leqad/actions/runs/38432996233) passed all checks, including six Playwright tests, both packages, and artifact upload. The hosted extension load used the controlled fixture; it is not live Onshape evidence.
+- Real Onshape validation and manual Chrome/Edge runtime checks remain blocked. Phase 1 is not signed off.
+
+## Compatibility acceptance pass — 2026-10-13
+
+The incoming PR head was `85927ae1a9ec65e1fa51873ba15ea20bd561c44b`, with successful [Actions run 38433445327](https://github.com/anandanikait-bot/leqad/actions/runs/38433445327). The earlier report candidate `db7b243` is historical evidence, not the latest PR source.
+
+Compatibility fixes are committed as `f4450c4b3b6b53d1219294d187680d680223b9ab` on the existing `phase1-hardening` branch. They remove edit-permission inference from Part Studio/Sketch controls, separate current sketch editing from current Top selection, and provide direct SELF_REPORTED/UNKNOWN continuation for rectangle, dimensions, and finish steps. No positive permission observer is connected; production workspace permission stays UNKNOWN. Active/committed sketch plane association and model facts remain UNKNOWN.
+
+- Local frozen install, lint, typecheck, formatting, and all 162 unit/component tests pass (8 new regressions).
+- Complete local Playwright: 6 passed, 0 failed, 1 skipped under the managed extension policy; 1 new browser regression. Both browser builds and 120,728-byte ZIPs succeed.
+- Hosted [compatibility run 38475535722](https://github.com/anandanikait-bot/leqad/actions/runs/38475535722) passed on unchanged attempt 2: 162 unit/component tests, all 7 browser tests, both browser packages, and artifact upload. Attempt 1 timed out in the existing production-extension test; its cause remains unverified. The baseline's green run is not substituted for verification of these fixes.
+- The downloaded compatibility artifact `11854470815` was inspected: its archive digest matches GitHub, both 120,728-byte inner ZIPs match the local packages byte-for-byte, and each has a root MV3 manifest. See the final report for independently measured checksums.
+- An independent code reviewer reported no findings in the nine changed code/test files.
+- [Live acceptance report](testing/results/phase1-live-acceptance.md): PASS 0 / FAIL 0 / BLOCKED 24. Real Onshape, live selectors, and normal Chrome/Edge runtime remain untested.
+- [Exact download and installation procedure](testing/live-setup.md) and [licensing comparison](legal/apache-2.0-proposal.md) are prepared. Licensing and merge require owner approval after the live gate; no license is added and PR #1 remains unmerged.
+
+The [final validation report](testing/results/phase1-final-validation.md) pins code/build provenance separately from documentation-only PR follow-ups. Phase 1 acceptance has not passed.
+
+The independently tested PR head at this report update is `c3a0346a1d4089e421984f7b3c17ccad68fa2105`, a documentation follow-up with unchanged runtime code. [Run 38476549346](https://github.com/anandanikait-bot/leqad/actions/runs/38476549346) passed on attempt 1 with 162 unit/component tests and all 7 browser tests. Its downloaded artifact `11854411254` has a freshly verified outer archive digest and inner browser ZIPs identical to the compatibility packages. The final report and installation guide now pin this newer tested build; their own later reporting commit is distinct from that package's source.

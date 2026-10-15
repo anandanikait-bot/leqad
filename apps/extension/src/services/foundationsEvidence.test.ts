@@ -1,14 +1,26 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { evaluateFoundationsSketchProgress } from './foundationsEvidence';
+import type { OnshapePageContext } from './onshapePage';
+import {
+  evaluateFoundationsPlaneProgress,
+  evaluateFoundationsSketchObservation,
+  evaluateFoundationsSketchProgress,
+  observeFoundationsSketchUi,
+} from './foundationsEvidence';
 
-const editablePage = {
+const editablePage: OnshapePageContext = {
   supported: true,
   documentId: 'doc-1',
   workspaceId: 'workspace-1',
+  versionId: null,
+  microversionId: null,
   elementId: 'part-1',
-  modelType: 'workspace' as const,
-  editable: true,
+  modelType: 'workspace',
+  editability: 'editable',
+  elementType: 'part-studio',
+  capabilitySource: 'UI',
+  capabilityObservedAt: '2026-10-13T12:00:00.000Z',
 };
+const observedAt = new Date('2026-10-13T12:00:00.000Z');
 
 afterEach(() => document.body.replaceChildren());
 
@@ -23,46 +35,304 @@ function visibleControl(
   if (selected !== undefined) control.setAttribute('aria-selected', selected);
   control.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
   document.body.append(control);
+  if (['Top plane', 'Front plane', 'Right plane'].includes(name)) {
+    const tree = document.createElement('div');
+    tree.setAttribute('role', 'tree');
+    const group = document.createElement('div');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', 'Default geometry');
+    group.append(control);
+    tree.append(group);
+    document.body.append(tree);
+  }
   return control;
 }
 
-describe('evaluateFoundationsSketchProgress', () => {
-  it('does not treat sketch mode alone as proof that the Top plane was chosen', () => {
-    visibleControl('Finish sketch', 'button');
-    visibleControl('Top plane', 'option', 'false');
+function evaluateNow(page: OnshapePageContext = editablePage) {
+  return evaluateFoundationsSketchProgress(page, document, observedAt);
+}
 
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'UNKNOWN',
+describe('Foundations sketch UI observations', () => {
+  it('exposes only the two implemented step observers and keeps unsupported signals unknown', async () => {
+    const { hasFoundationsStepObserver, evaluateFoundationsStepProgress } =
+      await import('./foundationsEvidence');
+    expect(hasFoundationsStepObserver('top-plane-selected')).toBe(true);
+    expect(hasFoundationsStepObserver('sketch-editing')).toBe(true);
+    for (const signal of [
+      'rectangle-created',
+      'rectangle-dimensions-40x30',
+      'sketch-mode-finished',
+      'toString',
+    ]) {
+      expect(hasFoundationsStepObserver(signal)).toBe(false);
+      expect(
+        evaluateFoundationsStepProgress(
+          editablePage,
+          document,
+          signal,
+          observedAt,
+        ),
+      ).toMatchObject({
+        status: 'UNKNOWN',
+        evidenceLevel: 'UNKNOWN',
+        evidence: [],
+      });
+    }
+  });
+
+  it('observes current sketch editing after Top selection disappears without inferring its plane association', () => {
+    const top = visibleControl('Top plane', 'option', 'true');
+    const beforeSketch = observeFoundationsSketchUi(
+      editablePage,
+      document,
+      observedAt,
+    );
+    expect(beforeSketch.topPlaneSelected).toBe(true);
+    expect(beforeSketch.sketchEditingAppearsActive).toBe(false);
+
+    top.setAttribute('aria-selected', 'false');
+    visibleControl('Finish sketch', 'button');
+    const afterSketch = observeFoundationsSketchUi(
+      editablePage,
+      document,
+      new Date(observedAt.getTime() + 1000),
+    );
+    const decision = evaluateFoundationsSketchObservation(
+      editablePage,
+      afterSketch,
+      new Date(observedAt.getTime() + 1000),
+    );
+
+    expect(decision).toMatchObject({
+      status: 'PASS',
+      evidenceLevel: 'UI_CONFIRMED',
+      observedFact: {
+        topPlaneSelected: false,
+        sketchEditingAppearsActive: true,
+        activeSketchPlaneAssociation: 'unknown',
+        committedSketch: 'unknown',
+      },
+    });
+    expect(
+      evaluateFoundationsPlaneProgress(editablePage, document, observedAt)
+        .status,
+    ).toBe('UNKNOWN');
+    expect(beforeSketch.topPlaneSelected).toBe(true);
+    expect(afterSketch.evidence).not.toContainEqual(
+      expect.objectContaining({ observedAt: beforeSketch.observedAt }),
     );
   });
 
-  it('confirms the step only when the Top plane is selected in editable sketch mode', () => {
+  it('verifies Top-plane selection without implying that sketch editing started', () => {
+    visibleControl('Top plane', 'option', 'true');
+
+    const decision = evaluateFoundationsPlaneProgress(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    expect(decision.status).toBe('PASS');
+    expect(decision.observedFact).toMatchObject({
+      topPlaneSelected: true,
+      sketchEditingAppearsActive: false,
+    });
+    expect(decision.explanation).toContain(
+      'does not claim that sketch editing has started',
+    );
+  });
+
+  it('keeps Top plane visible but unselected distinct from selected state', () => {
+    visibleControl('Top plane', 'option', 'false');
+    visibleControl('Finish sketch', 'button');
+
+    const decision = evaluateNow();
+
+    expect(decision.status).toBe('PASS');
+    expect(decision.observedFact).toMatchObject({
+      topPlaneControlCount: 1,
+      topPlaneSelected: false,
+      sketchEditingAppearsActive: true,
+    });
+    expect(decision.observedFact).toMatchObject({
+      activeSketchPlaneAssociation: 'unknown',
+    });
+  });
+
+  it('does not confuse a selected plane with active sketch editing', () => {
+    visibleControl('Top plane', 'option', 'true');
+
+    const decision = evaluateNow();
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.observedFact).toMatchObject({
+      topPlaneSelected: true,
+      sketchEditingAppearsActive: false,
+    });
+    expect(decision.missingRequirements).toContain(
+      'Recognized active sketch-editing controls',
+    );
+  });
+
+  it('does not accept sketch mode with a different selected plane', () => {
+    visibleControl('Top plane', 'option', 'false');
+    visibleControl('Front plane', 'option', 'true');
+    visibleControl('Finish sketch', 'button');
+
+    const decision = evaluateNow();
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.observedFact).toMatchObject({
+      selectedOtherPlanes: ['front-plane'],
+      sketchEditingAppearsActive: true,
+    });
+  });
+
+  it('rejects an expired selected-plane observation', () => {
+    visibleControl('Top plane', 'option', 'true');
+    visibleControl('Finish sketch', 'button');
+    const observation = observeFoundationsSketchUi(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    const decision = evaluateFoundationsSketchObservation(
+      editablePage,
+      observation,
+      new Date('2026-10-13T12:00:06.000Z'),
+    );
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.missingRequirements).toContain('Current UI evidence');
+  });
+
+  it('reports a contradictory different visible plane selection', () => {
+    visibleControl('Top plane', 'option', 'true');
+    visibleControl('Right plane', 'option', 'true');
+    visibleControl('Finish sketch', 'button');
+
+    const decision = evaluateNow();
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.missingRequirements).toContain(
+      'No contradictory selected reference plane',
+    );
+  });
+
+  it('does not mistake Top view for Top plane', () => {
+    visibleControl('Top view', 'button', 'true');
+    visibleControl('Finish sketch', 'button');
+
+    const decision = evaluateFoundationsPlaneProgress(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.observedFact).toMatchObject({ topPlaneControlCount: 0 });
+  });
+
+  it('keeps multiple similar Top plane controls ambiguous', () => {
+    visibleControl('Top plane', 'option', 'true');
+    visibleControl('Top plane', 'option', 'false');
+    visibleControl('Finish sketch', 'button');
+
+    const decision = evaluateFoundationsPlaneProgress(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.missingRequirements).toContain(
+      'One unambiguous Top plane control',
+    );
+  });
+
+  it.each(['disabled', 'hidden'] as const)(
+    'ignores a %s Top plane control',
+    (state) => {
+      const control = visibleControl('Top plane', 'button', 'true');
+      if (state === 'disabled') control.setAttribute('aria-disabled', 'true');
+      else control.hidden = true;
+      visibleControl('Finish sketch', 'button');
+
+      expect(
+        evaluateFoundationsPlaneProgress(editablePage, document, observedAt)
+          .status,
+      ).toBe('UNKNOWN');
+    },
+  );
+
+  it('rejects an observation from a different document context', () => {
+    visibleControl('Top plane', 'option', 'true');
+    visibleControl('Finish sketch', 'button');
+    const observation = observeFoundationsSketchUi(
+      editablePage,
+      document,
+      observedAt,
+    );
+
+    const decision = evaluateFoundationsSketchObservation(
+      { ...editablePage, documentId: 'doc-2' },
+      observation,
+      observedAt,
+    );
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.missingRequirements).toContain(
+      'UI evidence for the active document context',
+    );
+  });
+
+  it('keeps missing UI evidence unknown', () => {
+    const decision = evaluateNow();
+
+    expect(decision.status).toBe('UNKNOWN');
+    expect(decision.evidenceLevel).toBe('UNKNOWN');
+    expect(decision.missingRequirements).not.toHaveLength(0);
+  });
+
+  it('passes only the supported UI state without claiming model facts', () => {
     visibleControl('Top plane', 'option', 'true');
     visibleControl('Finish sketch', 'button');
 
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'PASS',
+    const decision = evaluateNow();
+
+    expect(decision).toMatchObject({
+      status: 'PASS',
+      evidenceLevel: 'UI_CONFIRMED',
+      identity: {
+        documentId: 'doc-1',
+        workspaceId: 'workspace-1',
+        elementId: 'part-1',
+        revision: null,
+      },
+      observedFact: {
+        topPlaneControlCount: 1,
+        topPlaneSelected: true,
+        sketchEditingAppearsActive: true,
+        activeSketchPlaneAssociation: 'unknown',
+        sketchGeometry: 'unknown',
+        committedSketch: 'unknown',
+      },
+    });
+    expect(decision.explanation).toContain(
+      'does not verify the active sketch plane association',
     );
   });
 
-  it('does not confirm progress on a read-only Onshape document', () => {
+  it('requires confirmed editable Part Studio capability', () => {
     visibleControl('Top plane', 'option', 'true');
     visibleControl('Finish sketch', 'button');
 
     expect(
-      evaluateFoundationsSketchProgress(
-        { ...editablePage, editable: false, workspaceId: null },
-        document,
-      ),
+      evaluateNow({ ...editablePage, editability: 'unknown' }).status,
     ).toBe('UNKNOWN');
-  });
-
-  it('does not mistake a Top view control for the Top plane', () => {
-    visibleControl('Top view', 'button', 'true');
-    visibleControl('Finish sketch', 'button');
-
-    expect(evaluateFoundationsSketchProgress(editablePage, document)).toBe(
-      'UNKNOWN',
-    );
+    expect(
+      evaluateNow({ ...editablePage, elementType: 'unknown' }).status,
+    ).toBe('UNKNOWN');
   });
 });

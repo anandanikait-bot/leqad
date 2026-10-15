@@ -1,0 +1,25 @@
+Test,Expected behavior,"Result (PASS, FAIL, or BLOCKED)",Short observed result
+Extension loading,"Downloaded package loads unpacked, is enabled, and has no extension errors.",BLOCKED,No unrestricted real browser run recorded.
+One panel mounted,Exactly one panel appears; reload/navigation never leaves duplicates. CAD controls still accept clicks.,BLOCKED,No real Onshape observation recorded.
+Part Studio recognition,Recognized selected Part Studio identifies element type. Visible Sketch/Part Studio controls alone never claim editable permission.,BLOCKED,No real Onshape observation recorded.
+Read-only recognition,"Version/microversion or a recognized read-only indicator stays read-only. A shared read-only workspace with visible commands and no supported permission indicator stays UNKNOWN, never editable.",BLOCKED,No real read-only shared-workspace observation recorded.
+Top-plane identification,"Show me targets Top plane, not Top view; ambiguity or missing controls is explained.",BLOCKED,No real Onshape observation recorded.
+Sketch command,Show me targets the actual Sketch command. Current editing controls and earlier plane selection remain separate; actual sketch plane association stays UNKNOWN.,BLOCKED,No real Onshape observation recorded.
+Rectangle command,Show me targets Rectangle; command visibility never verifies rectangle geometry.,BLOCKED,No real Onshape observation recorded.
+Dimension command,Show me targets Dimension; visible values never become verified model dimensions.,BLOCKED,No real Onshape observation recorded.
+Finish Sketch command,Show me targets Finish Sketch; disappearing controls never prove committed geometry.,BLOCKED,No real Onshape observation recorded.
+Step 1: introduction,Got it records ACKNOWLEDGED and Next becomes available.,BLOCKED,Lesson not run in real Onshape.
+Step 2: select Top plane,"Perform the action manually. With unknown edit permission, Check progress is hidden and direct continuation records SELF_REPORTED/UNKNOWN.",BLOCKED,Lesson not run in real Onshape.
+Step 3: start Sketch,"Enter sketch mode manually. Current controls may differ from earlier selection. With unknown edit permission, continue self-reported; no plane association is claimed.",BLOCKED,Lesson not run in real Onshape.
+Step 4: draw rectangle,Explanation and I've finished this step appear immediately; no unproductive Check progress. Completion is SELF_REPORTED/UNKNOWN.,BLOCKED,Lesson not run in real Onshape.
+Step 5: set 40 mm × 30 mm,"Add dimensions manually. Direct continuation records SELF_REPORTED/UNKNOWN, with no verified dimension claim.",BLOCKED,Lesson not run in real Onshape.
+Step 6: finish Sketch,"Finish manually. Direct continuation records SELF_REPORTED/UNKNOWN, with no verified committed sketch claim.",BLOCKED,Lesson not run in real Onshape.
+Step 7: understand result,Got it records ACKNOWLEDGED; explanation distinguishes a 2D sketch from a solid.,BLOCKED,Lesson not run in real Onshape.
+Step 8: independent practice,"I completed this practice records SELF_REPORTED, never verified PASS.",BLOCKED,Lesson not run in real Onshape.
+Wrong-plane recovery,"Choose Front or Right intentionally; use written recovery, cancel/reselect Top/start Sketch. Earlier Top selection never certifies the new sketch plane.",BLOCKED,Recovery not run in real Onshape.
+Wrong-tool recovery,Choose an unrelated sketch tool; follow I’m stuck/recovery to return to Rectangle without restarting the lesson.,BLOCKED,Recovery not run in real Onshape.
+Pause and reload,"Pause a middle step, reload, and confirm pause, position, and hints restore; resume works without a verified model claim.",BLOCKED,Persistence not run in real Onshape.
+Changing documents,"Test disposable documents, workspaces, elements, browser back/forward, unsupported/malformed routes, and rapid navigation. No duplicate or obsolete panel; state stays scoped to its context. Record each subcase in the observed result; any untested subcase keeps this row BLOCKED.",BLOCKED,Navigation not run in real Onshape.
+Browser zoom,"At 80%, 100%, 125%, and 150%, panel remains reachable, highlights align, and CAD clicks pass through. Record each zoom.",BLOCKED,Zoom not run in real Onshape.
+Chrome runtime,Complete this checklist in a supported unrestricted Chrome version and record errors or their absence.,BLOCKED,No real Chrome/Onshape run recorded.
+Edge runtime,Complete this checklist in a supported unrestricted Edge version and record errors or their absence.,BLOCKED,No real Edge/Onshape run recorded.

@@ -1,0 +1,56 @@
+name: Bug report
+description: Report reproducible behavior in Leqad
+title: '[Bug]: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private CAD content, document IDs, or account data. Use a disposable fixture or redact identifiers.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or package version
+      placeholder: Commit SHA or package filename
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Test environment
+      options:
+        - Unit or component test
+        - Controlled browser fixture
+        - Unpacked Chrome extension
+        - Unpacked Edge extension
+        - Live Onshape disposable document
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the expected behavior and the actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Build or load...
+        2. Open...
+        3. Select...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and logs
+      description: Paste sanitized output and state whether it came from a fixture or live Onshape.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private CAD data, and sensitive identifiers.
+          required: true

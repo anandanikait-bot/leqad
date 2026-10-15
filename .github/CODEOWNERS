@@ -1,0 +1,5 @@
+# These files change the independent ground-truth dataset or its owner-acceptance records.
+# Repository rules must require code-owner review for this file to be an enforced boundary.
+/validation/onshape-reference/captures/approved/ @anandanikait-bot
+/validation/onshape-reference/manifests/approved.json @anandanikait-bot
+/tools/onshape-reference/approval.ts @anandanikait-bot

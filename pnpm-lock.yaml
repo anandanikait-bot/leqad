@@ -84,6 +84,9 @@ importers:
 
   packages/lesson-engine:
     dependencies:
+      '@leqad/cad-core':
+        specifier: workspace:*
+        version: link:../cad-core
       '@leqad/contracts':
         specifier: workspace:*
         version: link:../contracts

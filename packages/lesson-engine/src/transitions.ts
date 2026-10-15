@@ -3,6 +3,7 @@ import type {
   LessonStepState,
   LessonStepStatus,
 } from './types';
+import { evidenceSatisfiesRequirement } from '@leqad/cad-core';
 
 export function createInitialLessonStepState(): LessonStepState {
   return {
@@ -10,6 +11,7 @@ export function createInitialLessonStepState(): LessonStepState {
     hintLevel: 0,
     verification: null,
     resumeState: null,
+    outcome: 'NONE',
   };
 }
 
@@ -54,6 +56,39 @@ export function transitionLessonStep(
     return { ...state, status: 'VERIFYING' };
   }
   if (
+    event.type === 'ACKNOWLEDGE' &&
+    ['READY', 'AWAITING_ACTION'].includes(state.status)
+  ) {
+    return {
+      ...state,
+      status: 'COMPLETED',
+      verification: null,
+      outcome: 'ACKNOWLEDGED',
+    };
+  }
+  if (
+    event.type === 'SELF_REPORT' &&
+    ['READY', 'AWAITING_ACTION', 'UNKNOWN'].includes(state.status)
+  ) {
+    return {
+      ...state,
+      status: 'COMPLETED',
+      verification: 'UNKNOWN',
+      outcome: 'SELF_REPORTED',
+    };
+  }
+  if (
+    event.type === 'CONTINUE_UNVERIFIED' &&
+    ['AWAITING_ACTION', 'ACTION_OBSERVED', 'UNKNOWN'].includes(state.status)
+  ) {
+    return {
+      ...state,
+      status: 'COMPLETED',
+      verification: 'UNKNOWN',
+      outcome: 'SELF_REPORTED',
+    };
+  }
+  if (
     event.type === 'RETRY' &&
     ['NEEDS_CORRECTION', 'UNKNOWN'].includes(state.status)
   ) {
@@ -61,20 +96,36 @@ export function transitionLessonStep(
       ...state,
       status: 'AWAITING_ACTION',
       verification: null,
+      outcome: 'NONE',
     };
   }
   if (event.type === 'VERIFICATION_RESULT' && state.status === 'VERIFYING') {
+    const evidenceSatisfied = evidenceSatisfiesRequirement(
+      event.decision,
+      event.requiredEvidence,
+      new Date(event.evaluatedAt),
+    );
+    const verification = evidenceSatisfied ? event.decision.status : 'UNKNOWN';
     const status: LessonStepStatus =
-      event.status === 'PASS'
+      verification === 'PASS'
         ? 'COMPLETED'
-        : event.status === 'FAIL' || event.status === 'WARNING'
+        : verification === 'FAIL' || verification === 'WARNING'
           ? 'NEEDS_CORRECTION'
           : 'UNKNOWN';
+    const outcome =
+      verification === 'PASS'
+        ? event.decision.evidenceLevel === 'API_CONFIRMED'
+          ? ('MODEL_VERIFIED' as const)
+          : ('UI_VERIFIED' as const)
+        : verification === 'UNKNOWN'
+          ? ('UNABLE_TO_VERIFY' as const)
+          : ('NONE' as const);
 
     return {
       ...state,
       status,
-      verification: event.status,
+      verification,
+      outcome,
     };
   }
 
