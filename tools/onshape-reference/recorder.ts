@@ -8,7 +8,9 @@ import { stdin, stdout } from 'node:process';
 import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import {
   CAPTURE_SCHEMA_VERSION,
+  MAX_CAPTURE_BYTES,
   validateCapture,
+  type ReferenceCapture,
   type CaptureEvent,
   type DomState,
   type HumanState,
@@ -177,6 +179,17 @@ async function snapshotState(
   };
 }
 
+export function serializePendingCapture(capture: ReferenceCapture): string {
+  const readable = `${JSON.stringify(capture, null, 1)}\n`;
+  const serialized =
+    new TextEncoder().encode(readable).byteLength <= MAX_CAPTURE_BYTES
+      ? readable
+      : `${JSON.stringify(capture)}\n`;
+  if (new TextEncoder().encode(serialized).byteLength > MAX_CAPTURE_BYTES)
+    throw new Error('This sanitized capture exceeds the export limit and was not saved.');
+  return serialized;
+}
+
 async function captureOne(
   page: Page,
   browserMajor: number | null,
@@ -230,11 +243,7 @@ async function captureOne(
     observations,
   };
   const checked = validateCapture(record);
-  const serialized = `${JSON.stringify(checked, null, 2)}\n`;
-  if (new TextEncoder().encode(serialized).byteLength > 32_768)
-    throw new Error(
-      'This sanitized capture exceeds the export limit and was not saved.',
-    );
+  const serialized = serializePendingCapture(checked);
   await mkdir(PENDING_DIRECTORY, { recursive: true, mode: 0o700 });
   const outputPath = join(PENDING_DIRECTORY, `${checked.captureId}.json`);
   await writeFile(outputPath, serialized, { flag: 'wx', mode: 0o600 });
