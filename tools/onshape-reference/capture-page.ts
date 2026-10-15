@@ -1,6 +1,7 @@
 export interface PageCaptureOptions {
   maxElements?: number;
   maxDepth?: number;
+  maxVisibilityAncestors?: number;
   maxOutputNodes?: number;
   maxCandidates?: number;
   maxSiblings?: number;
@@ -64,6 +65,10 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   const limits = {
     maxElements: Math.min(Math.max(options.maxElements ?? 10_000, 1), 20_000),
     maxDepth: Math.min(Math.max(options.maxDepth ?? 10, 1), 20),
+    maxVisibilityAncestors: Math.min(
+      Math.max(options.maxVisibilityAncestors ?? 64, 1),
+      96,
+    ),
     maxOutputNodes: Math.min(Math.max(options.maxOutputNodes ?? 180, 1), 300),
     maxCandidates: Math.min(Math.max(options.maxCandidates ?? 48, 1), 100),
     maxSiblings: Math.min(Math.max(options.maxSiblings ?? 12, 1), 24),
@@ -181,8 +186,18 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     let ancestorClipped = false;
     let ancestor = element.parentElement;
     let ancestorDepth = 0;
-    while (ancestor && ancestorDepth < limits.maxDepth) {
+    while (ancestor && ancestorDepth < limits.maxVisibilityAncestors) {
       const ancestorStyle = view.getComputedStyle(ancestor);
+      if (
+        ancestor.hasAttribute('hidden') ||
+        boolOf(ancestor, 'hidden') === 'TRUE' ||
+        ancestorStyle.display === 'none' ||
+        ancestorStyle.visibility === 'hidden' ||
+        ancestorStyle.visibility === 'collapse' ||
+        ancestorStyle.opacity === '0' ||
+        (ancestor as HTMLElement).inert
+      )
+        return { bounds: null, visibility: 'HIDDEN', clipping: 'UNKNOWN' };
       if (
         /(hidden|clip|scroll|auto)/.test(
           `${ancestorStyle.overflowX} ${ancestorStyle.overflowY}`,
@@ -329,9 +344,40 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     0,
     limits.maxCandidates,
   );
+  // This broad, bounded viewport region is diagnostic only. The screenshot
+  // shows Sketch dialog controls here, but coordinates do not identify them.
+  const view = document.defaultView;
+  const panelControl = (element: Element) => {
+    if (!view || view.innerWidth <= 0 || view.innerHeight <= 0) return false;
+    const tag = element.tagName.toUpperCase();
+    if (
+      tag !== 'BUTTON' &&
+      roleOf(element) !== 'BUTTON' &&
+      roleOf(element) !== 'MENUITEM' &&
+      !element.hasAttribute('tabindex')
+    )
+      return false;
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const x = (rect.left + rect.width / 2) / view.innerWidth;
+    const y = (rect.top + rect.height / 2) / view.innerHeight;
+    return x >= 0.08 && x <= 0.36 && y >= 0.025 && y <= 0.32;
+  };
+  const centerDistance = (element: Element) => {
+    if (!view) return Infinity;
+    const rect = element.getBoundingClientRect();
+    const x = (rect.left + rect.width / 2) / view.innerWidth;
+    const y = (rect.top + rect.height / 2) / view.innerHeight;
+    return (x - 0.22) ** 2 + (y - 0.09) ** 2;
+  };
+  const focusCandidates = structuralCandidates
+    .filter(panelControl)
+    .sort((left, right) => centerDistance(left) - centerDistance(right));
   const afterSketchBudget = limits.maxCandidates - selectedSketch.length;
+  const selectedFocus = focusCandidates.slice(0, Math.min(6, afterSketchBudget));
+  const focusSet = new Set(selectedFocus);
   const structuralBudget = Math.min(
-    afterSketchBudget,
+    afterSketchBudget - selectedFocus.length,
     Math.min(8, Math.max(1, Math.floor(limits.maxCandidates / 4))),
   );
   const genericBudget = Math.min(
@@ -339,25 +385,33 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     Math.floor(structuralBudget / 2),
   );
   const selectedStructure = [
-    ...sample(structuralCandidates, structuralBudget - genericBudget),
+    ...sample(
+      structuralCandidates.filter((element) => !focusSet.has(element)),
+      structuralBudget - genericBudget,
+    ),
     ...sample(genericCandidates, genericBudget),
   ];
   const remainingAfterStructure =
-    limits.maxCandidates - selectedSketch.length - selectedStructure.length;
+    limits.maxCandidates -
+    selectedSketch.length -
+    selectedFocus.length -
+    selectedStructure.length;
   const selectedOtherLabels = otherLabelCandidates.slice(
     0,
     remainingAfterStructure,
   );
-  const usedFallbacks = new Set(selectedStructure);
+  const usedFallbacks = new Set([...selectedFocus, ...selectedStructure]);
   const additionalStructure = sample(
     fallbackCandidates.filter((element) => !usedFallbacks.has(element)),
     limits.maxCandidates -
       selectedSketch.length -
+      selectedFocus.length -
       selectedStructure.length -
       selectedOtherLabels.length,
   );
   const candidates = [
     ...selectedSketch,
+    ...selectedFocus,
     ...selectedStructure,
     ...selectedOtherLabels,
     ...additionalStructure,
@@ -373,7 +427,11 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
 
   // Retain sampled candidates before their context so ancestors and early
   // siblings cannot consume the output budget ahead of later samples.
-  const primaryCandidates = [...selectedSketch, ...selectedStructure];
+  const primaryCandidates = [
+    ...selectedSketch,
+    ...selectedFocus,
+    ...selectedStructure,
+  ];
   const relevant = new Set<Element>(primaryCandidates);
   for (const candidate of primaryCandidates)
     if (candidate.parentElement) relevant.add(candidate.parentElement);
