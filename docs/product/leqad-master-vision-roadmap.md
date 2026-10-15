@@ -151,7 +151,7 @@ Existing repository work reports the following **implemented and automated-test-
 - Per-document progress persistence, revision-sensitive invalidation, pause/reload handling and browser packaging.
 - Bounded diagnostic tooling, including experimental Rectangle-dropdown observation.
 
-**Not yet accepted:** Complete live compatibility across required Onshape flows. The recorded acceptance matrix still has blocked cases; prior owner observations of one control working do not establish all steps, browser versions, or modes work. The current work is on \`phase1-hardening\` / [PR #1](https://github.com/anandanikait-bot/leqad/pull/1), which must not be merged or announced as complete merely because automated tests pass.
+**Not yet accepted:** Complete live compatibility across required Onshape flows. The recorded acceptance matrix still has blocked cases; prior owner observations of one control working do not establish all steps, browser versions, or modes work. The current work is on `phase1-hardening` / [PR #1](https://github.com/anandanikait-bot/leqad/pull/1), which must not be merged or announced as complete merely because automated tests pass.
 
 Current user action sequence:
 
@@ -202,7 +202,7 @@ For beta and V1, assess actual learner outcomes rather than only build status. O
 
 Conceptual layering:
 
-\`\`\`text
+```text
 Student / Leqad UI
         |
 Teaching + lesson orchestration + design brief + feedback
@@ -215,7 +215,7 @@ CAD-specific adapters
  browser      future         future            future
         |
 Official supported interfaces / validated UI observations
-\`\`\`
+```
 
 - **Shared core:** CAD concepts, teaching objectives, lesson transitions, question interpretation, evidence levels, brief/dimension schemas, feature-plan validation, feedback, and privacy decisions.
 - **Per-platform adapter:** Tool identifiers, menu/UI recognition, current state, document identity, permissions, feature types and mappings, revision information, CAD model reads, capabilities, and supported actions.
@@ -261,14 +261,14 @@ These are durable requirements across every phase:
 | Learning profiles and educator tools | 5 or later | Planned with privacy review |
 | Fusion / SOLIDWORKS / FreeCAD / other CAD adapters | Future | Planned individually; no compatibility claim |
 
-Update implementation status in the living \`ROADMAP.md\`, \`docs/implementation-progress.md\`, and dated test reports on the active development branch. **Never silently change a feature from planned to implemented or live-verified.**
+Update implementation status in the living `ROADMAP.md`, `docs/implementation-progress.md`, and dated test reports on the active development branch. **Never silently change a feature from planned to implemented or live-verified.**
 
 ## 9. Brand direction (provisional, protected)
 
 - Public-facing name: **Leqad**; *TutorCAD* names the preserved earlier product specification, not the shipped brand.
-- Primary token **Dull Violet Black:** \`#0D1C43\`.
-- Secondary token **Hay's Russet:** \`#793327\`.
-- Warm off-white: \`#F5EFE7\`.
+- Primary token **Dull Violet Black:** `#0D1C43`.
+- Secondary token **Hay's Russet:** `#793327`.
+- Warm off-white: `#F5EFE7`.
 - Style: minimal, precise, modern, approachable, technical, calm; thin geometric lines, restrained curves, clean typography, spacing, minimal visual noise.
 
 The user's preferred reference logo has an **isometric cube**, a **curved rising russet path/arrow**, and the **Leqad wordmark**. Explore minor geometry refinements and compact-size variations. The symbol and trademark status are **not finalized or legally cleared**. Perform visual similarity and official name/design-mark screening before commercial release. Do not replace it with unrelated generic artwork or claim an AI draft is a production-ready vector without owner approval.
