@@ -439,7 +439,7 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
       function (this: Element) {
         return this.hasAttribute('data-diagnostic')
-          ? new DOMRect(360, 32, 27, 26)
+          ? new DOMRect(window.innerWidth * 0.22, 32, 27, 26)
           : new DOMRect(1100, 500, 80, 25);
       },
     );
