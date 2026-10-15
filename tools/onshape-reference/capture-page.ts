@@ -350,7 +350,11 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
   const panelControl = (element: Element) => {
     if (!view || view.innerWidth <= 0 || view.innerHeight <= 0) return false;
     const tag = element.tagName.toUpperCase();
+    const iconContainer =
+      (tag === 'DIV' || tag === 'SPAN') &&
+      element.querySelector('svg') !== null;
     if (
+      !iconContainer &&
       tag !== 'BUTTON' &&
       roleOf(element) !== 'BUTTON' &&
       roleOf(element) !== 'MENUITEM' &&
@@ -359,6 +363,7 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
       return false;
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return false;
+    if (iconContainer && (rect.width > 64 || rect.height > 64)) return false;
     const x = (rect.left + rect.width / 2) / view.innerWidth;
     const y = (rect.top + rect.height / 2) / view.innerHeight;
     return x >= 0.08 && x <= 0.36 && y >= 0.025 && y <= 0.32;
@@ -370,7 +375,7 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     const y = (rect.top + rect.height / 2) / view.innerHeight;
     return (x - 0.22) ** 2 + (y - 0.09) ** 2;
   };
-  const focusCandidates = structuralCandidates
+  const focusCandidates = [...structuralCandidates, ...genericCandidates]
     .filter(panelControl)
     .sort((left, right) => centerDistance(left) - centerDistance(right));
   const afterSketchBudget = limits.maxCandidates - selectedSketch.length;
