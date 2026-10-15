@@ -436,13 +436,10 @@ describe('independent DOM observer (synthetic DOM only)', () => {
           `<button aria-label="Private action ${index}">Private action</button>`,
       ).join('') +
       '<div data-diagnostic="private-panel-icon"><span data-diagnostic="private-panel-inner"><svg aria-hidden="true"></svg></span></div>';
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
-      function (this: Element) {
-        return this.hasAttribute('data-diagnostic')
-          ? new DOMRect(window.innerWidth * 0.22, 32, 27, 26)
-          : new DOMRect(1100, 500, 80, 25);
-      },
-    );
+    const iconRect = new DOMRect(window.innerWidth * 0.22, 32, 27, 26);
+    for (const element of document.querySelectorAll('[data-diagnostic]')) {
+      vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(iconRect);
+    }
 
     const snapshot = capturePageSnapshot({
       maxCandidates: 32,
