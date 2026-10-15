@@ -428,6 +428,43 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(snapshot.scan.depthLimitReached).toBe(true);
   });
 
+  it('retains an unnamed compact Sketch-panel icon container amid unrelated controls', () => {
+    document.body.innerHTML =
+      Array.from(
+        { length: 150 },
+        (_, index) =>
+          `<button aria-label="Private action ${index}">Private action</button>`,
+      ).join('') +
+      '<div data-diagnostic="private-panel-icon"><span data-diagnostic="private-panel-inner"><svg aria-hidden="true"></svg></span></div>';
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        return this.hasAttribute('data-diagnostic')
+          ? new DOMRect(360, 32, 27, 26)
+          : new DOMRect(1100, 500, 80, 25);
+      },
+    );
+
+    const snapshot = capturePageSnapshot({
+      maxCandidates: 32,
+      maxOutputNodes: 100,
+      maxOutputBytes: 9_000,
+    });
+
+    expect(
+      snapshot.nodes.some(
+        (node) =>
+          node.tag === 'SPAN' &&
+          node.label === null &&
+          node.bounds?.x === 0.225,
+      ),
+    ).toBe(true);
+    expect(snapshot.scan.candidateLimitReached).toBe(true);
+    expect(snapshot.domState).toBe('UNKNOWN');
+    expect(JSON.stringify(snapshot)).not.toContain('private-panel-icon');
+    expect(JSON.stringify(snapshot)).not.toContain('private-panel-inner');
+    expect(JSON.stringify(snapshot)).not.toContain('Private action');
+  });
+
   it('retains a genuinely deep Sketch target with UNKNOWN ancestry visibility', () => {
     document.body.innerHTML =
       '<div>'.repeat(18) +
