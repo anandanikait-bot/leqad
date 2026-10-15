@@ -1,6 +1,53 @@
 import { describe, expect, it } from 'vitest';
 
 describe('first Foundations lesson', () => {
+  it('teaches an explicit Corner Rectangle selection and two opposite corner clicks', async () => {
+    const { FOUNDATIONS_FIRST_SKETCH } = await import('./foundations');
+    const rectangle = FOUNDATIONS_FIRST_SKETCH.steps[3];
+
+    expect(rectangle.action).toMatch(/dropdown.*arrow/i);
+    expect(rectangle.action).toContain('choose Corner Rectangle');
+    expect(rectangle.action).toMatch(
+      /first corner.*diagonally opposite corner/i,
+    );
+    expect(rectangle.action).toMatch(/closed four-edge profile/i);
+  });
+
+  it('explains why Corner Rectangle fits the exercise and how other variants start', async () => {
+    const { FOUNDATIONS_FIRST_SKETCH } = await import('./foundations');
+    const { explanation } = FOUNDATIONS_FIRST_SKETCH.steps[3];
+
+    expect(explanation).toMatch(/simplest.*axis-aligned/i);
+    expect(explanation).toMatch(
+      /Center Point Rectangle starts from the center/i,
+    );
+    expect(explanation).toMatch(
+      /Aligned Rectangle.*line direction.*perpendicular width/i,
+    );
+    expect(explanation).toMatch(/icon.*last.*variant/i);
+  });
+
+  it('offers manual Corner Rectangle recovery without asserting geometry or teaching dimensions early', async () => {
+    const { FOUNDATIONS_FIRST_SKETCH } = await import('./foundations');
+    const rectangle = FOUNDATIONS_FIRST_SKETCH.steps[3];
+    const help = [...rectangle.hints, ...rectangle.recoveryActions].join(' ');
+
+    expect(help).toMatch(/cannot identify.*dropdown.*manually/i);
+    expect(help).toMatch(/geometry.*unverified/i);
+    expect(rectangle.explanation).toMatch(/self-reported/i);
+    expect(rectangle.commonErrors.join(' ')).toMatch(
+      /last-used.*Corner Rectangle/i,
+    );
+    expect(rectangle.recoveryActions.join(' ')).toContain('Corner Rectangle');
+    expect(rectangle.hints).toHaveLength(5);
+    expect(
+      [rectangle.action, rectangle.explanation, ...rectangle.hints].join(' '),
+    ).not.toMatch(/40 mm|30 mm/);
+    expect(FOUNDATIONS_FIRST_SKETCH.steps[4].action).toMatch(
+      /horizontal.*40 mm.*vertical.*30 mm/,
+    );
+  });
+
   it('defines the complete ordered eight-step Your First Sketch lesson', async () => {
     const { FOUNDATIONS_FIRST_SKETCH } = await import('./foundations');
 
