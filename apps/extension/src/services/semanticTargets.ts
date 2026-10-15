@@ -191,6 +191,75 @@ function strategyConfidence(
     : 'LOW';
 }
 
+/**
+ * Narrow fallback for the owner's observed Onshape Sketch command:
+ *   <div><div><svg /></div><span>Sketch</span></div>
+ * inside a wide, shallow row of multiple command containers.
+ *
+ * Neither icon nor label exposes actionable semantics. The owner confirmed
+ * both are clickable in the live UI, but this heuristic does not establish
+ * the DOM's event handler or any CAD operation result. Do not generalize to
+ * arbitrary div text or reuse for other commands without separate evidence.
+ */
+function isStructuralSketchCommand(element: HTMLElement): boolean {
+  if (
+    element.localName !== 'div' ||
+    element.children.length !== 2 ||
+    element.hasAttribute('aria-label') ||
+    element.hasAttribute('aria-labelledby')
+  )
+    return false;
+  const iconBox = element.firstElementChild;
+  const label = element.lastElementChild;
+  if (
+    iconBox?.localName !== 'div' ||
+    iconBox.children.length !== 1 ||
+    iconBox.firstElementChild?.localName !== 'svg' ||
+    label?.localName !== 'span' ||
+    label.children.length !== 0 ||
+    label.hasAttribute('aria-label') ||
+    label.hasAttribute('aria-labelledby') ||
+    !exactLabel(label.textContent, TARGET_LABELS.sketch)
+  )
+    return false;
+
+  const commandRect = element.getBoundingClientRect();
+  if (commandRect.width <= 0 || commandRect.height <= 0) return false;
+  let ancestor = element.parentElement;
+  for (let depth = 0; ancestor && depth < 6; depth += 1) {
+    if (ancestor.children.length >= 3) {
+      const rowRect = ancestor.getBoundingClientRect();
+      // A narrow toolbar strip is distinct from a text card/grid or the page
+      // body. Relative geometry tolerates normal zoom without fixed pixels.
+      return (
+        rowRect.width >= commandRect.width * 4 &&
+        rowRect.height >= commandRect.height * 0.75 &&
+        rowRect.height <= commandRect.height * 2.5
+      );
+    }
+    ancestor = ancestor.parentElement;
+  }
+  return false;
+}
+
+function structuralSketchCandidates(root: ParentNode): TargetCandidate[] {
+  const candidates: TargetCandidate[] = [];
+  for (const label of root.querySelectorAll<HTMLSpanElement>('span')) {
+    const command = label.parentElement;
+    if (!command || !isStructuralSketchCommand(command)) continue;
+    candidates.push({
+      element: command,
+      strategy: 'VALIDATED_CONTEXT',
+      confidence: 'MEDIUM',
+      rank: STRATEGY_RANK.VALIDATED_CONTEXT,
+      visibility: visibilityState(command),
+      enabled: enabledState(command),
+      leqadOwned: isLeqadOwned(command),
+    });
+  }
+  return candidates;
+}
+
 /** Read-only diagnostic of one node; does not search or establish uniqueness. */
 export function inspectSketchCommandMatch(element: HTMLElement) {
   return {
@@ -221,6 +290,18 @@ function candidatesFor(
       enabled: enabledState(element),
       leqadOwned: isLeqadOwned(element),
     });
+  }
+  if (targetId === 'sketch') {
+    for (const structural of structuralSketchCandidates(root)) {
+      const previousIndex = candidates.findIndex(
+        (candidate) => candidate.element === structural.element,
+      );
+      if (previousIndex < 0) {
+        candidates.push(structural);
+      } else if (candidates[previousIndex]!.confidence === 'LOW') {
+        candidates[previousIndex] = structural;
+      }
+    }
   }
   return candidates.sort((left, right) => left.rank - right.rank);
 }
@@ -327,7 +408,10 @@ export function isUsableSemanticTarget(
       candidate && candidate.element === element && usable(candidate),
     );
   }
-  const strategy = matchStrategy(element, TARGET_LABELS[targetId]);
+  const strategy =
+    targetId === 'sketch' && isStructuralSketchCommand(element)
+      ? 'VALIDATED_CONTEXT'
+      : matchStrategy(element, TARGET_LABELS[targetId]);
   return Boolean(
     strategy &&
     strategyConfidence(strategy) !== 'LOW' &&
