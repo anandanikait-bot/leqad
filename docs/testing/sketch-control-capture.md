@@ -28,7 +28,7 @@ The independent reference recorder is unchanged and remains independent.
 1. Open the successful GitHub Actions run linked in the delivery message. Under
    **Artifacts**, download **leqad-browser-packages** while signed into GitHub.
 2. Right-click the downloaded artifact ZIP → **Extract All**. Then extract
-   `leqad-0.1.0-chrome.zip` into its own folder. The unpacked extension folder is
+   `leqadextension-0.1.0-chrome.zip` into its own folder. The unpacked extension folder is
    the one containing `manifest.json` directly, not the outer artifact folder.
 3. Open `chrome://extensions`, enable **Developer mode**, and choose **Load
    unpacked** → that folder. Disable/remove any previous Leqad copy to avoid
@@ -38,7 +38,7 @@ The independent reference recorder is unchanged and remains independent.
    Chrome with Leqad enabled, not the independent recorder's extension-disabled
    profile. Do not use a private production CAD document for this test.
 
-Edge: extract `leqad-0.1.0-edge.zip` and use **Load unpacked** at
+Edge: extract `leqadextension-0.1.0-edge.zip` and use **Load unpacked** at
 `edge://extensions`. Packaging is checked; this is not a live Edge runtime claim.
 
 Local build alternative (PowerShell, Node >=22.12, pnpm 11.25.0):
