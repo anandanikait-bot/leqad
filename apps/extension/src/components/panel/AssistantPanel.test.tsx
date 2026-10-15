@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
 import type { LessonSession } from '@leqad/lesson-engine';
 import type { OnshapePageContext } from '../../services/onshapePage';
+import type { SketchGuidanceObservation } from '../../services/sketchGuidance';
 import type { GuidanceRunnerHost } from '../../services/guidanceRunner';
 import type {
   TopRowCaptureReport,
@@ -169,7 +170,7 @@ describe('AssistantPanel', () => {
     const onSessionChange = vi.fn();
     render(
       <panelModule.AssistantPanel
-        page={confirmedPage}
+        page={{ ...confirmedPage, editability: 'unknown' }}
         initialSession={restoredSession('draw-rectangle')}
         initialPanelPreferences={{
           collapsed: false,
@@ -947,6 +948,45 @@ describe('AssistantPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
 
     expect(onShowTarget).toHaveBeenCalledWith('top-plane');
+  });
+
+  it('updates active Sketch guidance when observable UI changes without a user request', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    let publishSketchUi: ((value: SketchGuidanceObservation) => void) | null =
+      null;
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('start-sketch')}
+        onObserveSketchUi={() => ({
+          editingAppearsActive: false,
+          dialogPlane: null,
+        })}
+        onSubscribeSketchUi={(listener) => {
+          publishSketchUi = listener;
+          return () => {
+            publishSketchUi = null;
+          };
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'With Top plane selected, choose the Sketch command and wait for sketch-editing controls to appear.',
+      ),
+    ).toBeTruthy();
+
+    act(() => {
+      publishSketchUi?.({ editingAppearsActive: true, dialogPlane: null });
+    });
+
+    expect(screen.getByText(/already editing a sketch/)).toBeTruthy();
+    expect(
+      screen.queryByText(
+        'With Top plane selected, choose the Sketch command and wait for sketch-editing controls to appear.',
+      ),
+    ).toBeNull();
   });
 
   it('reveals ordered hints and recovery guidance', async () => {

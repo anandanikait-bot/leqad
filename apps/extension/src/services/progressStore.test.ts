@@ -87,6 +87,39 @@ describe('per-document lesson persistence', () => {
     expect(restored?.modelState.evidenceReferences).toEqual(['ui-1', 'api-1']);
   });
 
+  it('restores self-reported lesson completion without adding model verification', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const storage = memoryStorage();
+    const session = completedSession({
+      modelIdentity: { ...originalIdentity, revision: null },
+      modelRevision: null,
+      steps: {
+        'enter-sketch': {
+          status: 'COMPLETED',
+          hintLevel: 1,
+          verification: 'UNKNOWN',
+          resumeState: null,
+          outcome: 'SELF_REPORTED',
+        },
+      },
+    });
+    await createLessonProgressStore(storage).saveSession(session);
+
+    const restored = await createLessonProgressStore(storage).restoreSession(
+      { ...originalIdentity, revision: null },
+      null,
+      { lessonId: 'foundations-first-sketch', lessonVersion: '2.0.0' },
+      new Date('2026-10-13T12:00:15.000Z'),
+    );
+
+    expect(restored?.steps['enter-sketch']).toMatchObject({
+      status: 'COMPLETED',
+      verification: 'UNKNOWN',
+      outcome: 'SELF_REPORTED',
+    });
+    expect(restored?.modelState.verifiedModelStates).toEqual({});
+  });
+
   it('does not restore UI-verified completion from expired observations', async () => {
     const { createLessonProgressStore } = await import('./progressStore');
     const store = createLessonProgressStore(memoryStorage());

@@ -450,9 +450,7 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     expect(
       snapshot.nodes.some(
         (node) =>
-          node.tag === 'SPAN' &&
-          node.label === null &&
-          node.bounds?.x === 0.22,
+          node.tag === 'SPAN' && node.label === null && node.bounds?.x === 0.22,
       ),
     ).toBe(true);
     expect(snapshot.scan.candidateLimitReached).toBe(true);

@@ -62,6 +62,9 @@ import type {
 interface AssistantPanelProps {
   onClearTarget?: () => void;
   onObserveSketchUi?: () => SketchGuidanceObservation;
+  onSubscribeSketchUi?: (
+    listener: (observation: SketchGuidanceObservation) => void,
+  ) => () => void;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
@@ -349,6 +352,7 @@ export function AssistantPanel({
   guidanceRunner,
   onClearTarget,
   onObserveSketchUi,
+  onSubscribeSketchUi,
   onCaptureTopRow,
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
@@ -438,20 +442,25 @@ export function AssistantPanel({
 
   useEffect(() => {
     onClearTarget?.();
-    setSketchUi(
-      sketchGuidanceRelevant && !collapsed
-        ? (onObserveSketchUi?.() ?? null)
-        : null,
-    );
     return () => onClearTarget?.();
+  }, [step?.id, stepState?.status, mode, collapsed, onClearTarget]);
+
+  useEffect(() => {
+    if (!sketchGuidanceRelevant || collapsed) {
+      setSketchUi(null);
+      return;
+    }
+
+    const refresh = () => setSketchUi(onObserveSketchUi?.() ?? null);
+    refresh();
+    return onSubscribeSketchUi?.(setSketchUi);
   }, [
     step?.id,
-    stepState?.status,
     mode,
     collapsed,
-    onClearTarget,
-    onObserveSketchUi,
     sketchGuidanceRelevant,
+    onObserveSketchUi,
+    onSubscribeSketchUi,
   ]);
 
   const recordLearningHistory = (

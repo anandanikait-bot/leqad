@@ -30,7 +30,10 @@ import {
   captureManualRectangleDropdownSnapshot,
   createRectangleDropdownCapture,
 } from '../src/services/rectangleDropdownCapture';
-import { observeSketchGuidanceUi } from '../src/services/sketchGuidance';
+import {
+  createSketchGuidanceMonitor,
+  observeSketchGuidanceUi,
+} from '../src/services/sketchGuidance';
 import { GUIDANCE_REGISTRY } from '../src/services/guidanceRegistry';
 import type {
   GuidanceAreaTargetId,
@@ -121,6 +124,11 @@ export default defineContentScript({
           zIndex: 2147483000,
           onMount(container) {
             const root = createRoot(container);
+            const sketchGuidanceMonitor = createSketchGuidanceMonitor(document);
+            const observeSketchUi = () => sketchGuidanceMonitor.refresh();
+            const subscribeSketchUi = (
+              listener: Parameters<typeof sketchGuidanceMonitor.subscribe>[0],
+            ) => sketchGuidanceMonitor.subscribe(listener);
             let currentPage = observeOnshapeCapabilities(routePage, document);
             const semanticTargetFor = (
               targetId: GuidanceTargetId | GuidanceAreaTargetId,
@@ -185,7 +193,8 @@ export default defineContentScript({
                   onShowTarget={highlighter.show}
                   guidanceRunner={guidanceRunner}
                   onClearTarget={clearHighlight}
-                  onObserveSketchUi={() => observeSketchGuidanceUi(document)}
+                  onObserveSketchUi={observeSketchUi}
+                  onSubscribeSketchUi={subscribeSketchUi}
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>
                     createRectangleDropdownCapture(document)
@@ -238,12 +247,18 @@ export default defineContentScript({
             );
             currentPage = capabilityMonitor.current;
             renderPanel();
-            return { root, capabilityMonitor, guidanceRunner };
+            return {
+              root,
+              capabilityMonitor,
+              guidanceRunner,
+              sketchGuidanceMonitor,
+            };
           },
           onRemove(mounted) {
             clearHighlight();
             mounted?.capabilityMonitor.disconnect();
             mounted?.guidanceRunner.dispose();
+            mounted?.sketchGuidanceMonitor.disconnect();
             activeGuidanceRunner = null;
             mounted?.root.unmount();
           },
