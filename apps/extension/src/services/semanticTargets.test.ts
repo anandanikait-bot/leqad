@@ -20,7 +20,6 @@ function visibleButton(name: string): HTMLButtonElement {
   return button;
 }
 
-
 /** Sanitized structural fixture from the owner's successful icon/text clicks. */
 function sketchCommandRow(label = 'Sketch') {
   const command = document.createElement('div');
@@ -53,7 +52,6 @@ afterEach(() => {
   document.body.replaceChildren();
   Reflect.deleteProperty(document, 'elementFromPoint');
 });
-
 
 describe('Sketch toolbar structural recognition (sanitized owner capture)', () => {
   it('recognizes one icon-and-exact-label control in a horizontal command strip', async () => {
