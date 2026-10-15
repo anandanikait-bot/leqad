@@ -150,6 +150,90 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it.each([true, false])(
+    'ignores an older save settlement when the latest save failed=%s',
+    async (latestFails) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      let settleFirst!: () => void;
+      let settleLatest!: () => void;
+      const first = new Promise<void>((resolve, reject) => {
+        settleFirst = () =>
+          latestFails ? resolve() : reject(new Error('old save'));
+      });
+      const latest = new Promise<void>((resolve, reject) => {
+        settleLatest = () =>
+          latestFails ? reject(new Error('latest save')) : resolve();
+      });
+      const save = vi
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockReturnValueOnce(latest);
+      render(<AssistantPanel page={confirmedPage} onSessionChange={save} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      await act(async () => settleLatest());
+      await act(async () => settleFirst());
+      expect(
+        Boolean(screen.queryByRole('status', { name: 'Progress saving' })),
+      ).toBe(latestFails);
+      expect(screen.getByText('Step 2 of 8 · Visited')).toBeTruthy();
+    },
+  );
+
+  it('warns when progress cannot be saved and retries without upgrading self-reported work', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const { createLessonProgressStore } =
+      await import('../../services/progressStore');
+    const values: Record<string, unknown> = {};
+    let unavailable = true;
+    const store = createLessonProgressStore({
+      async get(key) {
+        return { [key]: values[key] };
+      },
+      async set(items) {
+        if (unavailable) throw new Error('Simulated unavailable storage');
+        Object.assign(values, items);
+      },
+    });
+    const session = restoredSession('draw-rectangle');
+    render(
+      <AssistantPanel
+        page={{ ...confirmedPage, editability: 'unknown' }}
+        initialSession={session}
+        onSessionChange={(next) => {
+          const save = store.saveSession(next);
+          // Keep the pre-fix reproduction from emitting an unhandled rejection.
+          void save.catch(() => undefined);
+          return save;
+        }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: "I've finished this step" }),
+    );
+    expect(
+      (await screen.findByRole('status', { name: 'Progress saving' }))
+        .textContent,
+    ).toContain('could not be saved');
+    expect(screen.getByText('Step 4 of 8 · Marked done')).toBeTruthy();
+    expect(await store.restoreSession(session.modelIdentity, null)).toBeNull();
+    unavailable = false;
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Retry saving progress' }),
+      );
+    });
+    expect(
+      screen.queryByRole('status', { name: 'Progress saving' }),
+    ).toBeNull();
+    const restored = await store.restoreSession(session.modelIdentity, null);
+    expect(restored?.steps['draw-rectangle']).toMatchObject({
+      outcome: 'SELF_REPORTED',
+      verification: 'UNKNOWN',
+    });
+    expect(restored?.modelState.verifiedModelStates).toEqual({});
+  });
+
   it('prefers a real usable semantic Sketch target over a saved approximate location', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const {
@@ -1278,30 +1362,38 @@ describe('AssistantPanel', () => {
     expect(findTarget).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['paused lesson', 'inactive mode'] as const)(
-    'stops cursor tracking for an %s',
-    async (inactiveState) => {
-      const semanticTargets = await import('../../services/semanticTargets');
-      const findTarget = vi.spyOn(semanticTargets, 'findSemanticTarget');
-      const { AssistantPanel } = await import('./AssistantPanel');
-      render(
-        <AssistantPanel
-          page={confirmedPage}
-          onCheckStep={() => uiDecision('UNKNOWN')}
-        />,
+  it.each([
+    'paused lesson',
+    'inactive mode',
+    'completed step',
+    'collapsed panel',
+  ] as const)('stops cursor tracking for an %s', async (inactiveState) => {
+    const semanticTargets = await import('../../services/semanticTargets');
+    const findTarget = vi.spyOn(semanticTargets, 'findSemanticTarget');
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onCheckStep={() => uiDecision('UNKNOWN')}
+      />,
+    );
+    advanceToStep(2);
+    if (inactiveState === 'paused lesson') {
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    } else if (inactiveState === 'completed step') {
+      completeCurrentStep();
+    } else if (inactiveState === 'collapsed panel') {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Collapse Leqad panel' }),
       );
-      advanceToStep(2);
-      if (inactiveState === 'paused lesson') {
-        fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-      } else {
-        fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
-      }
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'Projects' }));
+    }
 
-      fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
 
-      expect(findTarget).not.toHaveBeenCalled();
-    },
-  );
+    expect(findTarget).not.toHaveBeenCalled();
+  });
 
   it('removes cursor tracking when the panel unmounts', async () => {
     const removeListener = vi.spyOn(document, 'removeEventListener');

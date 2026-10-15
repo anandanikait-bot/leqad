@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 function visibleControl(
   name: string,
@@ -439,4 +439,40 @@ describe('Onshape capability observations', () => {
     expect(changes).toContain('unknown');
     monitor.disconnect();
   });
+
+  it.each(['id', 'aria-labelledby', 'aria-hidden', 'inert'])(
+    'revokes Part Studio recognition when %s invalidates its observed control',
+    async (attribute) => {
+      const { createOnshapeCapabilityMonitor, parseOnshapePage } =
+        await import('./onshapePage');
+      const label = document.createElement('span');
+      label.id = 'part-studio-label';
+      label.textContent = 'Part Studio';
+      document.body.append(label);
+      const tab = visibleControl('Part Studio', 'tab', 'true');
+      tab.setAttribute('aria-labelledby', label.id);
+      const monitor = createOnshapeCapabilityMonitor(
+        parseOnshapePage(
+          'https://cad.onshape.com/documents/document-a/w/workspace-a/e/element-a',
+        ),
+        document,
+        () => undefined,
+      );
+      try {
+        expect(monitor.current.elementType).toBe('part-studio');
+        if (attribute === 'id') label.id = 'replaced-label';
+        else
+          tab.setAttribute(
+            attribute,
+            attribute === 'aria-labelledby' ? 'missing-label' : 'true',
+          );
+        await vi.waitFor(() =>
+          expect(monitor.current.elementType).toBe('unknown'),
+        );
+        expect(monitor.current.editability).toBe('unknown');
+      } finally {
+        monitor.disconnect();
+      }
+    },
+  );
 });

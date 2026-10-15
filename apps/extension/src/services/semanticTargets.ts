@@ -1,6 +1,7 @@
 import {
   enabledState,
   isLeqadOwned,
+  semanticName,
   visibilityState,
 } from './semanticTargetDom';
 import {
@@ -144,8 +145,15 @@ function matchStrategy(
   element: HTMLElement,
   labels: readonly string[],
 ): TargetMatchStrategy | null {
-  if (exactLabel(element.getAttribute('aria-label'), labels)) {
-    return 'EXACT_ACCESSIBLE_LABEL';
+  if (
+    element.hasAttribute('aria-label') ||
+    element.hasAttribute('aria-labelledby')
+  ) {
+    // Explicit naming wins over tooltip/text. An unresolved or conflicting
+    // name cannot be rescued by a weaker match for a different command.
+    return exactLabel(semanticName(element), labels)
+      ? 'EXACT_ACCESSIBLE_LABEL'
+      : null;
   }
   if (
     exactLabel(element.getAttribute('title'), labels) ||
@@ -153,11 +161,7 @@ function matchStrategy(
   ) {
     return 'EXACT_TOOLTIP_OR_TITLE';
   }
-  if (
-    hasRecognizedRole(element) &&
-    (exactLabel(element.textContent, labels) ||
-      containsLabel(element.getAttribute('aria-label'), labels))
-  ) {
+  if (hasRecognizedRole(element) && exactLabel(element.textContent, labels)) {
     return 'ROLE_AND_LABEL';
   }
   if (
@@ -493,6 +497,7 @@ export function createTargetHighlight(
       attributeFilter: [
         'aria-label',
         'aria-labelledby',
+        'id',
         'aria-hidden',
         'aria-disabled',
         'aria-expanded',
@@ -501,6 +506,7 @@ export function createTargetHighlight(
         'data-tooltip',
         'hidden',
         'disabled',
+        'inert',
         'class',
         'style',
         'data-layout-revision',

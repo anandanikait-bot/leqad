@@ -49,6 +49,16 @@ function condition(
 }
 
 describe('evaluateFeatureCondition trust boundaries', () => {
+  it('cannot certify a matching expired snapshot with an invalid evaluation time', async () => {
+    const { evaluateFeatureCondition } = await import('./verification');
+    const result = evaluateFeatureCondition(
+      snapshot({ validUntil: '2026-10-13T11:59:30.000Z' }),
+      condition(),
+      new Date(NaN),
+    );
+    expect(result.status).toBe('UNKNOWN');
+    expect(result.observedFact).toBeNull();
+  });
   it('does not let mock evidence satisfy an API-confirmed production requirement', async () => {
     const { evaluateFeatureCondition } = await import('./verification');
     const result = evaluateFeatureCondition(
@@ -350,6 +360,23 @@ describe('evidenceSatisfiesRequirement', () => {
 });
 
 describe('isEvidenceCurrent', () => {
+  it('rejects expired evidence when evaluation time is invalid', async () => {
+    const { evaluateFeatureCondition, isEvidenceCurrent } =
+      await import('./verification');
+    const evidence = evaluateFeatureCondition(
+      snapshot(),
+      condition(),
+      currentTime,
+    ).evidence[0]!;
+    expect(
+      isEvidenceCurrent(
+        { ...evidence, expiresAt: '2026-10-13T11:59:30.000Z' },
+        activeIdentity,
+        'revision-a',
+        new Date(NaN),
+      ),
+    ).toBe(false);
+  });
   const evidence: Evidence = {
     id: 'evidence-1',
     fact: { featureId: 'extrude-1' },

@@ -57,4 +57,11 @@ Model-dependent progress is invalidated when the revision changes or is unknown.
 
 ## Deferred architecture
 
-Phase 2 may add a secure Onshape API service and AI-assisted custom-part workflows. Those systems are not present. They must use the existing evidence contracts and keep learner actions, authentication, privacy, and model-generated suggestions within explicit boundaries.
+Phase 1.5 may add the conversational teacher and optional authorized screenshot
+grounding described in the preserved October 15 design. Phase 2 adds secure CAD
+API/model verification; Phase 3 adds custom-part concepts and learner-controlled
+plans. These systems are not present. They must use explicit evidence boundaries
+and preserve learner control and privacy. See the
+[current phase matrix](../product/phase-feature-matrix.md). Future CAD adapters
+must supply platform-specific context, target/UI observations and model facts;
+shared lesson policy must remain independent of browser and Onshape selectors.

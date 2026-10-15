@@ -99,7 +99,7 @@ interface AssistantPanelProps {
     stepId: string,
     completionSignal: string,
   ) => VerificationDecision;
-  onSessionChange?: (session: LessonSession) => void;
+  onSessionChange?: (session: LessonSession) => void | Promise<void>;
   onPanelPreferencesChange?: (preferences: PanelPreferences) => void;
   onLearningHistoryChange?: (history: LearningHistory) => void;
 }
@@ -433,6 +433,9 @@ export function AssistantPanel({
   const recentSamples = useRef<CursorSample[]>([]);
   const lastIntentAnalysisAt = useRef(Number.NEGATIVE_INFINITY);
   const sessionRef = useRef<LessonSession | null>(initialSession);
+  const saveGeneration = useRef(0);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [savePending, setSavePending] = useState(false);
   const captureTaskRef = useRef<TopRowCaptureTask | null>(null);
   const guidanceStepRef = useRef<string | null>(null);
   const captureGeneration = useRef(0);
@@ -467,6 +470,7 @@ export function AssistantPanel({
 
   useEffect(
     () => () => {
+      saveGeneration.current++;
       captureGeneration.current++;
       captureTaskRef.current?.cancel();
       captureTaskRef.current = null;
@@ -689,7 +693,8 @@ export function AssistantPanel({
       !stepState ||
       mode !== 'Learn' ||
       collapsed ||
-      stepState.status === 'PAUSED'
+      stepState.status === 'PAUSED' ||
+      stepState.status === 'COMPLETED'
     ) {
       recentSamples.current = [];
       lastIntentAnalysisAt.current = Number.NEGATIVE_INFINITY;
@@ -761,6 +766,29 @@ export function AssistantPanel({
           alreadySketching ||
           sketchModeReported)));
 
+  const saveProgress = (session: LessonSession) => {
+    const generation = ++saveGeneration.current;
+    const settled = (failed: boolean) => {
+      if (generation !== saveGeneration.current) return;
+      setSaveFailed(failed);
+      setSavePending(false);
+    };
+    try {
+      const saving = onSessionChange?.(session);
+      if (saving) {
+        setSavePending(true);
+        void saving.then(
+          () => settled(false),
+          () => settled(true),
+        );
+      } else {
+        settled(false);
+      }
+    } catch {
+      settled(true);
+    }
+  };
+
   const persistLesson = (
     nextStepId: string,
     nextStates: Record<string, LessonStepState>,
@@ -776,7 +804,7 @@ export function AssistantPanel({
     );
     if (session) {
       sessionRef.current = session;
-      onSessionChange?.(session);
+      saveProgress(session);
     }
   };
 
@@ -1312,6 +1340,26 @@ export function AssistantPanel({
 
         {!collapsed && (
           <>
+            {saveFailed && (
+              <div
+                className="leqad-guidance"
+                role="status"
+                aria-label="Progress saving"
+              >
+                Your progress could not be saved. Keep this page open and retry
+                before reloading or switching documents.
+                <button
+                  type="button"
+                  className="leqad-button leqad-button--secondary"
+                  disabled={savePending}
+                  onClick={() => {
+                    if (sessionRef.current) saveProgress(sessionRef.current);
+                  }}
+                >
+                  Retry saving progress
+                </button>
+              </div>
+            )}
             {page && !operationGuidanceAvailable && (
               <p className="leqad-readonly-note">
                 {page.editability === 'read-only'

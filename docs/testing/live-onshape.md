@@ -2,6 +2,11 @@
 
 This is the final Phase 1 gate. It requires explicit authorization, an unrestricted compatible browser, an authenticated Onshape account, and a disposable test document. It is currently open and unverified.
 
+For the October 15 delivery, use the
+[new dated acceptance run](results/2026-10-15-foundations-live-acceptance.md).
+Keep the older linked reports as historical evidence. Test Chrome and Edge
+separately and record the actual source commit in each result.
+
 ## Safety and privacy
 
 - Use a new disposable document with no private, customer, employer, school, or production CAD content.

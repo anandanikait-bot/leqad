@@ -1,6 +1,20 @@
 # Leqad implementation progress
 
-## Current milestone
+## Current milestone — October 15 reliability and Foundations
+
+The current sprint starts from PR #1 at `c64c701` and preserves the existing
+Foundations extension. The [dated validation record](testing/results/2026-10-15-foundations-reliability.md)
+contains the fresh baseline, reproduced defects, corrections and checks. The
+[feature matrix](product/phase-feature-matrix.md) is the current scope/status
+index; the [new live run](testing/results/2026-10-15-foundations-live-acceptance.md)
+remains BLOCKED pending owner testing in Chrome and Edge.
+
+AI teaching and screenshot grounding are Phase 1.5 future work. The October 15
+design remains a candidate without implementation. Phase 2 model verification
+and Phase 3 Custom Part Studio are separate. Original specifications and all
+historical results below are preserved; older totals are not current evidence.
+
+## Historical milestone and implementation record
 
 The Phase 1 hardening sprint is active on `phase1-hardening`. The initial WXT Manifest V3 foundation remains buildable, and the required repository audit is recorded in `docs/phase1-hardening-audit.md`. The audit confirmed critical gaps in evidence enforcement, Onshape capability detection, per-document persistence, the eight-step Foundations experience, guidance lifecycle, and public documentation. These deliveries are being repaired in the assignment's required order before live validation.
 

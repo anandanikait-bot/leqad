@@ -102,6 +102,7 @@ export function createSketchGuidanceMonitor(
         'aria-hidden',
         'aria-label',
         'aria-labelledby',
+        'id',
         'class',
         'data-tooltip',
         'disabled',

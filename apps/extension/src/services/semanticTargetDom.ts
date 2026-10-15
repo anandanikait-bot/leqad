@@ -36,11 +36,9 @@ function boundedText(element: Element): string | null {
 
 // Bounded accessible-name subset. Never use arbitrary form values or export IDs.
 export function semanticName(element: Element): string {
-  const explicit = element.getAttribute('aria-label');
-  if (explicit) return explicit.length <= 128 ? normalizedText(explicit) : '';
   const references = element.getAttribute('aria-labelledby')?.trim();
-  if (references) {
-    if (references.length > 384) return '';
+  if (element.hasAttribute('aria-labelledby')) {
+    if (!references || references.length > 384) return '';
     const ids = references.split(/\s+/);
     if (ids.length > 3) return '';
     const names: string[] = [];
@@ -53,6 +51,9 @@ export function semanticName(element: Element): string {
     const labelled = names.join(' ');
     return labelled.length <= 128 ? normalizedText(labelled) : '';
   }
+  const explicit = element.getAttribute('aria-label');
+  if (explicit !== null)
+    return explicit.length <= 128 ? normalizedText(explicit) : '';
   return normalizedText(boundedText(element));
 }
 

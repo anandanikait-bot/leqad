@@ -245,6 +245,15 @@ export function evaluateFeatureCondition(
   const snapshot = ModelSnapshotSchema.parse(snapshotInput);
   const condition = FeatureConditionSchema.parse(conditionInput);
 
+  if (!Number.isFinite(now.getTime())) {
+    return unknownResult(
+      snapshot,
+      condition,
+      'Evidence freshness cannot be checked without a valid evaluation time.',
+      ['A valid evaluation time'],
+    );
+  }
+
   if (!sameDocument(snapshot.identity, condition.identity)) {
     return unknownResult(
       snapshot,
@@ -431,7 +440,8 @@ export function isEvidenceCurrent(
   if (
     !parsedEvidence.success ||
     !parsedIdentity.success ||
-    currentRevision === null
+    currentRevision === null ||
+    !Number.isFinite(now.getTime())
   ) {
     return false;
   }

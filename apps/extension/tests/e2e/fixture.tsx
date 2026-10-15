@@ -265,9 +265,7 @@ async function renderFixturePanel() {
       initialSketchCalibration={initialSketchCalibration}
       onSketchCalibrationChange={fixtureStore.saveSketchCalibration}
       onShowCalibratedHighlight={showCalibratedHighlight}
-      onSessionChange={(session) => {
-        void fixtureStore.saveSession(session);
-      }}
+      onSessionChange={fixtureStore.saveSession}
       guidanceRunner={guidanceRunner}
       onClearTarget={clearGuidanceHighlight}
       onObserveSketchUi={() => observeSketchGuidanceUi(document)}

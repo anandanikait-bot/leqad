@@ -31,7 +31,10 @@ _Controlled browser fixture, not live Onshape compatibility evidence._
 - Leqad currently requests only extension storage permission and does not include telemetry or a remote service.
 - The repository has no active open-source license yet. Apache-2.0 is prepared as a proposal pending the repository owner's approval.
 
-See [testing limitations](docs/testing/limitations.md) and the [current capability matrix](docs/testing/onshape-capability-matrix.md) for the evidence behind each statement.
+See [testing limitations](docs/testing/limitations.md) and the
+[current feature/acceptance matrix](docs/product/phase-feature-matrix.md) for the
+evidence behind each statement. The earlier
+[capability matrix](docs/testing/onshape-capability-matrix.md) is historical.
 
 ## Architecture
 
@@ -90,9 +93,16 @@ Detailed setup and unpacked loading instructions are in [local setup](docs/devel
 
 Use the [live setup guide](docs/testing/live-setup.md) and [Onshape test procedure](docs/testing/live-onshape.md) before recording any compatibility claim.
 
-Record PASS, FAIL, or BLOCKED plus a short observation in the [live acceptance checklist](docs/testing/results/phase1-live-acceptance.md). The [licensing comparison](docs/legal/apache-2.0-proposal.md) remains pending the owner's decision.
+Record PASS, FAIL, or BLOCKED plus a short observation in the
+[current live acceptance checklist](docs/testing/results/2026-10-15-foundations-live-acceptance.md).
+The [historical acceptance record](docs/testing/results/phase1-live-acceptance.md)
+is preserved. The [licensing comparison](docs/legal/apache-2.0-proposal.md) remains
+pending the owner's decision.
 
-See the [latest Phase 1 validation report](docs/testing/results/phase1-final-validation.md) for current test results and blockers.
+See the [October 15 reliability report](docs/testing/results/2026-10-15-foundations-reliability.md)
+for current test results and blockers. The
+[earlier validation report](docs/testing/results/phase1-final-validation.md)
+records historical builds.
 
 ## Security and privacy
 

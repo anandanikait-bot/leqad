@@ -27,6 +27,84 @@ afterEach(() => {
 });
 
 describe('findSemanticTarget', () => {
+  // Simulated controls: accessible-name conflicts, not captured Onshape DOM.
+  it.each([
+    ['aria-label', 'Delete', 'Sketch'],
+    ['aria-label', 'Sketch settings', 'Sketch'],
+    ['aria-label', '', 'Sketch'],
+    ['aria-labelledby', 'different-command', 'Sketch'],
+    ['aria-labelledby', 'missing-name', 'Sketch'],
+  ])(
+    'does not identify Sketch through fallback text when %s is %s',
+    async (attribute, name, text) => {
+      const reference = document.createElement('span');
+      reference.id = 'different-command';
+      reference.textContent = 'Delete';
+      document.body.append(reference);
+      const target = visibleButton('Sketch');
+      target.setAttribute(attribute!, name!);
+      target.title = 'Sketch';
+      target.textContent = text!;
+      const { createSemanticHighlighter, isUsableSemanticTarget } =
+        await import('./semanticTargets');
+      const highlighter = createSemanticHighlighter(document);
+      expect(highlighter.show('sketch').status).not.toBe('FOUND');
+      expect(isUsableSemanticTarget(target, 'sketch')).toBe(false);
+      expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+      highlighter.clear();
+    },
+  );
+
+  it('recognizes a bounded referenced command name before a conflicting aria-label', async () => {
+    const reference = document.createElement('span');
+    reference.id = 'command-name';
+    reference.textContent = 'Sketch';
+    document.body.append(reference);
+    const target = visibleButton('Delete');
+    target.setAttribute('aria-labelledby', reference.id);
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'sketch')).toMatchObject({
+      status: 'FOUND',
+      element: target,
+    });
+  });
+
+  it.each(['target', 'ancestor'])(
+    'clears a highlight when its %s becomes inert',
+    async (scope) => {
+      const target = visibleButton('Sketch');
+      const toolbar = document.createElement('div');
+      document.body.append(toolbar);
+      toolbar.append(target);
+      const { createTargetHighlight } = await import('./semanticTargets');
+      const highlight = createTargetHighlight(target, document.body, 'sketch');
+      expect(highlight.element.isConnected).toBe(true);
+      // Flush the preceding append before the isolated attribute mutation.
+      await Promise.resolve();
+      (scope === 'target' ? target : toolbar).setAttribute('inert', '');
+      await Promise.resolve();
+      expect(highlight.element.isConnected).toBe(false);
+      highlight.remove();
+    },
+  );
+
+  it('clears a highlight when its referenced accessible name is disconnected by an ID change', async () => {
+    const label = document.createElement('span');
+    label.id = 'sketch-command-label';
+    label.textContent = 'Sketch';
+    document.body.append(label);
+    const target = visibleButton('Sketch');
+    target.setAttribute('aria-labelledby', label.id);
+    const { createTargetHighlight } = await import('./semanticTargets');
+    const highlight = createTargetHighlight(target, document.body, 'sketch');
+    await Promise.resolve();
+    expect(highlight.element.isConnected).toBe(true);
+    label.id = 'renamed-command-label';
+    await Promise.resolve();
+    expect(highlight.element.isConnected).toBe(false);
+    highlight.remove();
+  });
+
   it('does not let an unusable stronger match suppress a visible valid control', async () => {
     const hidden = visibleButton('Sketch');
     hidden.hidden = true;
