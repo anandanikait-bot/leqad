@@ -374,7 +374,10 @@ export function capturePageSnapshot(options: PageCaptureOptions = {}) {
     .filter(panelControl)
     .sort((left, right) => centerDistance(left) - centerDistance(right));
   const afterSketchBudget = limits.maxCandidates - selectedSketch.length;
-  const selectedFocus = focusCandidates.slice(0, Math.min(6, afterSketchBudget));
+  const selectedFocus = focusCandidates.slice(
+    0,
+    Math.min(6, afterSketchBudget),
+  );
   const focusSet = new Set(selectedFocus);
   const structuralBudget = Math.min(
     afterSketchBudget - selectedFocus.length,
