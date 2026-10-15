@@ -1,3 +1,5 @@
+import { SketchControlDiagnostic } from './SketchControlDiagnostic';
+import type { SketchControlCaptureTask } from '../../services/sketchControlCapture';
 import { useEffect, useRef, useState } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -80,6 +82,7 @@ interface AssistantPanelProps {
   onSketchCalibrationChange?: (
     calibration: SketchHighlightCalibration | null,
   ) => void | Promise<void>;
+  onCaptureSketchControl?: () => SketchControlCaptureTask;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
@@ -371,6 +374,7 @@ export function AssistantPanel({
   initialSketchCalibration,
   onShowCalibratedHighlight,
   onSketchCalibrationChange,
+  onCaptureSketchControl,
   onCaptureTopRow,
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
@@ -1780,6 +1784,16 @@ export function AssistantPanel({
                         JavaScript click handling is not inspected. Production
                         Show me recognition is not run.
                       </p>
+                      {onCaptureSketchControl &&
+                        mode === 'Learn' &&
+                        stepState.status !== 'PAUSED' &&
+                        !capturePending &&
+                        !rectangleCapturePending && (
+                          <SketchControlDiagnostic
+                            key={`${step.id}:${stepState.status}`}
+                            onCapture={onCaptureSketchControl}
+                          />
+                        )}
                       {onCaptureTopRow && (
                         <button
                           type="button"

@@ -1,3 +1,4 @@
+import { createSketchControlCapture } from '../../src/services/sketchControlCapture';
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
@@ -269,6 +270,7 @@ async function renderFixturePanel() {
       guidanceRunner={guidanceRunner}
       onClearTarget={clearGuidanceHighlight}
       onObserveSketchUi={() => observeSketchGuidanceUi(document)}
+      onCaptureSketchControl={() => createSketchControlCapture(document)}
       onCaptureTopRow={() => createTopRowCapture(document)}
       onCaptureRectangleDropdown={() =>
         createRectangleDropdownCapture(document)

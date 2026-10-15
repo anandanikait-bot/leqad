@@ -1,3 +1,4 @@
+import { createSketchControlCapture } from '../src/services/sketchControlCapture';
 import { createRoot } from 'react-dom/client';
 import { browser } from 'wxt/browser';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
@@ -224,6 +225,9 @@ export default defineContentScript({
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={observeSketchUi}
                   onSubscribeSketchUi={subscribeSketchUi}
+                  onCaptureSketchControl={() =>
+                    createSketchControlCapture(document)
+                  }
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>
                     createRectangleDropdownCapture(document)

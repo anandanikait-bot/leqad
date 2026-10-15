@@ -191,6 +191,14 @@ function strategyConfidence(
     : 'LOW';
 }
 
+/** Read-only diagnostic of one node; does not search or establish uniqueness. */
+export function inspectSketchCommandMatch(element: HTMLElement) {
+  return {
+    candidateSelectorMatched: element.matches(CANDIDATE_SELECTOR),
+    matchStrategy: matchStrategy(element, TARGET_LABELS.sketch),
+  };
+}
+
 function candidatesFor(
   root: ParentNode,
   targetId: SemanticTargetId,
