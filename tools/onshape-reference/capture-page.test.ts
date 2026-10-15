@@ -369,7 +369,47 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     );
   });
 
-  it('retains a genuinely deep Sketch target with UNKNOWN ancestry visibility', () => {
+  it('prioritizes bounded unlabeled controls near the Sketch panel ahead of unrelated buttons', () => {
+    const unrelatedButtons = Array.from(
+      { length: 200 },
+      (_, index) =>
+        `<button aria-label="Private action ${index}">Private ${index}</button>`,
+    );
+    unrelatedButtons.splice(
+      67,
+      0,
+      '<button data-focus="private-reference" aria-expanded="true">Private icon control</button>',
+    );
+    document.body.innerHTML = unrelatedButtons.join('');
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        return this.hasAttribute('data-focus')
+          ? new DOMRect(220, 45, 25, 25)
+          : new DOMRect(900, 650, 40, 25);
+      },
+    );
+
+    const snapshot = capturePageSnapshot({
+      maxCandidates: 32,
+      maxOutputNodes: 100,
+      maxOutputBytes: 9_000,
+    });
+
+    expect(
+      snapshot.nodes.some(
+        (node) =>
+          node.tag === 'BUTTON' &&
+          node.label === null &&
+          node.aria.expanded === 'TRUE',
+      ),
+    ).toBe(true);
+    expect(snapshot.scan.candidateLimitReached).toBe(true);
+    expect(snapshot.domState).toBe('UNKNOWN');
+    expect(JSON.stringify(snapshot)).not.toContain('private-reference');
+    expect(JSON.stringify(snapshot)).not.toContain('Private icon control');
+  });
+
+  it('can verify visibility of a deep Sketch command without exporting deep DOM ancestry', () => {
     document.body.innerHTML =
       '<div>'.repeat(18) +
       '<button aria-label="Finish Sketch">Finish Sketch</button>' +
@@ -379,6 +419,28 @@ describe('independent DOM observer (synthetic DOM only)', () => {
     );
 
     const snapshot = capturePageSnapshot({ maxDepth: 5 });
+    const command = snapshot.nodes.find(
+      (node) => node.label === 'Finish Sketch',
+    );
+
+    expect(command?.visibility).toBe('VISIBLE');
+    expect(command?.clipping).toBe('NONE');
+    expect(snapshot.scan.depthLimitReached).toBe(true);
+  });
+
+  it('retains a genuinely deep Sketch target with UNKNOWN ancestry visibility', () => {
+    document.body.innerHTML =
+      '<div>'.repeat(18) +
+      '<button aria-label="Finish Sketch">Finish Sketch</button>' +
+      '</div>'.repeat(18);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(10, 20, 80, 24),
+    );
+
+    const snapshot = capturePageSnapshot({
+      maxDepth: 5,
+      maxVisibilityAncestors: 5,
+    });
     const target = snapshot.nodes.find(
       (node) => node.label === 'Finish Sketch',
     );
