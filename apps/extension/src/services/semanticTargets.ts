@@ -375,12 +375,8 @@ export interface TargetHighlight {
   remove(): void;
 }
 
-export function createTargetHighlight(
-  target: HTMLElement,
-  host: HTMLElement = target.ownerDocument.body,
-  targetId?: SemanticTargetId,
-): TargetHighlight {
-  const document = target.ownerDocument;
+/** Shared visual shell; callers separately own geometry, evidence, and cleanup. */
+export function createHighlightOutline(document: Document): HTMLDivElement {
   const view = document.defaultView;
   const overlay = document.createElement('div');
   const reducedMotion =
@@ -399,6 +395,17 @@ export function createTargetHighlight(
       ? 'none'
       : 'top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease',
   });
+  return overlay;
+}
+
+export function createTargetHighlight(
+  target: HTMLElement,
+  host: HTMLElement = target.ownerDocument.body,
+  targetId?: SemanticTargetId,
+): TargetHighlight {
+  const document = target.ownerDocument;
+  const view = document.defaultView;
+  const overlay = createHighlightOutline(document);
 
   let removed = false;
   let frame: number | null = null;

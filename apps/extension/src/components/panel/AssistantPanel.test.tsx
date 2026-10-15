@@ -150,6 +150,111 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it('prefers a real usable semantic Sketch target over a saved approximate location', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const {
+      createGuidanceHighlighter,
+      createSketchHighlightCalibration,
+      readCalibrationViewport,
+    } = await import('../../services/calibratedHighlight');
+    const highlighter = createGuidanceHighlighter(document);
+    const target = document.createElement('button');
+    target.setAttribute('aria-label', 'Sketch');
+    target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    document.body.append(target);
+    const onShowCalibratedHighlight = vi.fn(highlighter.showCalibrated);
+    const calibration = createSketchHighlightCalibration(
+      { x: 0.1, y: 0.1, width: 0.1, height: 0.05 },
+      readCalibrationViewport(window),
+    )!;
+    const panel = render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('start-sketch')}
+        initialSketchCalibration={calibration}
+        onShowTarget={highlighter.show}
+        onShowCalibratedHighlight={onShowCalibratedHighlight}
+        onClearTarget={highlighter.clear}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(onShowCalibratedHighlight).not.toHaveBeenCalled();
+    expect(document.querySelectorAll('[data-leqad-highlight]')).toHaveLength(1);
+    expect(document.querySelector('[data-leqad-calibrated]')).toBeNull();
+    panel.unmount();
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    target.remove();
+  });
+
+  it('offers calibrated SHOW only after semantic Sketch recognition is unavailable', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onShowTarget = vi.fn();
+    const onShowCalibratedHighlight = vi.fn(() => true);
+    const onSketchCalibrationChange = vi.fn();
+    render(
+      <AssistantPanel
+        page={{ ...confirmedPage, editability: 'unknown' }}
+        initialSession={restoredSession('start-sketch')}
+        onShowTarget={onShowTarget}
+        onShowCalibratedHighlight={onShowCalibratedHighlight}
+        onSketchCalibrationChange={onSketchCalibrationChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(
+      screen.getByRole('group', { name: 'Sketch highlight calibration' }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Left (%)').getAttribute('value')).toBe('8.9');
+    fireEvent.click(screen.getByRole('button', { name: 'Save calibration' }));
+    await act(async () => undefined);
+    expect(onSketchCalibrationChange).toHaveBeenCalledTimes(1);
+    onShowCalibratedHighlight.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(onShowTarget).toHaveBeenCalledWith('sketch');
+    expect(onShowCalibratedHighlight).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(
+        'Showing an approximate location based on your calibration. Leqad has not verified this control.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
+  });
+
+  it('keeps a user-reported Sketch-mode claim separate from lesson completion and verification', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onSessionChange = vi.fn();
+    const onCheckStep = vi.fn(() => uiDecision('PASS'));
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('start-sketch')}
+        onSessionChange={onSessionChange}
+        onCheckStep={onCheckStep}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: "I'm already in Sketch mode" }),
+    );
+    expect(
+      screen.getByText(/You reported that Sketch mode is active/),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/With Top plane selected, choose the Sketch command/),
+    ).toBeNull();
+    expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
+    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(onCheckStep).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: "I've finished this step" }),
+    );
+    const session = onSessionChange.mock.lastCall?.[0];
+    expect(session.steps['start-sketch']).toMatchObject({
+      outcome: 'SELF_REPORTED',
+      verification: 'UNKNOWN',
+    });
+    expect(session.modelState.verifiedModelStates).toEqual({});
+  });
+
   it('offers HINT, SHOW, and GUIDE for a registered action without changing lesson completion', async () => {
     const [panelModule, runnerModule, registryModule] = await Promise.all([
       import('./AssistantPanel'),

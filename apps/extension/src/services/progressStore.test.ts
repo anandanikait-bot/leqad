@@ -71,6 +71,36 @@ function memoryStorage(): ExtensionStorageArea & {
 }
 
 describe('per-document lesson persistence', () => {
+  it('saves, reloads, and resets only allowlisted Sketch calibration data separately from progress', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const storage = memoryStorage();
+    const store = createLessonProgressStore(storage);
+    const calibration = {
+      version: 1 as const,
+      targetId: 'sketch-toolbar-control' as const,
+      scope: 'ONSHAPE_WORKSPACE' as const,
+      rectangle: { x: 0.1, y: 0.05, width: 0.06, height: 0.04 },
+      viewport: { width: 1200, height: 800, devicePixelRatio: 1, scale: 1 },
+    };
+    await store.saveSession(completedSession());
+    await store.savePanelPreferences({ collapsed: true, position: null });
+    await store.saveSketchCalibration(calibration);
+    const reloaded = createLessonProgressStore(storage);
+    expect(await reloaded.loadSketchCalibration()).toEqual(calibration);
+    await expect(
+      store.saveSketchCalibration({
+        ...calibration,
+        documentId: 'private',
+      } as typeof calibration),
+    ).rejects.toThrow();
+    await reloaded.saveSketchCalibration(null);
+    expect(await store.loadSketchCalibration()).toBeNull();
+    expect((await store.loadPanelPreferences()).collapsed).toBe(true);
+    expect(
+      await store.restoreSession(originalIdentity, 'revision-a'),
+    ).not.toBeNull();
+  });
+
   it('restores a same-document session across reload', async () => {
     const { createLessonProgressStore } = await import('./progressStore');
     const store = createLessonProgressStore(memoryStorage());

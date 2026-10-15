@@ -58,6 +58,14 @@ import type {
   GuidanceRunner,
   GuidanceRunnerState,
 } from '../../services/guidanceRunner';
+import { SketchCalibrationForm } from './SketchCalibrationForm';
+import {
+  CALIBRATED_HIGHLIGHT_MESSAGE,
+  calibrationMatchesViewport,
+  parseSketchHighlightCalibration,
+  readCalibrationViewport,
+} from '../../services/calibratedHighlight';
+import type { SketchHighlightCalibration } from '../../services/calibratedHighlight';
 
 interface AssistantPanelProps {
   onClearTarget?: () => void;
@@ -65,6 +73,13 @@ interface AssistantPanelProps {
   onSubscribeSketchUi?: (
     listener: (observation: SketchGuidanceObservation) => void,
   ) => () => void;
+  initialSketchCalibration?: SketchHighlightCalibration | null;
+  onShowCalibratedHighlight?: (
+    calibration: SketchHighlightCalibration,
+  ) => boolean;
+  onSketchCalibrationChange?: (
+    calibration: SketchHighlightCalibration | null,
+  ) => void | Promise<void>;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
@@ -353,6 +368,9 @@ export function AssistantPanel({
   onClearTarget,
   onObserveSketchUi,
   onSubscribeSketchUi,
+  initialSketchCalibration,
+  onShowCalibratedHighlight,
+  onSketchCalibrationChange,
   onCaptureTopRow,
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
@@ -393,6 +411,11 @@ export function AssistantPanel({
   const [sketchUi, setSketchUi] = useState<SketchGuidanceObservation | null>(
     null,
   );
+  const [sketchModeReported, setSketchModeReported] = useState(false);
+  const [sketchCalibration, setSketchCalibration] = useState(() =>
+    parseSketchHighlightCalibration(initialSketchCalibration),
+  );
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false);
   const [diagnosticsOutput, setDiagnosticsOutput] = useState('');
   const [rectangleDiagnosticsOutput, setRectangleDiagnosticsOutput] =
@@ -427,6 +450,20 @@ export function AssistantPanel({
   const currentGuidanceActionId = guidanceActionForSemanticTarget(
     step?.semanticTarget ?? null,
   );
+  const canCalibrateSketch = Boolean(
+    page?.supported &&
+    page.modelType === 'workspace' &&
+    page.elementType !== 'other' &&
+    onShowCalibratedHighlight,
+  );
+
+  useEffect(() => {
+    setSketchModeReported(false);
+  }, [step?.id]);
+
+  useEffect(() => {
+    setCalibrationOpen(false);
+  }, [step?.id, stepState?.status, mode, collapsed]);
 
   useEffect(
     () => () => {
@@ -721,7 +758,8 @@ export function AssistantPanel({
         stepState.status === 'AWAITING_ACTION' &&
         (!operationGuidanceAvailable ||
           verificationUnavailable ||
-          alreadySketching)));
+          alreadySketching ||
+          sketchModeReported)));
 
   const persistLesson = (
     nextStepId: string,
@@ -777,6 +815,27 @@ export function AssistantPanel({
       );
       return;
     }
+    if (step.semanticTarget === 'sketch' && canCalibrateSketch) {
+      if (
+        sketchCalibration &&
+        calibrationMatchesViewport(
+          sketchCalibration,
+          readCalibrationViewport(window),
+        ) &&
+        onShowCalibratedHighlight?.(sketchCalibration)
+      ) {
+        setGuidanceMessage(CALIBRATED_HIGHLIGHT_MESSAGE);
+        return;
+      }
+      onClearTarget?.();
+      setGuidanceMessage(
+        sketchCalibration
+          ? 'Your saved Sketch calibration no longer matches the viewport or zoom. Preview, adjust, and save it again.'
+          : 'No saved Sketch calibration is available. Adjust the approximate outline and explicitly save it before using SHOW.',
+      );
+      setCalibrationOpen(true);
+      return;
+    }
     if (recognition?.status === 'AMBIGUOUS')
       setGuidanceMessage(
         "I found more than one possible control, so I won't highlight the wrong one.",
@@ -822,15 +881,24 @@ export function AssistantPanel({
     const actionId = guidanceActionForSemanticTarget(step.semanticTarget);
     if (step.id === 'start-sketch') {
       const currentSketchUi = onObserveSketchUi?.();
-      if (currentSketchUi?.editingAppearsActive) {
+      if (currentSketchUi?.editingAppearsActive || sketchModeReported) {
         guidanceRunner?.cancel();
         setGuidanceState(guidanceRunner?.getState() ?? null);
-        setSketchUi(currentSketchUi);
+        setSketchUi(currentSketchUi ?? null);
         setGuidanceMessage(
-          'Sketch editing already appears active. There is no Sketch button to highlight for this step now. If you started this sketch, mark the step done and continue; model geometry is not verified.',
+          sketchModeReported
+            ? 'You reported that Sketch mode is active. Mark this step done and choose Next for the Rectangle instruction. Your CAD work remains unverified.'
+            : 'Sketch editing already appears active. There is no Sketch button to highlight for this step now. If you started this sketch, mark the step done and continue; model geometry is not verified.',
         );
         return;
       }
+    }
+    if (step.semanticTarget === 'sketch' && level === 'SHOW') {
+      guidanceRunner?.cancel();
+      guidanceStepRef.current = null;
+      setGuidanceState(null);
+      showTarget();
+      return;
     }
     if (step.semanticTarget === 'top-plane') {
       if (level === 'SHOW') showTarget();
@@ -860,6 +928,30 @@ export function AssistantPanel({
     });
     setGuidanceState(next);
     setGuidanceMessage(next.message);
+  };
+
+  const openSketchCalibration = () => {
+    guidanceRunner?.cancel();
+    guidanceStepRef.current = null;
+    setGuidanceState(null);
+    setGuidanceMessage('');
+    onClearTarget?.();
+    setCalibrationOpen(true);
+  };
+
+  const saveSketchCalibration = async (
+    calibration: SketchHighlightCalibration | null,
+  ) => {
+    if (!canCalibrateSketch || !onSketchCalibrationChange)
+      throw new Error('Calibration storage is unavailable.');
+    await onSketchCalibrationChange(calibration);
+    setSketchCalibration(calibration);
+    setCalibrationOpen(false);
+    setGuidanceMessage(
+      calibration
+        ? 'Sketch calibration saved. Use SHOW to see the approximate location.'
+        : 'Sketch calibration reset.',
+    );
   };
 
   const retryGuidance = () => {
@@ -1156,11 +1248,15 @@ export function AssistantPanel({
 
   const panelStyle = { left: `${position.left}px`, top: `${position.top}px` };
   const visibleHint =
-    stepState.hintLevel > 0
-      ? step.hints[stepState.hintLevel - 1]
-      : hintRequested
-        ? step.hints[0]
-        : null;
+    step.id === 'start-sketch' &&
+    sketchModeReported &&
+    (hintRequested || stepState.hintLevel > 0)
+      ? 'Continue to the Rectangle instruction by marking this step done and choosing Next. Sketch mode is user-reported; Leqad has not verified your CAD work.'
+      : stepState.hintLevel > 0
+        ? step.hints[stepState.hintLevel - 1]
+        : hintRequested
+          ? step.hints[0]
+          : null;
   const visibleHintNumber =
     stepState.hintLevel > 0 ? stepState.hintLevel : hintRequested ? 1 : 0;
   const canGoNext =
@@ -1287,7 +1383,14 @@ export function AssistantPanel({
                     <p className="leqad-eyebrow">GOAL</p>
                     <p className="leqad-goal">{step.goal}</p>
                     <p className="leqad-eyebrow">NEXT ACTION</p>
-                    {alreadySketching ? (
+                    {step.id === 'start-sketch' && sketchModeReported ? (
+                      <p className="leqad-guidance" aria-live="polite">
+                        You reported that Sketch mode is active. Next, mark this
+                        step done and choose Next for the Rectangle instruction.
+                        Leqad has not verified the Sketch, its plane, or editing
+                        permission.
+                      </p>
+                    ) : alreadySketching ? (
                       <div className="leqad-guidance" aria-live="polite">
                         <p>
                           It looks like you’re already editing a sketch. You can
@@ -1329,7 +1432,10 @@ export function AssistantPanel({
                                   className={`leqad-button leqad-button--secondary${helpLevel === level ? ' is-selected' : ''}`}
                                   aria-pressed={helpLevel === level}
                                   onClick={() => selectHelpLevel(level)}
-                                  disabled={stepState.status === 'PAUSED'}
+                                  disabled={
+                                    stepState.status === 'PAUSED' ||
+                                    calibrationOpen
+                                  }
                                 >
                                   {level}
                                 </button>
@@ -1353,6 +1459,54 @@ export function AssistantPanel({
                         I’m stuck
                       </button>
                     </div>
+                    {step.id === 'start-sketch' && (
+                      <div className="leqad-help-row">
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--secondary"
+                          disabled={
+                            stepState.status === 'PAUSED' ||
+                            stepState.status === 'COMPLETED'
+                          }
+                          onClick={() => {
+                            setSketchModeReported((value) => !value);
+                            setCalibrationOpen(false);
+                            guidanceRunner?.cancel();
+                            setGuidanceState(null);
+                            onClearTarget?.();
+                            setGuidanceMessage('');
+                          }}
+                        >
+                          {sketchModeReported
+                            ? 'Return to Start Sketch instructions'
+                            : "I'm already in Sketch mode"}
+                        </button>
+                        {canCalibrateSketch && (
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--text"
+                            onClick={openSketchCalibration}
+                            disabled={
+                              stepState.status === 'PAUSED' || calibrationOpen
+                            }
+                          >
+                            Calibrate Sketch highlight
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {step.id === 'start-sketch' &&
+                      calibrationOpen &&
+                      canCalibrateSketch &&
+                      onShowCalibratedHighlight && (
+                        <SketchCalibrationForm
+                          calibration={sketchCalibration}
+                          onPreview={onShowCalibratedHighlight}
+                          onClear={onClearTarget ?? (() => undefined)}
+                          onSave={saveSketchCalibration}
+                          onCancel={() => setCalibrationOpen(false)}
+                        />
+                      )}
                     {currentGuidanceActionId &&
                       !GUIDANCE_REGISTRY[
                         currentGuidanceActionId
@@ -1434,6 +1588,7 @@ export function AssistantPanel({
                         operationGuidanceAvailable &&
                         stepState.status !== 'COMPLETED' &&
                         stepState.status !== 'PAUSED' &&
+                        !sketchModeReported &&
                         stepState.status !== 'UNKNOWN' && (
                           <button
                             type="button"

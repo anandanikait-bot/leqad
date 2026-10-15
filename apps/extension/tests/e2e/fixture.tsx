@@ -2,7 +2,10 @@ import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
 import styles from '../../src/styles/panel.css?inline';
-import { createSemanticHighlighter } from '../../src/services/semanticTargets';
+import { createGuidanceHighlighter } from '../../src/services/calibratedHighlight';
+import type { SketchHighlightCalibration } from '../../src/services/calibratedHighlight';
+import { createLessonProgressStore } from '../../src/services/progressStore';
+import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 import {
   createTargetHighlight,
   recognizeSemanticTarget,
@@ -38,7 +41,18 @@ shadow.append(style, mountPoint);
 document.body.append(host);
 
 const reactRoot = createRoot(mountPoint);
-const highlighter = createSemanticHighlighter(document);
+const highlighter = createGuidanceHighlighter(document);
+// Fixture-only storage adapter. Production uses browser.storage.local.
+const fixtureStore = createLessonProgressStore({
+  async get(key) {
+    const value = localStorage.getItem(key);
+    return { [key]: value === null ? undefined : JSON.parse(value) };
+  },
+  async set(items) {
+    for (const [key, value] of Object.entries(items))
+      localStorage.setItem(key, JSON.stringify(value));
+  },
+});
 let directHighlight: TargetHighlight | null = null;
 let directHighlightTimer: number | null = null;
 const clearGuidanceHighlight = () => {
@@ -47,6 +61,10 @@ const clearGuidanceHighlight = () => {
   directHighlight = null;
   if (directHighlightTimer !== null) window.clearTimeout(directHighlightTimer);
   directHighlightTimer = null;
+};
+const showCalibratedHighlight = (calibration: SketchHighlightCalibration) => {
+  clearGuidanceHighlight();
+  return highlighter.showCalibrated(calibration);
 };
 
 const simulatedVariantTarget =
@@ -203,61 +221,87 @@ window.addEventListener(
   { once: true },
 );
 
-reactRoot.render(
-  <AssistantPanel
-    page={{
-      supported: true,
+async function renderFixturePanel() {
+  const initialSession = await fixtureStore.restoreSession(
+    {
       documentId: 'fixture-document',
       workspaceId: 'fixture-workspace',
-      versionId: null,
-      microversionId: null,
       elementId: 'fixture-part-studio',
-      modelType: 'workspace',
-      editability: new URLSearchParams(location.search).has(
-        'unknown-permission',
-      )
-        ? 'unknown'
-        : 'editable',
-      elementType: 'part-studio',
-      capabilitySource: 'UI',
-      capabilityObservedAt: new Date().toISOString(),
-    }}
-    initialPanelPreferences={{
-      collapsed: false,
-      position: { left: 760, top: 40 },
-      onboardingComplete: true,
-    }}
-    onShowTarget={highlighter.show}
-    guidanceRunner={guidanceRunner}
-    onClearTarget={clearGuidanceHighlight}
-    onObserveSketchUi={() => observeSketchGuidanceUi(document)}
-    onCaptureTopRow={() => createTopRowCapture(document)}
-    onCaptureRectangleDropdown={() => createRectangleDropdownCapture(document)}
-    onCaptureRectangleDropdownSnapshot={(snapshotRole, userReportedState) =>
-      captureManualRectangleDropdownSnapshot(
-        document,
-        snapshotRole,
-        userReportedState,
-      )
-    }
-    onRecognitionDiagnostics={(capture) =>
-      collectRecognitionDiagnostics(document, capture)
-    }
-    onCheckStep={(_stepId, signal) => {
-      const page = {
-        supported: true as const,
+      revision: null,
+    },
+    null,
+    {
+      lessonId: FOUNDATIONS_FIRST_SKETCH.id,
+      lessonVersion: FOUNDATIONS_FIRST_SKETCH.version,
+    },
+  );
+  const initialSketchCalibration = await fixtureStore.loadSketchCalibration();
+  reactRoot.render(
+    <AssistantPanel
+      page={{
+        supported: true,
         documentId: 'fixture-document',
         workspaceId: 'fixture-workspace',
         versionId: null,
         microversionId: null,
         elementId: 'fixture-part-studio',
-        modelType: 'workspace' as const,
-        editability: 'editable' as const,
-        elementType: 'part-studio' as const,
-        capabilitySource: 'UI' as const,
+        modelType: 'workspace',
+        editability: new URLSearchParams(location.search).has(
+          'unknown-permission',
+        )
+          ? 'unknown'
+          : 'editable',
+        elementType: 'part-studio',
+        capabilitySource: 'UI',
         capabilityObservedAt: new Date().toISOString(),
-      };
-      return evaluateFoundationsStepProgress(page, document, signal);
-    }}
-  />,
-);
+      }}
+      initialPanelPreferences={{
+        collapsed: false,
+        position: { left: 760, top: 40 },
+        onboardingComplete: true,
+      }}
+      onShowTarget={highlighter.show}
+      initialSession={initialSession}
+      initialSketchCalibration={initialSketchCalibration}
+      onSketchCalibrationChange={fixtureStore.saveSketchCalibration}
+      onShowCalibratedHighlight={showCalibratedHighlight}
+      onSessionChange={(session) => {
+        void fixtureStore.saveSession(session);
+      }}
+      guidanceRunner={guidanceRunner}
+      onClearTarget={clearGuidanceHighlight}
+      onObserveSketchUi={() => observeSketchGuidanceUi(document)}
+      onCaptureTopRow={() => createTopRowCapture(document)}
+      onCaptureRectangleDropdown={() =>
+        createRectangleDropdownCapture(document)
+      }
+      onCaptureRectangleDropdownSnapshot={(snapshotRole, userReportedState) =>
+        captureManualRectangleDropdownSnapshot(
+          document,
+          snapshotRole,
+          userReportedState,
+        )
+      }
+      onRecognitionDiagnostics={(capture) =>
+        collectRecognitionDiagnostics(document, capture)
+      }
+      onCheckStep={(_stepId, signal) => {
+        const page = {
+          supported: true as const,
+          documentId: 'fixture-document',
+          workspaceId: 'fixture-workspace',
+          versionId: null,
+          microversionId: null,
+          elementId: 'fixture-part-studio',
+          modelType: 'workspace' as const,
+          editability: 'editable' as const,
+          elementType: 'part-studio' as const,
+          capabilitySource: 'UI' as const,
+          capabilityObservedAt: new Date().toISOString(),
+        };
+        return evaluateFoundationsStepProgress(page, document, signal);
+      }}
+    />,
+  );
+}
+void renderFixturePanel();

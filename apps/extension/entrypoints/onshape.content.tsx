@@ -19,7 +19,8 @@ import type {
 } from '../src/services/progressStore';
 import { createPageLifecycleCoordinator } from '../src/services/pageLifecycle';
 import { evaluateFoundationsStepProgress } from '../src/services/foundationsEvidence';
-import { createSemanticHighlighter } from '../src/services/semanticTargets';
+import { createGuidanceHighlighter } from '../src/services/calibratedHighlight';
+import type { SketchHighlightCalibration } from '../src/services/calibratedHighlight';
 import { recognizeSemanticTarget } from '../src/services/semanticTargets';
 import type { SemanticTargetId } from '../src/services/semanticTargets';
 import {
@@ -51,7 +52,7 @@ export default defineContentScript({
   cssInjectionMode: 'ui',
   async main(ctx) {
     const progressStore = createLessonProgressStore(browser.storage.local);
-    const highlighter = createSemanticHighlighter(document);
+    const highlighter = createGuidanceHighlighter(document);
     const pageLifecycle = createPageLifecycleCoordinator();
     let activeGuidanceRunner: GuidanceRunner | null = null;
 
@@ -88,6 +89,7 @@ export default defineContentScript({
       };
       let initialLearningHistory: LearningHistory =
         createEmptyLearningHistory();
+      let initialSketchCalibration: SketchHighlightCalibration | null = null;
       if (identity) {
         try {
           initialSession = await progressStore.restoreSession(identity, null, {
@@ -108,6 +110,14 @@ export default defineContentScript({
         initialLearningHistory = await progressStore.loadLearningHistory();
       } catch {
         // Keep an empty learning history if extension storage is unavailable.
+      }
+      if (page.modelType === 'workspace') {
+        try {
+          initialSketchCalibration =
+            await progressStore.loadSketchCalibration();
+        } catch {
+          // Calibration is optional; written and semantic guidance remain usable.
+        }
       }
       if (!pageLifecycle.isCurrent(attempt) || ctx.isInvalid) return;
       if (!onshapeUrlMatchesContextKey(window.location.href, contextKey)) {
@@ -130,6 +140,22 @@ export default defineContentScript({
               listener: Parameters<typeof sketchGuidanceMonitor.subscribe>[0],
             ) => sketchGuidanceMonitor.subscribe(listener);
             let currentPage = observeOnshapeCapabilities(routePage, document);
+            const calibrationWorkspaceIsCurrent = () =>
+              routePage.modelType === 'workspace' &&
+              currentPage.elementType !== 'other' &&
+              onshapeUrlMatchesContextKey(window.location.href, contextKey);
+            const showCalibratedHighlight = (
+              calibration: SketchHighlightCalibration,
+            ) =>
+              calibrationWorkspaceIsCurrent() &&
+              highlighter.showCalibrated(calibration);
+            const saveSketchCalibration = async (
+              calibration: SketchHighlightCalibration | null,
+            ) => {
+              if (!calibrationWorkspaceIsCurrent())
+                throw new Error('Unsupported calibration workspace.');
+              await progressStore.saveSketchCalibration(calibration);
+            };
             const semanticTargetFor = (
               targetId: GuidanceTargetId | GuidanceAreaTargetId,
             ): SemanticTargetId | null => {
@@ -191,6 +217,9 @@ export default defineContentScript({
                   initialPanelPreferences={initialPanelPreferences}
                   initialLearningHistory={initialLearningHistory}
                   onShowTarget={highlighter.show}
+                  initialSketchCalibration={initialSketchCalibration}
+                  onShowCalibratedHighlight={showCalibratedHighlight}
+                  onSketchCalibrationChange={saveSketchCalibration}
                   guidanceRunner={guidanceRunner}
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={observeSketchUi}

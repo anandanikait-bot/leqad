@@ -12,6 +12,8 @@ import type {
 } from '@leqad/lesson-engine';
 import { GUIDANCE_LEVELS } from './guidanceRegistry';
 import type { GuidanceLevel } from './guidanceRegistry';
+import { parseSketchHighlightCalibration } from './calibratedHighlight';
+import type { SketchHighlightCalibration } from './calibratedHighlight';
 
 export interface ExtensionStorageArea {
   get(key: string): Promise<Record<string, unknown>>;
@@ -48,6 +50,7 @@ const STORAGE_SCHEMA_VERSION = 2;
 const MODEL_PROGRESS_PREFIX = 'leqad:model-progress:v2';
 const LEARNING_HISTORY_KEY = 'leqad:learning-history:v2';
 const PREFERENCES_KEY = 'leqad:panel-preferences:v2';
+const SKETCH_CALIBRATION_KEY = 'leqad:sketch-highlight-calibration:v1';
 const LEGACY_SESSION_KEY = 'leqad:lesson-session';
 const LEGACY_PREFERENCES_KEY = 'leqad:panel-preferences';
 const STEP_STATUSES = new Set([
@@ -403,6 +406,24 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
 
   return {
     saveSession,
+
+    async saveSketchCalibration(
+      calibration: SketchHighlightCalibration | null,
+    ): Promise<void> {
+      const validated =
+        calibration === null
+          ? null
+          : parseSketchHighlightCalibration(calibration);
+      if (calibration !== null && !validated)
+        throw new TypeError('Cannot save an invalid Sketch calibration.');
+      await enqueueWrite(SKETCH_CALIBRATION_KEY, () => validated);
+    },
+
+    async loadSketchCalibration(): Promise<SketchHighlightCalibration | null> {
+      await waitForQueuedWrite(SKETCH_CALIBRATION_KEY);
+      const result = await storage.get(SKETCH_CALIBRATION_KEY);
+      return parseSketchHighlightCalibration(result[SKETCH_CALIBRATION_KEY]);
+    },
 
     async restoreSession(
       currentIdentity: LessonSession['modelIdentity'],
