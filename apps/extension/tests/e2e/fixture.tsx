@@ -1,3 +1,4 @@
+import { inspectRectangleDropdownRecognition } from '../../src/services/semanticTargets';
 import { createSketchControlCapture } from '../../src/services/sketchControlCapture';
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
@@ -126,6 +127,10 @@ rectangleControl?.addEventListener('click', () => {
 
 const guidanceRunner = createGuidanceRunner(
   {
+    inspectRectangleShow: () => ({
+      pageGate: 'ALLOWED',
+      target: inspectRectangleDropdownRecognition(document),
+    }),
     getContext: () =>
       observeSketchGuidanceUi(document).editingAppearsActive
         ? 'SKETCH_EDITING'
@@ -145,10 +150,25 @@ const guidanceRunner = createGuidanceRunner(
         definition.semanticTarget,
       );
       return recognition.status === 'FOUND'
-        ? { status: 'FOUND' }
+        ? {
+            status: 'FOUND',
+            ...(recognition.rectangleDiagnostic
+              ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+              : {}),
+          }
         : recognition.status === 'AMBIGUOUS'
-          ? { status: 'AMBIGUOUS' }
-          : { status: 'MISSING' };
+          ? {
+              status: 'AMBIGUOUS',
+              ...(recognition.rectangleDiagnostic
+                ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+                : {}),
+            }
+          : {
+              status: 'MISSING',
+              ...(recognition.rectangleDiagnostic
+                ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+                : {}),
+            };
     },
     highlightTarget: (targetId) => {
       clearGuidanceHighlight();

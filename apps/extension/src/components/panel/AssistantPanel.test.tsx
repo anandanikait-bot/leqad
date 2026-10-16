@@ -1632,3 +1632,51 @@ it('discards a cancelled Rectangle report when diagnostics are turned off', asyn
   ).toBeNull();
   expect(screen.queryByText('Rectangle capture stopped.')).toBeNull();
 });
+
+it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown capture', async () => {
+  const { AssistantPanel } = await import('./AssistantPanel');
+  const { createGuidanceRunner } =
+    await import('../../services/guidanceRunner');
+  const lookup = vi.fn(() => ({ status: 'MISSING' as const }));
+  const runner = createGuidanceRunner({
+    getContext: () => 'UNKNOWN',
+    resolveTarget: lookup,
+    highlightTarget: () => false,
+    clearHighlight: () => undefined,
+    observe: () => ({ current: 'UNKNOWN', unsubscribe: () => undefined }),
+  });
+  render(
+    <AssistantPanel
+      page={confirmedPage}
+      initialSession={restoredSession('draw-rectangle')}
+      guidanceRunner={runner}
+      onRecognitionDiagnostics={() => '{}'}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+  expect(
+    screen.queryByRole('button', { name: 'Copy Rectangle SHOW diagnosis' }),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+  );
+  await act(async () =>
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy Rectangle SHOW diagnosis' }),
+    ),
+  );
+  const report = JSON.parse(
+    screen.getByLabelText<HTMLTextAreaElement>('Recognition diagnostics output')
+      .value,
+  );
+  expect(report).toMatchObject({
+    version: 'leqad-rectangle-show/1',
+    stage: 'CONTEXT',
+    reason: 'SKETCH_CONTEXT_UNESTABLISHED',
+    productionLookup: 'NOT_RUN',
+  });
+  expect(lookup).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+  expect(screen.queryByLabelText('Recognition diagnostics output')).toBeNull();
+  runner.dispose();
+});

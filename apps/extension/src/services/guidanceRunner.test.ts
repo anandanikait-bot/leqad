@@ -566,3 +566,126 @@ it('describes group-only SHOW without claiming an exact option highlight or sele
   expect(result.message).toMatch(/option.*not.*highlight/i);
   runner.dispose();
 });
+
+it.each(['UNKNOWN', 'PART_STUDIO'] as const)(
+  'keeps production lookup NOT_RUN when the %s context gate blocks SHOW',
+  (context) => {
+    const environment = createHost({ context });
+    const runner = createGuidanceRunner(environment.host);
+    const result = runner.request({
+      version: 1,
+      level: 'SHOW',
+      actionId: 'rectangle-tool-group',
+    });
+    expect(result.rectangleShowDiagnostic).toMatchObject({
+      version: 'leqad-rectangle-show/1',
+      stage: 'CONTEXT',
+      context,
+      productionLookup: 'NOT_RUN',
+      reason: 'SKETCH_CONTEXT_UNESTABLISHED',
+    });
+    expect(result.message).toMatch(/active Sketch context/);
+    expect(
+      environment.calls.some((value) => value.startsWith('resolve:')),
+    ).toBe(false);
+    runner.dispose();
+  },
+);
+it('reports target lookup as RUN only when production lookup actually ran', () => {
+  const environment = createHost({
+    targets: { 'rectangle-tool-group': { status: 'MISSING' } },
+  });
+  const runner = createGuidanceRunner(environment.host);
+  const result = runner.request({
+    version: 1,
+    level: 'SHOW',
+    actionId: 'rectangle-tool-group',
+  });
+  expect(result.rectangleShowDiagnostic).toMatchObject({
+    stage: 'GROUP_LOOKUP',
+    productionLookup: 'RUN',
+    reason: 'GROUP_LOOKUP_UNESTABLISHED',
+  });
+  expect(result.message).toMatch(/Sketch context was observed/);
+  runner.dispose();
+});
+
+it('does not run lookup when read-only inspection contradicts a permissive host context', () => {
+  const environment = createHost();
+  const host = {
+    ...environment.host,
+    inspectRectangleShow: () => ({
+      pageGate: 'READ_ONLY' as const,
+      target: {
+        sketchContext: 'OBSERVED' as const,
+        finishControl: 'FOUND' as const,
+        dialogPlaneObserved: false,
+        readOnlyIndicators: 1,
+        lookup: {
+          state: 'COMPLETE' as const,
+          reason: 'NO_TOOLBAR_SEMANTICS' as const,
+          toolbars: 0,
+          popupControls: 0,
+          exactNames: 0,
+        },
+        eligibility: {
+          state: 'NOT_EVALUATED' as const,
+          candidateCount: 0,
+          usableCount: 0,
+          rejections: [],
+        },
+      },
+    }),
+  };
+  const runner = createGuidanceRunner(host);
+  const result = runner.request({
+    version: 1,
+    level: 'SHOW',
+    actionId: 'rectangle-tool-group',
+  });
+  expect(result.rectangleShowDiagnostic).toMatchObject({
+    reason: 'PAGE_GATE_BLOCKED',
+    stage: 'CONTEXT',
+    productionLookup: 'NOT_RUN',
+  });
+  expect(environment.calls.some((value) => value.startsWith('resolve:'))).toBe(
+    false,
+  );
+  runner.dispose();
+});
+
+it.each(['context', 'read-only'] as const)(
+  'classifies a %s failure discovered during lookup as CONTEXT with lookup RUN',
+  async (kind) => {
+    const { inspectRectangleDropdownRecognition } =
+      await import('./semanticTargets');
+    const target = inspectRectangleDropdownRecognition(document);
+    if (kind === 'read-only') {
+      target.sketchContext = 'OBSERVED';
+      target.readOnlyIndicators = 1;
+    }
+    const environment = createHost({
+      targets: {
+        'rectangle-tool-group': {
+          status: 'MISSING',
+          rectangleDiagnostic: target,
+        },
+      },
+    });
+    const runner = createGuidanceRunner(environment.host);
+    const result = runner.request({
+      version: 1,
+      level: 'SHOW',
+      actionId: 'rectangle-tool-group',
+    });
+    expect(result.rectangleShowDiagnostic).toMatchObject({
+      stage: 'CONTEXT',
+      reason:
+        kind === 'context'
+          ? 'SKETCH_CONTEXT_UNESTABLISHED'
+          : 'PAGE_GATE_BLOCKED',
+      productionLookup: 'RUN',
+    });
+    runner.dispose();
+  },
+);

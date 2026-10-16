@@ -907,3 +907,106 @@ it.each(['click', 'focus'])(
     h.clear();
   },
 );
+
+// Reason diagnostics reuse the real resolver. Roles/geometry here are simulations.
+describe('Rectangle SHOW rejection diagnostics', () => {
+  it('distinguishes missing Sketch evidence from missing toolbar semantics', async () => {
+    const group = document.createElement('div');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const span = document.createElement('span');
+    span.textContent = 'Corner rectangle';
+    group.append(svg, span);
+    document.body.append(group);
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    const result = recognizeSemanticTarget(document, 'rectangle-dropdown');
+    expect(result.rectangleDiagnostic).toMatchObject({
+      sketchContext: 'UNESTABLISHED',
+      lookup: { reason: 'NO_TOOLBAR_SEMANTICS', toolbars: 0 },
+      eligibility: { state: 'NOT_EVALUATED' },
+    });
+    expect(result.status).not.toBe('FOUND');
+  });
+  it('reports group lookup failure independently when Sketch context is observed', async () => {
+    visibleButton('Finish sketch');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(
+      recognizeSemanticTarget(document, 'rectangle-dropdown')
+        .rectangleDiagnostic,
+    ).toMatchObject({
+      sketchContext: 'OBSERVED',
+      lookup: { reason: 'NO_TOOLBAR_SEMANTICS' },
+      eligibility: { state: 'NOT_EVALUATED' },
+    });
+  });
+  it.each(['missing-popup', 'hidden', 'disabled', 'duplicate', 'limit'])(
+    'reports %s without conflating it with Sketch context',
+    async (kind) => {
+      visibleButton('Finish sketch');
+      const toolbar = document.createElement('div');
+      toolbar.setAttribute('role', 'toolbar');
+      document.body.append(toolbar);
+      const control = visibleButton('Corner rectangle');
+      toolbar.append(control);
+      control.setAttribute('aria-haspopup', 'menu');
+      if (kind === 'missing-popup') control.removeAttribute('aria-haspopup');
+      if (kind === 'hidden') control.hidden = true;
+      if (kind === 'disabled') control.disabled = true;
+      if (kind === 'duplicate') {
+        const other = control.cloneNode(true) as HTMLElement;
+        other.getBoundingClientRect = () => new DOMRect(120, 30, 80, 24);
+        toolbar.append(other);
+      }
+      if (kind === 'limit')
+        for (let i = 0; i < 129; i++) {
+          const other = document.createElement('button');
+          other.setAttribute('aria-haspopup', 'menu');
+          toolbar.append(other);
+        }
+      const { recognizeSemanticTarget } = await import('./semanticTargets');
+      const d = recognizeSemanticTarget(
+        document,
+        'rectangle-dropdown',
+      ).rectangleDiagnostic!;
+      expect(d).toBeDefined();
+      expect(d.sketchContext).toBe('OBSERVED');
+      if (kind === 'missing-popup')
+        expect(d.lookup.reason).toBe('NO_POPUP_CONTROLS');
+      if (kind === 'hidden')
+        expect(d.eligibility.rejections).toContain('HIDDEN');
+      if (kind === 'disabled')
+        expect(d.eligibility.rejections).toContain('DISABLED');
+      if (kind === 'duplicate') expect(d.eligibility.state).toBe('AMBIGUOUS');
+      if (kind === 'limit') expect(d.lookup.state).toBe('INCOMPLETE');
+    },
+  );
+});
+
+it('retains both invalid-context and ancestry-limit reasons across separate candidates', async () => {
+  visibleButton('Finish sketch');
+  const toolbar = document.createElement('div');
+  toolbar.setAttribute('role', 'toolbar');
+  document.body.append(toolbar);
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  toolbar.append(dialog);
+  const first = visibleButton('Corner rectangle');
+  first.setAttribute('aria-haspopup', 'menu');
+  dialog.append(first);
+  let parent = toolbar;
+  for (let i = 0; i < 20; i++) {
+    const child = document.createElement('div');
+    parent.append(child);
+    parent = child;
+  }
+  const second = visibleButton('Center point rectangle');
+  second.setAttribute('aria-haspopup', 'menu');
+  parent.append(second);
+  const { recognizeSemanticTarget } = await import('./semanticTargets');
+  const d = recognizeSemanticTarget(
+    document,
+    'rectangle-dropdown',
+  ).rectangleDiagnostic!;
+  expect(d.eligibility.rejections).toEqual(
+    expect.arrayContaining(['INVALID_CONTEXT', 'ANCESTOR_LIMIT']),
+  );
+});

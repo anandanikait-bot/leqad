@@ -4,6 +4,58 @@ Date: 2026-10-16. Base: PR #7, `062f87e867075d0915acc85fa9746d5b71f5fe69`.
 This is a separate production change, not another capture workflow revision.
 Keep all stacked PRs open and unmerged.
 
+## Owner live acceptance follow-up: BLOCKED
+
+The owner tested candidate `02cc1fe9c99c591637243c0df64ae8ef1064273d` in real
+Onshape. Step 4 SHOW displayed the combined context/dropdown failure message.
+CI #96 was successful for that candidate, but **live acceptance failed its gate**.
+It is an earlier conditional candidate, not a live-compatible build.
+
+Confirmed cause in code: the fallback replaced context, lookup and eligibility
+failures with identical text. The semantic lookup also cannot admit the observed
+nonsemantic div/svg/span path. The old report/message cannot identify which gate
+stopped that particular SHOW, or establish that every toolbar in the document is
+nonsemantic. Do not invent that precise runtime result.
+
+The follow-up adds a small read-only diagnosis of the current SHOW request:
+
+| Failed category    | What the report distinguishes                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CONTEXT            | Actual runner context and sanitized page eligibility; Finish Sketch recognition status, observed dialog-plane presence, positive read-only count |
+| SKETCH_OBSERVATION | Required Sketch observation did not match after the context check                                                                                |
+| GROUP_LOOKUP       | Missing semantic toolbar, missing popup markup, no exact supported group name, or bounded search limit                                           |
+| TARGET_ELIGIBILITY | Hidden, disabled, clipped, obscured, wrong context/role, ancestry limit, aggregate control, or competing usable groups                           |
+| HIGHLIGHT          | Target changed before an outline could be installed                                                                                              |
+
+`productionLookup: NOT_RUN` means the production request stopped before target
+resolution. `RUN` means that resolution was actually called, even if context was
+lost during it. The separately labelled inspection reuses the actual collector
+read-only and may inspect group evidence even when the production context gate
+stopped. Its findings must not be relabelled as an executed production lookup.
+
+The report is `leqad-rectangle-show/1`, scoped to `SHOW_REQUEST_SNAPSHOT`, not a
+continuously current result. It contains only closed reason enums, booleans and
+capped counts. No page text, DOM, attributes, URLs, IDs or authentication data are
+exported. Copying is opt-in; no capture listeners or CAD actions are started.
+Copied SHOW output clears when the request changes, HINT/GUIDE is selected or
+navigation cancels it. Original Rectangle capture v3 is unchanged.
+
+### One targeted owner observation, not another interaction recording
+
+Install this PR's latest successful artifact (linked in the PR; do not use the
+older #96 artifact), enter the real Sketch, and press Step 4 SHOW once. Then enable
+recognition diagnostics and choose **Copy Rectangle SHOW diagnosis**. Save/review
+that small JSON locally before sharing it. Clipboard fallback uses the read-only
+**Recognition diagnostics output** field. Do not open/re-arm/record the dropdown.
+
+The original sanitized v3 JSON is not present in this workspace; the reviewed
+Issue #3 summary was used. Reattaching that already-saved file can expose omitted
+local ancestry/geometry without repeating a recording. Until safe real control
+bounds, unique visibility/enabled state and context are established, no new
+nonsemantic adapter is justified. Actual highlighting acceptance remains BLOCKED;
+Top/Sketch, CAD verification, permission inference and self-reported progress are
+unchanged. Do not merge PR #8 or count simulated semantic fixtures as live success.
+
 ## Evidence and remaining block
 
 The [production-highlight handoff](https://github.com/anandanikait-bot/leqad/issues/3#issuecomment-6206486051)

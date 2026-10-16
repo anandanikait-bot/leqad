@@ -141,3 +141,66 @@ test('production group SHOW clears on rerender, popup change, scroll/resize and 
   );
   await expect(outline).toHaveCount(0);
 });
+
+test('SHOW diagnosis distinguishes the actual stopped context gate, lookup and hidden eligibility', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html?unknown-permission&production-guidance');
+  for (let step = 1; step < 4; step++) {
+    await page
+      .getByRole('button', {
+        name: step === 1 ? 'Got it' : "I've finished this step",
+        exact: true,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+  }
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  const report = async () => {
+    await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Copy Rectangle SHOW diagnosis' })
+      .click();
+    return JSON.parse(
+      await page.getByLabel('Recognition diagnostics output').inputValue(),
+    );
+  };
+  const context = await report();
+  expect(context).toMatchObject({
+    stage: 'CONTEXT',
+    reason: 'SKETCH_CONTEXT_UNESTABLISHED',
+    productionLookup: 'NOT_RUN',
+    inspection: { target: { sketchContext: 'UNESTABLISHED' } },
+  });
+  await page.locator('#fixture-sketch').click();
+  await page
+    .locator('#fixture-sketch-toolbar')
+    .evaluate((element) => element.removeAttribute('role'));
+  const lookup = await report();
+  expect(lookup).toMatchObject({
+    stage: 'GROUP_LOOKUP',
+    reason: 'NO_TOOLBAR_SEMANTICS',
+    productionLookup: 'RUN',
+    inspection: {
+      target: { sketchContext: 'OBSERVED', lookup: { toolbars: 0 } },
+    },
+  });
+  await page
+    .locator('#fixture-sketch-toolbar')
+    .evaluate((element) => element.setAttribute('role', 'toolbar'));
+  await page.locator('#fixture-rectangle').evaluate((element) => {
+    (element as HTMLElement).hidden = true;
+  });
+  const hidden = await report();
+  expect(hidden).toMatchObject({
+    stage: 'TARGET_ELIGIBILITY',
+    reason: 'TARGET_INELIGIBLE',
+    productionLookup: 'RUN',
+  });
+  expect(hidden.inspection.target.eligibility.rejections).toContain('HIDDEN');
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await expect(page.locator('[data-guidance-simulation-menu]')).toHaveCount(0);
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+});

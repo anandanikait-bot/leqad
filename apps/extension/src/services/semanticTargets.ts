@@ -1,3 +1,4 @@
+import type { RectangleDropdownDiagnostic } from './rectangleShowDiagnostics';
 import {
   enabledState,
   isLeqadOwned,
@@ -46,6 +47,7 @@ export type TargetVisibility =
 export type TargetEnabledState = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
 
 export interface SemanticTargetRecognition {
+  rectangleDiagnostic?: RectangleDropdownDiagnostic;
   targetId: SemanticTargetId;
   status: TargetRecognitionStatus;
   element: HTMLElement | null;
@@ -282,49 +284,109 @@ export function inspectSketchCommandMatch(element: HTMLElement) {
  * structural fallback here. Standard toolbar + named popup control semantics
  * must be present at runtime; last-used names never identify an exact option.
  */
-function rectangleDropdownCandidates(root: ParentNode): TargetCandidate[] {
-  const activeSketch =
-    findSemanticTarget(root, 'finish-sketch') !== null ||
-    observedSketchDialogPlane(root) !== null;
-  if (
-    !activeSketch ||
-    findSemanticTargets(root, 'read-only-indicator').length > 0
-  )
-    return [];
+function collectRectangleDropdown(root: ParentNode): {
+  candidates: TargetCandidate[];
+  diagnostic: RectangleDropdownDiagnostic;
+} {
+  const finish = recognizeSemanticTarget(root, 'finish-sketch');
+  const dialogPlaneObserved = observedSketchDialogPlane(root) !== null;
+  const activeSketch = finish.status === 'FOUND' || dialogPlaneObserved;
+  const readOnlyIndicators = findSemanticTargets(
+    root,
+    'read-only-indicator',
+  ).length;
+  const diagnostic: RectangleDropdownDiagnostic = {
+    sketchContext: activeSketch ? 'OBSERVED' : 'UNESTABLISHED',
+    finishControl: finish.status,
+    dialogPlaneObserved,
+    readOnlyIndicators,
+    lookup: {
+      state: 'COMPLETE',
+      reason: 'NO_TOOLBAR_SEMANTICS',
+      toolbars: 0,
+      popupControls: 0,
+      exactNames: 0,
+    },
+    eligibility: {
+      state: 'NOT_EVALUATED',
+      candidateCount: 0,
+      usableCount: 0,
+      rejections: [],
+    },
+  };
+  const reject = (
+    reason: RectangleDropdownDiagnostic['eligibility']['rejections'][number],
+  ) => {
+    if (!diagnostic.eligibility.rejections.includes(reason))
+      diagnostic.eligibility.rejections.push(reason);
+  };
+  const incomplete = () => {
+    diagnostic.lookup.state = 'INCOMPLETE';
+    diagnostic.lookup.reason = 'LOOKUP_LIMIT_REACHED';
+    return { candidates: [], diagnostic };
+  };
   const toolbars = root.querySelectorAll<HTMLElement>('[role="toolbar"]');
-  if (toolbars.length > 16) return []; // A partial search cannot establish uniqueness.
+  diagnostic.lookup.toolbars = Math.min(17, toolbars.length);
+  if (toolbars.length > 16) return incomplete(); // No partial uniqueness claim.
   const controls = new Set<HTMLElement>();
   for (const toolbar of toolbars) {
     const descendants = toolbar.querySelectorAll<HTMLElement>(
       'button[aria-haspopup], [role="button"][aria-haspopup]',
     );
-    if (descendants.length > 128) return [];
+    if (descendants.length > 128) {
+      diagnostic.lookup.popupControls = Math.min(
+        513,
+        controls.size + descendants.length,
+      );
+      return incomplete();
+    }
     for (const control of descendants) controls.add(control);
-    if (controls.size > 512) return [];
+    if (controls.size > 512) {
+      diagnostic.lookup.popupControls = 513;
+      return incomplete();
+    }
   }
+  diagnostic.lookup.popupControls = controls.size;
+  diagnostic.lookup.reason =
+    toolbars.length === 0
+      ? 'NO_TOOLBAR_SEMANTICS'
+      : controls.size === 0
+        ? 'NO_POPUP_CONTROLS'
+        : 'NO_EXACT_GROUP_NAME';
   const candidates: TargetCandidate[] = [];
   for (const control of controls) {
-    if (
-      control.hasAttribute('role') &&
-      control.getAttribute('role') !== 'button'
-    )
-      continue;
-    if (!['menu', 'true'].includes(control.getAttribute('aria-haspopup') ?? ''))
-      continue;
     const strategy = matchStrategy(
       control,
       TARGET_LABELS['rectangle-dropdown'],
     );
     if (!strategy || strategy === 'WEAK_TEXT') continue;
+    diagnostic.lookup.exactNames++;
+    diagnostic.lookup.reason = 'CANDIDATES_INSPECTED';
+    if (
+      control.hasAttribute('role') &&
+      control.getAttribute('role') !== 'button'
+    ) {
+      reject('CONFLICTING_ROLE');
+      continue;
+    }
+    if (
+      !['menu', 'true'].includes(control.getAttribute('aria-haspopup') ?? '')
+    ) {
+      reject('POPUP_NOT_MENU');
+      continue;
+    }
     // Reject aggregate containers containing independent controls/menu items.
     if (
       control.querySelector(
         'button,[role="button"],[role="menuitem"],[role="option"],input,[role="toolbar"]',
       )
-    )
+    ) {
+      reject('AGGREGATE_CONTROL');
       continue;
+    }
     let ancestor: HTMLElement | null = control;
-    let contextValid = true;
+    let contextValid = activeSketch && readOnlyIndicators === 0;
+    let forbiddenContext = false;
     for (
       let depth = 0;
       ancestor && depth < 16;
@@ -337,10 +399,15 @@ function rectangleDropdownCandidates(root: ParentNode): TargetCandidate[] {
         isLeqadOwned(ancestor)
       ) {
         contextValid = false;
+        forbiddenContext = true;
+        reject('INVALID_CONTEXT');
         break;
       }
     }
-    if (ancestor) contextValid = false; // Bounded ancestry did not establish context.
+    if (ancestor) {
+      contextValid = false;
+      if (!forbiddenContext) reject('ANCESTOR_LIMIT');
+    }
     candidates.push({
       element: control,
       strategy: 'VALIDATED_CONTEXT',
@@ -352,7 +419,36 @@ function rectangleDropdownCandidates(root: ParentNode): TargetCandidate[] {
       contextValid,
     });
   }
-  return candidates;
+  diagnostic.eligibility.candidateCount = candidates.length;
+  diagnostic.eligibility.usableCount = candidates.filter(usable).length;
+  for (const candidate of candidates) {
+    if (candidate.visibility !== 'VISIBLE')
+      reject(
+        candidate.visibility === 'UNKNOWN'
+          ? 'VISIBILITY_UNKNOWN'
+          : candidate.visibility,
+      );
+    if (candidate.enabled !== 'ENABLED')
+      reject(candidate.enabled === 'DISABLED' ? 'DISABLED' : 'ENABLED_UNKNOWN');
+  }
+  diagnostic.eligibility.state =
+    diagnostic.lookup.exactNames === 0
+      ? 'NOT_EVALUATED'
+      : diagnostic.eligibility.usableCount > 1
+        ? 'AMBIGUOUS'
+        : diagnostic.eligibility.usableCount === 1
+          ? 'UNIQUE_USABLE'
+          : 'REJECTED';
+  return { candidates, diagnostic };
+}
+/** Read-only lookup inspection; this does not run SHOW, highlight, or verify CAD. */
+export function inspectRectangleDropdownRecognition(
+  root: ParentNode,
+): RectangleDropdownDiagnostic {
+  return collectRectangleDropdown(root).diagnostic;
+}
+function rectangleDropdownCandidates(root: ParentNode): TargetCandidate[] {
+  return collectRectangleDropdown(root).candidates;
 }
 
 function candidatesFor(
@@ -411,6 +507,13 @@ export function recognizeSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): SemanticTargetRecognition {
+  if (targetId === 'rectangle' || targetId === 'rectangle-dropdown') {
+    const evidence = collectRectangleDropdown(root);
+    return {
+      ...recognitionFromCandidates(targetId, evidence.candidates),
+      rectangleDiagnostic: evidence.diagnostic,
+    };
+  }
   return recognitionFromCandidates(targetId, candidatesFor(root, targetId));
 }
 
