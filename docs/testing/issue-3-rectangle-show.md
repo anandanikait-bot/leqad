@@ -38,7 +38,11 @@ continuously current result. It contains only closed reason enums, booleans and
 capped counts. No page text, DOM, attributes, URLs, IDs or authentication data are
 exported. Copying is opt-in; no capture listeners or CAD actions are started.
 Copied SHOW output clears when the request changes, HINT/GUIDE is selected or
-navigation cancels it. Original Rectangle capture v3 is unchanged.
+navigation cancels it. The success message describes a temporary highlight that
+was shown and may clear when the interface changes; it does not assert that an
+outline remains after independent highlighter cleanup. The runner retains a
+request snapshot until expiry/new guidance, not a continuously observed outline.
+Original Rectangle capture v3 is unchanged.
 
 ### One targeted owner observation, not another interaction recording
 

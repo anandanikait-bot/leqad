@@ -194,6 +194,31 @@ describe('deterministic guidance runner', () => {
     expect(environment.calls).not.toContain('resolve:rectangle-tool-group');
   });
 
+  it('does not claim a Rectangle outline is still present after independent overlay cleanup (simulated host)', () => {
+    const environment = createHost();
+    let overlayPresent = false;
+    environment.host.highlightTarget = () => {
+      overlayPresent = true;
+      return true;
+    };
+    const runner = createGuidanceRunner(environment.host);
+    runner.request({
+      version: 1,
+      actionId: 'rectangle-tool-group',
+      level: 'SHOW',
+    });
+    expect(overlayPresent).toBe(true);
+    // Simulate the existing highlighter clearing on a CAD click before the runner timer.
+    overlayPresent = false;
+    expect(overlayPresent).toBe(false);
+    expect(runner.getState().message).toMatch(/temporary highlight was shown/i);
+    expect(runner.getState().message).toMatch(
+      /may clear when the interface changes/i,
+    );
+    expect(runner.getState().message).not.toMatch(/control is highlighted/i);
+    runner.dispose();
+  });
+
   it('explains a Sketch step already satisfied by observable sketch-editing UI without highlighting', () => {
     const environment = createHost({ context: 'SKETCH_EDITING' });
     const runner = createGuidanceRunner(environment.host);

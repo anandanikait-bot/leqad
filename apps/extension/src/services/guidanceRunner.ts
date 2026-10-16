@@ -680,7 +680,7 @@ export function createGuidanceRunner(
         action,
         action.targetId,
         request.actionId === 'rectangle-tool-group'
-          ? 'The Rectangle dropdown control is highlighted. Open its arrow manually, then choose Corner Rectangle. The exact option is not highlighted; tool activation and geometry are not verified.'
+          ? 'A temporary highlight was shown for the Rectangle dropdown control. It may clear when the interface changes. Open its arrow manually, then choose Corner Rectangle. The exact option is not highlighted; tool activation and geometry are not verified.'
           : 'The highlighted control is ready for you to use.',
         generation,
       );

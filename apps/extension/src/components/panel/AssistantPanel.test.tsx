@@ -467,7 +467,9 @@ describe('AssistantPanel', () => {
       request: { level: 'SHOW' },
     });
     expect(
-      screen.getByText(/Rectangle dropdown control is highlighted/),
+      screen.getByText(
+        /temporary highlight was shown for the Rectangle dropdown control/,
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
     expect(runner.getState()).toMatchObject({ status: 'UNSUPPORTED' });
