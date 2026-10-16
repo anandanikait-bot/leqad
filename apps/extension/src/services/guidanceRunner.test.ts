@@ -189,7 +189,7 @@ describe('deterministic guidance runner', () => {
         actionId: 'rectangle-tool-group',
         level: 'SHOW',
       }),
-    ).toMatchObject({ status: 'FALLBACK', retryAvailable: true });
+    ).toMatchObject({ status: 'FALLBACK', retryAvailable: false });
     expect(environment.calls).toContain('observe:SKETCH_UI_ACTIVE');
     expect(environment.calls).not.toContain('resolve:rectangle-tool-group');
   });
@@ -381,7 +381,7 @@ describe('deterministic guidance runner', () => {
         level: 'SHOW',
       });
       expect(result.status).toBe(resolution.status);
-      expect(result.retryAvailable).toBe(true);
+      expect(result.retryAvailable).toBe(false);
       expect(result.message).toBeTruthy();
       expect(environment.calls).toContain('clear');
       expect(environment.calls.indexOf('clear')).toBeLessThan(
@@ -509,7 +509,7 @@ describe('deterministic guidance runner', () => {
         actionId: 'rectangle-tool-group',
         level: 'SHOW',
       }),
-    ).toMatchObject({ status: 'FALLBACK', retryAvailable: true });
+    ).toMatchObject({ status: 'FALLBACK', retryAvailable: false });
     expect(environment.calls.some((call) => call.startsWith('resolve:'))).toBe(
       false,
     );
@@ -531,4 +531,38 @@ describe('deterministic guidance runner', () => {
     expect(environment.listenerCount('RECTANGLE_MENU_OPEN')).toBe(0);
     expect(runner.getState().status).toBe('CANCELLED');
   });
+});
+
+it.each(['MISSING', 'AMBIGUOUS'] as const)(
+  'gives a precise Corner Rectangle fallback for %s without blind Retry',
+  (status) => {
+    const environment = createHost({
+      targets: { 'rectangle-tool-group': { status } },
+    });
+    const runner = createGuidanceRunner(environment.host);
+    const result = runner.request({
+      version: 1,
+      level: 'SHOW',
+      actionId: 'rectangle-tool-group',
+    });
+    expect(result.activeTargetId).toBeNull();
+    expect(result.message).toMatch(/dropdown arrow/i);
+    expect(result.message).toMatch(/Corner Rectangle/);
+    expect(result.retryAvailable).toBe(false);
+    expect(environment.calls).not.toContain('highlight:rectangle-tool-group');
+    runner.dispose();
+  },
+);
+it('describes group-only SHOW without claiming an exact option highlight or selection', () => {
+  const environment = createHost();
+  const runner = createGuidanceRunner(environment.host);
+  const result = runner.request({
+    version: 1,
+    level: 'SHOW',
+    actionId: 'rectangle-tool-group',
+  });
+  expect(result.message).toMatch(/dropdown/);
+  expect(result.message).toMatch(/choose Corner Rectangle/);
+  expect(result.message).toMatch(/option.*not.*highlight/i);
+  runner.dispose();
 });

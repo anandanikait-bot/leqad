@@ -26,7 +26,11 @@ test('Corner Rectangle teaching survives simulated SHOW failure and self-reporte
   );
   await expect(instruction).toBeVisible();
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
-  await expect(page.getByText(/Follow the written instruction/)).toBeVisible();
+  await expect(
+    page.getByText(
+      /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
+    ),
+  ).toBeVisible();
   await expect(instruction).toBeVisible();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Why?', exact: true }).click();

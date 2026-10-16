@@ -466,7 +466,9 @@ describe('AssistantPanel', () => {
       status: 'READY',
       request: { level: 'SHOW' },
     });
-    expect(screen.getByText(/highlighted control is ready/)).toBeTruthy();
+    expect(
+      screen.getByText(/Rectangle dropdown control is highlighted/),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
     expect(runner.getState()).toMatchObject({ status: 'UNSUPPORTED' });
     expect(
@@ -480,7 +482,7 @@ describe('AssistantPanel', () => {
   });
 
   it.each(['MISSING', 'AMBIGUOUS'] as const)(
-    'offers a written instruction and explicit Retry guidance for %s targets',
+    'offers Corner Rectangle instructions without blind Retry for %s targets',
     async (targetStatus) => {
       const [panelModule, runnerModule] = await Promise.all([
         import('./AssistantPanel'),
@@ -507,10 +509,16 @@ describe('AssistantPanel', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(
-        screen.getByRole('button', { name: 'Retry guidance' }),
+        screen.queryByRole('button', { name: 'Retry guidance' }),
+      ).toBeNull();
+      expect(
+        screen.getByText(
+          /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
+        ),
       ).toBeTruthy();
-      expect(screen.getByText(/Follow the written instruction/)).toBeTruthy();
-      fireEvent.click(screen.getByRole('button', { name: 'Retry guidance' }));
+      expect(resolveTarget).toHaveBeenCalledTimes(1);
+      // A new SHOW is still student-controlled after a real interface change.
+      fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(resolveTarget).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
     },

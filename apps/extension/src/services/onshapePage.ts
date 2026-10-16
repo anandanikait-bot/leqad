@@ -233,7 +233,13 @@ export function observeOnshapeGuidanceContext(
   page: OnshapePageContext,
   root: ParentNode,
 ): GuidanceUiContext {
-  if (!page.supported || page.elementType === 'other') return 'UNKNOWN';
+  if (
+    !page.supported ||
+    page.elementType === 'other' ||
+    page.editability === 'read-only' ||
+    page.modelType !== 'workspace'
+  )
+    return 'UNKNOWN';
 
   const editingAppearsActive =
     observeSketchGuidanceUi(root).editingAppearsActive;
@@ -243,9 +249,6 @@ export function observeOnshapeGuidanceContext(
 
   // Fall back only for visual guidance in a workspace with an unknown tab type.
   // This does not update the page's elementType or editability.
-  if (page.modelType !== 'workspace' || page.editability === 'read-only') {
-    return 'UNKNOWN';
-  }
   if (editingAppearsActive) return 'SKETCH_EDITING';
   return recognizeSemanticTarget(root, 'sketch').status === 'FOUND'
     ? 'PART_STUDIO'

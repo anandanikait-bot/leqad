@@ -199,7 +199,9 @@ const guidanceRunner = createGuidanceRunner(
       };
     },
   },
-  simulatedGuidanceRegistry,
+  new URLSearchParams(location.search).has('production-guidance')
+    ? GUIDANCE_REGISTRY
+    : simulatedGuidanceRegistry,
 );
 
 window.addEventListener(

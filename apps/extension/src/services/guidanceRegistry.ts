@@ -103,9 +103,8 @@ export const GUIDANCE_REGISTRY: GuidanceRegistry = {
   'rectangle-tool-group': {
     actionId: 'rectangle-tool-group',
     targetId: 'rectangle-tool-group',
-    // Compatibility mapping only: the legacy recognizer does not prove an
-    // exact Rectangle variant identity or dropdown relationship.
-    semanticTarget: 'rectangle',
+    // Group-only popup identity; never the current/last-used variant command.
+    semanticTarget: 'rectangle-dropdown',
     requiredContext: 'SKETCH_EDITING',
     supportedLevels: ['HINT', 'SHOW'],
     hintContentId: 'rectangle-tool-group',

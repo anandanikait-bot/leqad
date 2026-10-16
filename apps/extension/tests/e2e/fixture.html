@@ -19,6 +19,9 @@
         width: 140px;
         height: 34px;
       }
+      #fixture-sketch-dialog[hidden] ~ #fixture-sketch-toolbar {
+        display: none;
+      }
       #fixture-top-plane {
         top: 32px;
       }
@@ -45,10 +48,19 @@
       <span role="status" aria-label="Sketch plane: Top plane"
         >Sketch plane: Top plane</span
       >
-      <button id="fixture-rectangle" aria-label="Rectangle">Rectangle</button>
       <button id="fixture-dimension" aria-label="Dimension">Dimension</button>
       <button id="fixture-finish" aria-label="Finish sketch">
         Finish sketch
+      </button>
+    </div>
+    <!-- Semantic toolbar/popup is simulated and not established by owner capture. -->
+    <div role="toolbar" id="fixture-sketch-toolbar">
+      <button
+        id="fixture-rectangle"
+        aria-label="Rectangle"
+        aria-haspopup="menu"
+      >
+        Rectangle
       </button>
     </div>
     <button id="host-control">Host page control</button>

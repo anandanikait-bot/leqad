@@ -476,3 +476,18 @@ describe('Onshape capability observations', () => {
     },
   );
 });
+
+it('keeps known read-only Part Studio guidance unavailable even with visible Sketch controls', async () => {
+  const { parseOnshapePage, observeOnshapeGuidanceContext } =
+    await import('./onshapePage');
+  visibleControl('Finish sketch', 'button');
+  const page = parseOnshapePage(
+    'https://cad.onshape.com/documents/doc/w/workspace/e/element',
+  );
+  expect(
+    observeOnshapeGuidanceContext(
+      { ...page, elementType: 'part-studio', editability: 'read-only' },
+      document,
+    ),
+  ).toBe('UNKNOWN');
+});

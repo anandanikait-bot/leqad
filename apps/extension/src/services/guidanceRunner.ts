@@ -97,8 +97,13 @@ function writtenFallback(
     status,
     contentId: action.hintContentId,
     activeTargetId: null,
-    message,
-    retryAvailable: true,
+    message:
+      request.actionId === 'rectangle-tool-group' && request.level === 'SHOW'
+        ? `${status === 'AMBIGUOUS' ? 'Multiple possible Rectangle dropdowns are present.' : 'A unique visible, enabled Rectangle dropdown and current Sketch context could not be established.'} Manually open the Rectangle dropdown arrow and choose Corner Rectangle. The group icon may show the last-used variant. Exact option highlighting is not available because the current menu relationship is unverified. Use SHOW again only after the interface changes.`
+        : message,
+    retryAvailable: !(
+      request.actionId === 'rectangle-tool-group' && request.level === 'SHOW'
+    ),
   };
 }
 
@@ -565,7 +570,9 @@ export function createGuidanceRunner(
         request,
         action,
         action.targetId,
-        'The highlighted control is ready for you to use.',
+        request.actionId === 'rectangle-tool-group'
+          ? 'The Rectangle dropdown control is highlighted. Open its arrow manually, then choose Corner Rectangle. The exact option is not highlighted; tool activation and geometry are not verified.'
+          : 'The highlighted control is ready for you to use.',
         generation,
       );
       return state;
