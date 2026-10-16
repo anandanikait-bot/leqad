@@ -56,22 +56,35 @@ test('local Rectangle diagnostics preserve separate opening and option-click evi
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown', exact: true })
+    .getByRole('button', { name: 'Capture Rectangle interaction', exact: true })
     .click();
   await page.locator('[data-fixture-rectangle-input]').click();
+  // No panel interaction while the CAD menu is open. Layout/zoom is simulated.
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '1.25';
+  });
+  await expect(
+    page.getByRole('button', {
+      name: 'Recording Rectangle opening and selection…',
+    }),
+  ).toBeVisible();
+  await page.locator('[data-fixture-corner-option]').click();
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '';
+  });
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
     .click();
   const output = page.getByLabel('Rectangle dropdown diagnostic output');
   const opening = JSON.parse(await output.inputValue());
-  expect(opening.version).toBe('leqad-rectangle-dropdown/2');
+  expect(opening.version).toBe('leqad-rectangle-dropdown/3');
   expect(opening.baseline.scan).toMatchObject({
     status: 'INCOMPLETE',
     scannedElements: 6000,
   });
   expect(opening.interactions[0]).toMatchObject({
     clickObserved: true,
-    clickPathMatchesInput: true,
+    clickPathMatchesInput: opening.interactions[0].pathTruncated ? null : true,
   });
   expect(opening.interactions[0].path[0].node.tag).toBe('svg');
   expect(opening.transitions[0]).toMatchObject({
@@ -90,26 +103,23 @@ test('local Rectangle diagnostics preserve separate opening and option-click evi
     ]),
   );
 
-  // A separate opt-in capture records the actual item click; the opening report
-  // is not evidence that a variant was selected.
-  await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown', exact: true })
-    .click();
-  await page.locator('[data-fixture-corner-option]').click();
-  await page
-    .getByRole('button', { name: 'Copy Rectangle dropdown report' })
-    .click();
-  const selection = JSON.parse(await output.inputValue());
-  expect(selection.interactions[0]).toMatchObject({
+  // Both actions share one report; no tool selection or geometry is verified.
+  const selection = opening;
+  expect(selection.interactionMode).toBe('OPEN_THEN_SELECT_RECTANGLE');
+  expect(selection.workflowState).toBe('FINISHED');
+  expect(selection.interactions).toHaveLength(2);
+  expect(selection.interactions[1]).toMatchObject({
     clickObserved: true,
     clickedLabel: 'Corner rectangle',
-    clickPathMatchesInput: true,
+    clickPathMatchesInput: selection.interactions[1].pathTruncated
+      ? null
+      : true,
   });
-  expect(selection.interactions[0].path[0]).toMatchObject({
+  expect(selection.interactions[1].path[0]).toMatchObject({
     label: 'Corner rectangle',
     node: { connected: true },
   });
-  expect(selection.transitions[0].after.candidates).toEqual(
+  expect(selection.transitions[1].after.candidates).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         label: 'Corner rectangle',
@@ -117,7 +127,7 @@ test('local Rectangle diagnostics preserve separate opening and option-click evi
       }),
     ]),
   );
-  expect(selection.transitions[0].after.domObservedState).toBe('UNKNOWN');
+  expect(selection.transitions[1].after.domObservedState).toBe('UNKNOWN');
   await expect(page.locator('body')).toHaveAttribute(
     'data-fixture-corner-clicks',
     '1',

@@ -230,7 +230,11 @@ export default defineContentScript({
                   }
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>
-                    createRectangleDropdownCapture(document)
+                    createRectangleDropdownCapture(
+                      document,
+                      undefined,
+                      'OPEN_THEN_SELECT_RECTANGLE',
+                    )
                   }
                   onCaptureRectangleDropdownSnapshot={(
                     snapshotRole,

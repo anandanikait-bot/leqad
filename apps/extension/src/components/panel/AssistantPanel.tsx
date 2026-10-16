@@ -479,7 +479,7 @@ export function AssistantPanel({
       captureTaskRef.current?.cancel();
       captureTaskRef.current = null;
       rectangleCaptureGeneration.current++;
-      rectangleCaptureTaskRef.current?.cancel();
+      rectangleCaptureTaskRef.current?.cancel('PANEL_UNMOUNT');
       rectangleCaptureTaskRef.current = null;
     },
     [],
@@ -1033,12 +1033,12 @@ export function AssistantPanel({
 
   const beginRectangleDropdownCapture = () => {
     if (!diagnosticsEnabled || !onCaptureRectangleDropdown) return;
-    rectangleCaptureTaskRef.current?.cancel();
+    rectangleCaptureTaskRef.current?.cancel('REPLACED');
     rectangleCaptureTaskRef.current = null;
     setRectangleCaptureReport(null);
     setRectangleDiagnosticsOutput('');
     setDiagnosticsMessage(
-      'Manually open the Rectangle dropdown, or click the exact option in an already-open menu. Input paths and DOM state are recorded separately; your CAD interaction continues normally.',
+      'Start with the Rectangle menu closed. Manually open its dropdown, then click Corner rectangle without returning to Leqad. Input observations do not prove tool activation.',
     );
     setRectangleCapturePending(true);
     const generation = ++rectangleCaptureGeneration.current;
@@ -1054,6 +1054,13 @@ export function AssistantPanel({
         result.report.baseline.domObservedState;
       if (result.status === 'CANCELLED')
         setDiagnosticsMessage('Rectangle capture stopped.');
+      else if (
+        result.report.workflowState === 'FINISHED' &&
+        result.report.stateHistory.includes('VARIANT_CLICK_OBSERVED')
+      )
+        setDiagnosticsMessage(
+          `Rectangle interaction recorded. DOM state: ${finalState}. Confirm tool activation yourself; the report does not verify it.`,
+        );
       else if (result.status === 'CAPTURED' && finalState !== 'UNKNOWN')
         setDiagnosticsMessage(
           `Rectangle structure captured. The final DOM-observed state is ${finalState}.`,
@@ -1066,10 +1073,8 @@ export function AssistantPanel({
   };
 
   const stopRectangleDropdownCapture = () => {
-    rectangleCaptureGeneration.current++;
-    rectangleCaptureTaskRef.current?.cancel();
-    rectangleCaptureTaskRef.current = null;
-    setRectangleCapturePending(false);
+    // Keep this generation alive so the task's cancellation report can be copied.
+    rectangleCaptureTaskRef.current?.cancel('USER_STOP');
   };
 
   const captureManualRectangleSnapshot = (
@@ -1762,7 +1767,12 @@ export function AssistantPanel({
                     className="leqad-button leqad-button--text"
                     onClick={() => {
                       if (diagnosticsEnabled) stopTopRowCapture();
-                      if (diagnosticsEnabled) stopRectangleDropdownCapture();
+                      if (diagnosticsEnabled) {
+                        rectangleCaptureGeneration.current++;
+                        rectangleCaptureTaskRef.current?.cancel('USER_STOP');
+                        rectangleCaptureTaskRef.current = null;
+                        setRectangleCapturePending(false);
+                      }
                       setDiagnosticsEnabled(!diagnosticsEnabled);
                       setDiagnosticsOutput('');
                       setRectangleDiagnosticsOutput('');
@@ -1810,9 +1820,10 @@ export function AssistantPanel({
                         <>
                           <p>
                             Rectangle capture is diagnostic only. It records
-                            bounded structure; Aligned Rectangle is an
-                            unverified diagnostic label, not a supported
-                            production target.
+                            bounded structure. Start with the menu closed; open
+                            it and select Corner rectangle in one session.
+                            Aligned Rectangle is an unverified diagnostic label,
+                            not a supported production target.
                           </p>
                           <button
                             type="button"
@@ -1821,8 +1832,8 @@ export function AssistantPanel({
                             disabled={rectangleCapturePending}
                           >
                             {rectangleCapturePending
-                              ? 'Waiting for Rectangle menu change…'
-                              : 'Capture Rectangle dropdown'}
+                              ? 'Recording Rectangle opening and selection…'
+                              : 'Capture Rectangle interaction'}
                           </button>
                         </>
                       )}

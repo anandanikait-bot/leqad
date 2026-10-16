@@ -247,7 +247,11 @@ describe('manual Rectangle dropdown snapshots', () => {
 
   it('serializes a standalone sanitized report without production recognition', () => {
     const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/2',
+      version: 'leqad-rectangle-dropdown/3',
+      interactionMode: 'OBSERVE_MENU',
+      workflowState: 'FINISHED',
+      stateHistory: ['FINISHED'],
+      cancelReason: null,
       interactions: [],
       status: 'CAPTURED',
       captureMode: 'MANUAL_FALLBACK',
@@ -261,7 +265,7 @@ describe('manual Rectangle dropdown snapshots', () => {
 
     const output = serializeRectangleDropdownReport(report);
 
-    expect(JSON.parse(output).version).toBe('leqad-rectangle-dropdown/2');
+    expect(JSON.parse(output).version).toBe('leqad-rectangle-dropdown/3');
     expect(output).not.toContain('productionRecognition');
     expect(output.length).toBeLessThanOrEqual(24_000);
   });
@@ -274,7 +278,11 @@ describe('manual Rectangle dropdown snapshots', () => {
     };
     baseline.privateText = 'private CAD note';
     const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/2',
+      version: 'leqad-rectangle-dropdown/3',
+      interactionMode: 'OBSERVE_MENU',
+      workflowState: 'FINISHED',
+      stateHistory: ['FINISHED'],
+      cancelReason: null,
       interactions: [],
       status: 'CAPTURED',
       captureMode: 'AUTOMATIC',
@@ -291,7 +299,11 @@ describe('manual Rectangle dropdown snapshots', () => {
 
   it('marks report-size truncation incomplete and stays within the report cap', () => {
     const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/2',
+      version: 'leqad-rectangle-dropdown/3',
+      interactionMode: 'OBSERVE_MENU',
+      workflowState: 'FINISHED',
+      stateHistory: ['FINISHED'],
+      cancelReason: null,
       interactions: [],
       status: 'CAPTURED',
       captureMode: 'MANUAL_FALLBACK',
@@ -594,7 +606,7 @@ describe('bounded local evidence beyond the document baseline', () => {
     const task = createRectangleDropdownCapture(document, 1000);
     input(svg);
     const { report } = await task.promise;
-    expect(report.version).toBe('leqad-rectangle-dropdown/2');
+    expect(report.version).toBe('leqad-rectangle-dropdown/3');
     expect(report.baseline.scan).toMatchObject({
       scannedElements: 6000,
       status: 'INCOMPLETE',
@@ -970,3 +982,373 @@ describe('reviewed evidence association boundaries', () => {
     },
   );
 });
+
+// Simulated two-action workflow; no authenticated Onshape structure is implied.
+describe('OPEN_THEN_SELECT_RECTANGLE capture workflow', () => {
+  function fixture(name = 'Corner rectangle') {
+    const trigger = document.createElement('div');
+    const icon = document.createElement('span');
+    trigger.append(icon);
+    const menu = document.createElement('section');
+    const row = document.createElement('div');
+    const text = document.createElement('span');
+    text.textContent = name;
+    row.append(text);
+    menu.append(row);
+    for (const element of [trigger, icon, menu, row, text])
+      setRect(element, { x: 10, y: 10, width: 90, height: 24 });
+    document.body.append(trigger);
+    trigger.addEventListener('click', () => document.body.append(menu));
+    text.addEventListener('click', () => menu.remove());
+    return { trigger, menu, text };
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 35));
+  function click(element: Element) {
+    element.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+  it.each(['Corner rectangle', 'Center point rectangle', 'Aligned Rectangle'])(
+    'records opening and %s selection in one session, without claiming activation',
+    async (name) => {
+      const { trigger, menu, text } = fixture(name);
+      const task = createRectangleDropdownCapture(
+        document,
+        1000,
+        'OPEN_THEN_SELECT_RECTANGLE',
+      );
+      click(trigger);
+      await settle();
+      expect(task.isActive()).toBe(true);
+      click(text);
+      const { report } = await task.promise;
+      expect(menu.isConnected).toBe(false);
+      expect(report.interactions).toHaveLength(2);
+      expect(report.interactions[0]?.path[0]?.node.connected).toBe(true);
+      expect(report.interactions[1]?.clickedLabel).toBe(name);
+      expect(report.transitions.map((item) => item.inputSequence)).toEqual([
+        1, 2,
+      ]);
+      expect(report.transitions[0]?.after.domObservedState).toBe('UNKNOWN');
+      expect(report.transitions[0]?.after.candidates).toContainEqual(
+        expect.objectContaining({ label: name }),
+      );
+      expect(report.transitions[1]?.after.candidates).toContainEqual(
+        expect.objectContaining({
+          label: name,
+          node: expect.objectContaining({ connected: false }),
+        }),
+      );
+      expect(report.workflowState).toBe('FINISHED');
+      expect(report.stateHistory).toEqual([
+        'IDLE',
+        'WAITING_FOR_MENU_OPEN_INPUT',
+        'MENU_INTERACTION_OBSERVED',
+        'WAITING_FOR_VARIANT_CLICK',
+        'VARIANT_CLICK_OBSERVED',
+        'FINISHED',
+      ]);
+      expect(report.cancelReason).toBeNull();
+      expect(serializeRectangleDropdownReport(report)).not.toContain(
+        'activated',
+      );
+    },
+  );
+  it('flushes opening mutations before a fast second input', async () => {
+    const { trigger, text } = fixture();
+    const task = createRectangleDropdownCapture(
+      document,
+      1000,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    click(trigger);
+    click(text);
+    const { report } = await task.promise;
+    expect(report.interactions).toHaveLength(2);
+    expect(report.transitions[0]?.inputSequence).toBe(1);
+    expect(report.transitions[0]?.after.candidates).toContainEqual(
+      expect.objectContaining({ label: 'Corner rectangle' }),
+    );
+  });
+  it('retains opening evidence on timeout without a selection or after unrelated input', async () => {
+    const { trigger } = fixture();
+    const unrelated = document.createElement('button');
+    document.body.append(unrelated);
+    const task = createRectangleDropdownCapture(
+      document,
+      100,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    click(trigger);
+    await settle();
+    click(unrelated);
+    unrelated.setAttribute('title', 'private noise');
+    const { report } = await task.promise;
+    expect(report.status).toBe('TIMED_OUT');
+    expect(report.workflowState).toBe('TIMED_OUT');
+    expect(report.interactions[0]?.clickObserved).toBe(true);
+    expect(report.cancelReason).toBeNull();
+  });
+  it.each(['pagehide', 'wxt:locationchange', 'visibilitychange', 'stop'])(
+    'records the actual %s cancellation source and cleans up',
+    async (source) => {
+      const { trigger } = fixture();
+      const task = createRectangleDropdownCapture(
+        document,
+        1000,
+        'OPEN_THEN_SELECT_RECTANGLE',
+      );
+      click(trigger);
+      if (source === 'stop') task.cancel('USER_STOP');
+      else if (source === 'visibilitychange') {
+        vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+        document.dispatchEvent(new Event(source));
+      } else window.dispatchEvent(new Event(source));
+      const { report } = await task.promise;
+      vi.restoreAllMocks();
+      expect(report.cancelReason).toBe(
+        source === 'stop'
+          ? 'USER_STOP'
+          : source === 'visibilitychange'
+            ? 'PAGE_HIDDEN'
+            : 'NAVIGATION',
+      );
+      expect(report.workflowState).toBe('CANCELLED');
+      click(trigger);
+      expect(report.interactions).toHaveLength(1);
+      expect(task.isActive()).toBe(false);
+    },
+  );
+});
+
+// Conservative evidence edge cases for the new mode, all simulated.
+describe('two-action diagnostic boundaries', () => {
+  it('preserves duplicate-label ambiguity without choosing an option globally', async () => {
+    const trigger = document.createElement('button');
+    const chosen = document.createElement('span');
+    chosen.textContent = 'Corner rectangle';
+    const duplicate = chosen.cloneNode(true) as HTMLElement;
+    document.body.append(trigger);
+    const task = createRectangleDropdownCapture(
+      document,
+      1000,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.body.append(chosen, duplicate);
+    chosen.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const { report } = await task.promise;
+    expect(report.transitions[0]?.after.ambiguity).toBe(
+      'DUPLICATE_EXACT_LABELS',
+    );
+    expect(report.transitions[0]?.after.domObservedState).toBe('UNKNOWN');
+    expect(report.interactions[1]?.clickedLabel).toBe('Corner rectangle');
+  });
+  it('retains deep option paths with incomplete visibility instead of inventing confidence', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const task = createRectangleDropdownCapture(
+      document,
+      1000,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    let parent = document.createElement('section');
+    document.body.append(parent);
+    for (let i = 0; i < 20; i++) {
+      const child = document.createElement('div');
+      parent.append(child);
+      parent = child;
+    }
+    const option = document.createElement('span');
+    option.textContent = 'Corner rectangle';
+    parent.append(option);
+    option.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const { report } = await task.promise;
+    expect(report.interactions[1]?.pathTruncated).toBe(true);
+    expect(report.interactions[1]?.path[0]?.node.visibility).not.toBe(
+      'VISIBLE',
+    );
+    expect(report.status).toBe('INCOMPLETE');
+    expect(report.transitions[0]?.after.domObservedState).toBe('UNKNOWN');
+    expect(serializeRectangleDropdownReport(report).length).toBeLessThanOrEqual(
+      24000,
+    );
+  });
+  it('records keyboard-originated opening followed by a keyboard-generated click, even without a DOM change', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const option = document.createElement('button');
+    option.textContent = 'Corner rectangle';
+    const task = createRectangleDropdownCapture(
+      document,
+      1000,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.body.append(option);
+    option.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+    option.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const { report } = await task.promise;
+    expect(report.interactions.map((item) => item.eventCategory)).toEqual([
+      'KEYBOARD',
+      'KEYBOARD',
+    ]);
+    expect(report.workflowState).toBe('FINISHED');
+    expect(report.interactions[1]?.clickObserved).toBe(true);
+    expect(serializeRectangleDropdownReport(report)).not.toContain('Enter');
+  });
+  it('sanitizes forged cancellation/state fields and ignores ordinary focus changes', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const task = createRectangleDropdownCapture(
+      document,
+      1000,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.focus();
+    window.dispatchEvent(new Event('blur'));
+    expect(task.isActive()).toBe(true);
+    task.cancel('REPLACED');
+    const { report } = await task.promise;
+    expect(report.cancelReason).toBe('REPLACED');
+    const poisoned = {
+      ...report,
+      cancelReason: 'private URL',
+      stateHistory: ['private text'],
+      workflowState: 'private ID',
+    } as unknown as RectangleDropdownCaptureReport;
+    const safe = serializeRectangleDropdownReport(poisoned);
+    expect(safe).not.toMatch(/private/);
+    expect(JSON.parse(safe).cancelReason).toBe('UNKNOWN');
+  });
+});
+
+it.each(['CANCELLED', 'TIMED_OUT'] as const)(
+  'preserves %s when a large report is reduced to the export cap',
+  async (status) => {
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-label', 'Rectangle');
+    document.body.append(trigger);
+    const task = createRectangleDropdownCapture(
+      document,
+      40,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    if (status === 'CANCELLED') task.cancel('USER_STOP');
+    const { report } = await task.promise;
+    const snapshot = report.interactions[0]!.localBefore;
+    snapshot.candidates = Array.from(
+      { length: 12 },
+      () => snapshot.candidates[0]!,
+    );
+    report.manualSnapshots = [
+      { snapshotRole: 'BEFORE', userReportedState: 'CLOSED', snapshot },
+      { snapshotRole: 'AFTER', userReportedState: 'OPEN', snapshot },
+    ];
+    // Duplicate bounded snapshots force size reduction, not just scan truncation.
+    report.transitions = Array.from({ length: 4 }, () => ({
+      eventCategory: 'CLICK',
+      inputSequence: 1,
+      scope: 'INPUT_AND_MUTATION_LOCAL',
+      inputAssociation: 'UNPROVEN',
+      before: snapshot,
+      after: snapshot,
+      relationship: 'UNKNOWN',
+      changedCandidateCount: 1,
+    }));
+    expect(JSON.stringify(report).length).toBeGreaterThan(24000);
+    const output = serializeRectangleDropdownReport(report);
+    expect(output.length).toBeLessThanOrEqual(24000);
+    expect(JSON.parse(output).status).toBe(status);
+    expect(JSON.parse(output).cancelReason).toBe(
+      status === 'CANCELLED' ? 'USER_STOP' : null,
+    );
+  },
+);
+
+it.each(['sibling', 'opener'] as const)(
+  'does not treat an unrelated %s click as variant selection',
+  async (kind) => {
+    const trigger = document.createElement('button');
+    if (kind === 'opener') {
+      trigger.textContent = 'Corner rectangle';
+      trigger.setAttribute('aria-haspopup', 'menu');
+    }
+    document.body.append(trigger);
+    const task = createRectangleDropdownCapture(
+      document,
+      80,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const container = document.createElement('section');
+    const label = document.createElement('span');
+    label.textContent = 'Corner rectangle';
+    const unrelated = document.createElement('button');
+    container.append(label, unrelated);
+    document.body.append(container);
+    (kind === 'opener' ? trigger : unrelated).dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    const { report } = await task.promise;
+    expect(report.status).toBe('TIMED_OUT');
+    expect(report.stateHistory).not.toContain('VARIANT_CLICK_OBSERVED');
+  },
+);
+
+it.each(['nested-opener', 'conflicting-name'] as const)(
+  'keeps %s input uncertain rather than completing',
+  async (kind) => {
+    const opener = document.createElement('button');
+    document.body.append(opener);
+    const option = document.createElement('button');
+    const text = document.createElement('span');
+    text.textContent = 'Corner rectangle';
+    option.append(text);
+    if (kind === 'nested-opener') option.setAttribute('aria-haspopup', 'menu');
+    else option.setAttribute('aria-label', 'Center point rectangle');
+    document.body.append(option);
+    const task = createRectangleDropdownCapture(
+      document,
+      80,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    (kind === 'nested-opener' ? option : opener).dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    text.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const { report } = await task.promise;
+    expect(report.status).toBe('TIMED_OUT');
+    expect(report.stateHistory).not.toContain('VARIANT_CLICK_OBSERVED');
+  },
+);
+
+it.each(['row', 'icon'] as const)(
+  'does not count another child of the nonsemantic opening %s as an option',
+  async (kind) => {
+    const row = document.createElement('div');
+    const icon = document.createElement('span');
+    const label = document.createElement('span');
+    label.textContent = 'Corner rectangle';
+    row.append(icon, label);
+    document.body.append(row);
+    const task = createRectangleDropdownCapture(
+      document,
+      80,
+      'OPEN_THEN_SELECT_RECTANGLE',
+    );
+    (kind === 'row' ? row : icon).dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    label.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const { report } = await task.promise;
+    expect(report.status).toBe('TIMED_OUT');
+    expect(report.stateHistory).not.toContain('VARIANT_CLICK_OBSERVED');
+  },
+);
