@@ -749,7 +749,8 @@ describe('AssistantPanel', () => {
   it('keeps Rectangle capture opt-in and offers manual UNKNOWN snapshots separately', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/1',
+      version: 'leqad-rectangle-dropdown/2',
+      interactions: [],
       status: 'TIMED_OUT',
       captureMode: 'AUTOMATIC',
       baseline: inspectRectangleDropdown(document),
@@ -799,6 +800,9 @@ describe('AssistantPanel', () => {
       screen.getByRole('button', { name: 'Capture Rectangle dropdown' }),
     );
     expect(onCaptureRectangleDropdown).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(/click the exact option.*already-open menu/),
+    ).toBeTruthy();
     await act(async () => resolveCapture({ status: 'TIMED_OUT', report }));
 
     expect(

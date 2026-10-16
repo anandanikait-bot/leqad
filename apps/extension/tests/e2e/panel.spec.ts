@@ -440,7 +440,7 @@ test('simulated Rectangle dropdown diagnostic captures a pointer transition and 
     .getByLabel('Rectangle dropdown diagnostic output')
     .inputValue();
   const report = JSON.parse(output);
-  expect(report.version).toBe('leqad-rectangle-dropdown/1');
+  expect(report.version).toBe('leqad-rectangle-dropdown/2');
   expect(report.baseline.domObservedState).toBe('CLOSED');
   expect(report.transitions[0].eventCategory).toBe('POINTER');
   expect(report.transitions[0].after.domObservedState).toBe('OPEN');

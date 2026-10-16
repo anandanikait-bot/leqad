@@ -1038,7 +1038,7 @@ export function AssistantPanel({
     setRectangleCaptureReport(null);
     setRectangleDiagnosticsOutput('');
     setDiagnosticsMessage(
-      'Click or keyboard-activate the Rectangle control in Onshape. If the menu starts open, close and reopen it manually. The CAD interaction continues normally.',
+      'Manually open the Rectangle dropdown, or click the exact option in an already-open menu. Input paths and DOM state are recorded separately; your CAD interaction continues normally.',
     );
     setRectangleCapturePending(true);
     const generation = ++rectangleCaptureGeneration.current;
