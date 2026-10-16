@@ -1,3 +1,4 @@
+import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
 import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import type { RectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import { SketchControlDiagnostic } from './SketchControlDiagnostic';
@@ -87,6 +88,7 @@ interface AssistantPanelProps {
   onSketchCalibrationChange?: (
     calibration: SketchHighlightCalibration | null,
   ) => void | Promise<void>;
+  onCaptureSketchDialogIdentity?: () => SketchDialogIdentityReport;
   onCaptureSketchControl?: (
     purpose?: SketchControlCapturePurpose,
   ) => SketchControlCaptureTask;
@@ -382,6 +384,7 @@ export function AssistantPanel({
   onShowCalibratedHighlight,
   onSketchCalibrationChange,
   onCaptureSketchControl,
+  onCaptureSketchDialogIdentity,
   onCaptureTopRow,
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
@@ -1872,6 +1875,12 @@ export function AssistantPanel({
                           <SketchControlDiagnostic
                             key={`${step.id}:${stepState.status}`}
                             onCapture={onCaptureSketchControl}
+                            {...(onCaptureSketchDialogIdentity
+                              ? {
+                                  onCaptureIdentity:
+                                    onCaptureSketchDialogIdentity,
+                                }
+                              : {})}
                           />
                         )}
                       {onCaptureTopRow && (

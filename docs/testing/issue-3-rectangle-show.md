@@ -4,6 +4,66 @@ Date: 2026-10-16. Base: PR #7, `062f87e867075d0915acc85fa9746d5b71f5fe69`.
 This is a separate production change, not another capture workflow revision.
 Keep all stacked PRs open and unmerged.
 
+## Two exit outcomes reviewed: targeted identity snapshot authorized
+
+The [owner differentiated the two captures](https://github.com/anandanikait-bot/leqad/pull/8#issuecomment-6210862149):
+the first manual icon finished/accepted Sketch, and the second canceled/discarded
+Sketch. These are distinct owner-reported live UI outcomes. Neither is a CAD
+geometry result; neither action is automated or registered as a generic SVG
+command. The raw exit reports were not attached to this checkout; analysis uses
+their sanitized structural summaries in PR #8.
+
+Both summaries establish nonsemantic SVG control paths under a visible
+`div[role="dialog"]` with three immediate children. They do not establish a
+Sketch-specific static dialog identity: recorded names are UNKNOWN or UNLISTED,
+paths/scans are incomplete, and uniqueness is NOT_EVALUATED. Relative geometry
+and neighboring icons are consistent with the two outcomes but cannot identify
+all such controls across other feature dialogs. A mutable feature name such as
+“Sketch 1” can also be assigned to another feature, so it is not sufficient alone.
+
+Code review confirms two existing positive paths: a usable recognized Finish
+Sketch command, or a visible specifically named Sketch dialog/semantic heading
+with a uniquely recognized Sketch-plane field. The new summaries do not supply
+those identities or justify dropping the requirements. There is no safe new
+positive detector yet. Existing unsupported observations remain UNKNOWN.
+
+### Exactly one additional observation
+
+Obtain **one read-only, bounded DOM snapshot of the active dialog's identity and
+header region**, linking a static Sketch-specific UI label (for example Sketch or
+Sketch plane, if actually present) to the same dialog and its captured control
+branches. Preserve the label's source element/role, whether it is editable,
+bounded parent/child relationships, and visible/hidden/unknown observations.
+Redact feature names and all private values. No repeated Accept/Cancel click or
+Rectangle opening/selection recording is needed. If no static identity is exposed,
+record NONE/UNKNOWN rather than supplying a guessed label. See the
+[identity snapshot instructions](./sketch-control-capture.md#capture-sketch-dialog-identity).
+
+New safety regressions keep generic three-child SVG dialogs, unrelated feature
+names and editable “Sketch 1” names from establishing active Sketch; verify
+revocation on dialog replacement/removal; and retain read-only/version guards even
+when existing supported UI evidence is present. A browser simulation checks that
+SHOW abstains before lookup without invoking either icon or progressing the
+lesson. These tests pass the existing rules; they are coverage of abstention,
+not RED/GREEN evidence for an implemented live positive fix.
+
+The owner subsequently authorized one **Capture Sketch dialog identity** action
+in the existing opt-in diagnostic UI. It takes an immediate read-only snapshot of
+candidate dialogs, exact allowlisted labels and bounded local relationships.
+It excludes editable and private values, preserves unknown branch identities,
+and returns NOT_ESTABLISHED for missing/ambiguous/incomplete evidence. No CAD
+control is clicked or listener started. Native role-query discovery and bounded
+local inspection are disclosed separately. CAPTURED is diagnostic data only;
+active Sketch, static type identity and control ownership remain unverified.
+
+New diagnostic regressions were RED before implementation. They cover opt-in UI,
+static candidates vs editable/numbered names, privacy, traversal/report bounds,
+missing controls, ambiguous dialogs and copied-snapshot races. Earlier generic
+SVG abstention tests remain baseline safety coverage, not proof of a positive
+live fix. Production **recognition** is unchanged; a new capture build is supplied
+only for this meaningful owner-requested diagnostic. Active Sketch, live Rectangle
+SHOW and Issue #3 completion remain **BLOCKED**; PR #8 stays unmerged.
+
 ## New owner SHOW snapshot: context failure established
 
 The [owner's reason-specific report](https://github.com/anandanikait-bot/leqad/pull/8#issuecomment-6210325141)

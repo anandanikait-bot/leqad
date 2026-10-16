@@ -264,3 +264,137 @@ test('opt-in exit capture preserves a normal manual click without claiming activ
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(output).toHaveCount(0);
 });
+
+test('a generic three-branch SVG dialog cannot bypass the Sketch gate or identify either action (simulation)', async ({
+  page,
+}) => {
+  await rectangleStep(page);
+  await page.evaluate(() => {
+    document.querySelector('#fixture-sketch-dialog')?.remove();
+    document
+      .querySelectorAll('[role="toolbar"]')
+      .forEach((element) => element.removeAttribute('role'));
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.innerHTML =
+      '<div><input value="Sketch 1"></div><div><div><svg><use></use></svg></div></div><div><div><svg><use></use></svg></div></div>';
+    dialog.style.cssText =
+      'position:fixed;left:40px;top:340px;width:240px;height:32px';
+    for (const branch of Array.from(dialog.children).slice(1)) {
+      branch.addEventListener('click', () => {
+        document.body.dataset.simulatedActionClicked = 'true';
+      });
+    }
+    document.body.append(dialog);
+  });
+  await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Copy Rectangle SHOW diagnosis' })
+    .click();
+  const report = JSON.parse(
+    await page.getByLabel('Recognition diagnostics output').inputValue(),
+  );
+  expect(report).toMatchObject({
+    stage: 'CONTEXT',
+    reason: 'SKETCH_CONTEXT_UNESTABLISHED',
+    productionLookup: 'NOT_RUN',
+    inspection: {
+      target: {
+        sketchContext: 'UNESTABLISHED',
+        lookup: { reason: 'NO_TOOLBAR_SEMANTICS' },
+        eligibility: { state: 'NOT_EVALUATED' },
+      },
+    },
+  });
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await expect(page.locator('body')).not.toHaveAttribute(
+    'data-simulated-action-clicked',
+  );
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+});
+
+test('one opt-in dialog identity snapshot retains only local allowlisted structure without CAD interaction (simulation)', async ({
+  page,
+}) => {
+  await rectangleStep(page);
+  await page.evaluate(() => {
+    document.querySelector('#fixture-sketch-dialog')?.remove();
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.id = 'private-simulation-dialog';
+    dialog.innerHTML =
+      '<div><span>Sketch plane</span><input value="private-feature-value"></div><div><svg width="16" height="16"><use href="#private-icon"></use></svg></div><div><svg width="16" height="16"><use></use></svg></div>';
+    dialog.style.cssText =
+      'position:fixed;left:40px;top:340px;width:300px;height:40px;display:flex;background:white';
+    for (const branch of dialog.children)
+      (branch as HTMLElement).style.cssText = 'width:100px;height:40px';
+    dialog.addEventListener('click', () => {
+      document.body.dataset.cadClicked = 'true';
+    });
+    document.body.append(dialog);
+  });
+  await expect(
+    page.getByRole('button', {
+      name: 'Capture Sketch dialog identity',
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', {
+      name: 'Capture Sketch dialog identity',
+      exact: true,
+    })
+    .click();
+  const output = page.getByLabel('Sketch dialog identity report');
+  const json = await output.inputValue();
+  const report = JSON.parse(json);
+  expect(report).toMatchObject({
+    status: 'CAPTURED',
+    productionRecognition: 'NOT_RUN',
+    activeSketchState: 'UNKNOWN',
+    staticIdentity: 'NOT_ESTABLISHED',
+    branchIdentities: 'UNVERIFIED',
+    controlOwnership: 'NOT_INSPECTED',
+  });
+  expect(report.dialogs[0].labels).toEqual([
+    expect.objectContaining({
+      label: 'Sketch plane',
+      tag: 'span',
+      pathFromDialog: [0, 0],
+    }),
+  ]);
+  expect(json).not.toContain('private-');
+  await expect(page.locator('body')).not.toHaveAttribute('data-cad-clicked');
+  await expect(
+    page.getByRole('button', { name: 'Cancel Sketch capture' }),
+  ).toHaveCount(0);
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: () =>
+          Promise.reject(new Error('simulated clipboard unavailable')),
+      },
+    }),
+  );
+  await page
+    .getByRole('button', { name: 'Copy Sketch dialog identity', exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      'Select the Sketch dialog identity report below and copy it manually.',
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Turn off recognition diagnostics' })
+    .click();
+  await expect(output).toHaveCount(0);
+});

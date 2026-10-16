@@ -116,3 +116,86 @@ it('captures a manually indicated exit control before its normal handler removes
     screen.getByRole('button', { name: 'Copy Sketch exit diagnostic' }),
   ).toBeTruthy();
 });
+
+it('takes one opt-in dialog identity snapshot without starting a click capture (simulation)', async () => {
+  const { inspectSketchDialogIdentity } =
+    await import('../../services/sketchControlCapture');
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  dialog.innerHTML =
+    '<div><span>Sketch plane</span></div><div><svg></svg></div><div><svg></svg></div>';
+  for (const element of [dialog, ...dialog.querySelectorAll('div,span')])
+    element.getBoundingClientRect = () => new DOMRect(20, 40, 180, 30);
+  document.body.append(dialog);
+  const before = dialog.outerHTML;
+  const start = vi.fn(() => createSketchControlCapture(document));
+  const snapshot = vi.fn(() => inspectSketchDialogIdentity(document));
+  render(
+    <SketchControlDiagnostic onCapture={start} onCaptureIdentity={snapshot} />,
+  );
+  expect(snapshot).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Capture Sketch dialog identity' }),
+  );
+  const report = JSON.parse(
+    screen.getByLabelText<HTMLTextAreaElement>('Sketch dialog identity report')
+      .value,
+  );
+  expect(report).toMatchObject({
+    activeSketchState: 'UNKNOWN',
+    branchIdentities: 'UNVERIFIED',
+    productionRecognition: 'NOT_RUN',
+  });
+  expect(start).not.toHaveBeenCalled();
+  expect(dialog.outerHTML).toBe(before);
+  expect(
+    screen.getByRole('button', { name: 'Copy Sketch dialog identity' }),
+  ).toBeTruthy();
+});
+
+it('ignores an old control-copy completion after an identity snapshot replaces it', async () => {
+  const { inspectSketchDialogIdentity } =
+    await import('../../services/sketchControlCapture');
+  const command = document.createElement('button');
+  command.setAttribute('aria-label', 'Sketch');
+  document.body.append(command);
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  let finishCopy: (() => void) | undefined;
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: () =>
+        new Promise<void>((resolve) => {
+          finishCopy = resolve;
+        }),
+    },
+  });
+  try {
+    render(
+      <SketchControlDiagnostic
+        onCapture={(purpose) => createSketchControlCapture(document, purpose)}
+        onCaptureIdentity={() => inspectSketchDialogIdentity(document)}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture Sketch control' }),
+    );
+    await act(async () => {
+      fireEvent.click(command);
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy Sketch diagnostic' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture Sketch dialog identity' }),
+    );
+    await act(async () => {
+      finishCopy?.();
+    });
+    expect(screen.getByText(/Read-only identity snapshot ready/)).toBeTruthy();
+    expect(screen.queryByText('Sketch diagnostic copied.')).toBeNull();
+  } finally {
+    if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+  }
+});

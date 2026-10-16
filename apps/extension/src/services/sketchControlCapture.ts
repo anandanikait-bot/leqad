@@ -412,3 +412,6 @@ export function createSketchControlCapture(
   for (const event of navigationEvents) view.addEventListener(event, cancel);
   return { promise, cancel, isActive: () => active };
 }
+
+// Reuse the existing diagnostic entry point; this snapshot never starts capture listeners.
+export { inspectSketchDialogIdentity } from './sketchDialogIdentityCapture';

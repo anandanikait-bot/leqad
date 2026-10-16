@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
 import type {
   SketchControlCaptureTask,
   SketchControlCapturePurpose,
@@ -6,20 +7,27 @@ import type {
 
 export function SketchControlDiagnostic({
   onCapture,
+  onCaptureIdentity,
 }: {
   onCapture: (
     purpose?: SketchControlCapturePurpose,
   ) => SketchControlCaptureTask;
+  onCaptureIdentity?: () => SketchDialogIdentityReport;
 }) {
   const taskRef = useRef<SketchControlCaptureTask | null>(null);
+  const reportGeneration = useRef(0);
   const [pending, setPending] = useState(false);
   const [output, setOutput] = useState('');
+  const [identityOutput, setIdentityOutput] = useState('');
+  const identityOutputRef = useRef<string | null>(null);
   const [message, setMessage] = useState('');
   const [purpose, setPurpose] =
     useState<SketchControlCapturePurpose>('SKETCH_COMMAND');
   const exit = purpose === 'ACTIVE_SKETCH_EXIT';
   useEffect(
     () => () => {
+      reportGeneration.current++;
+      identityOutputRef.current = null;
       const task = taskRef.current;
       taskRef.current = null;
       task?.cancel();
@@ -27,7 +35,10 @@ export function SketchControlDiagnostic({
     [],
   );
   const capture = (nextPurpose: SketchControlCapturePurpose) => {
+    reportGeneration.current++;
     setPurpose(nextPurpose);
+    identityOutputRef.current = null;
+    setIdentityOutput('');
     taskRef.current?.cancel();
     setOutput('');
     setMessage(
@@ -55,15 +66,64 @@ export function SketchControlDiagnostic({
         );
     });
   };
+  const captureIdentity = () => {
+    if (!onCaptureIdentity || pending) return;
+    reportGeneration.current++;
+    setOutput('');
+    try {
+      const snapshot = JSON.stringify(onCaptureIdentity());
+      identityOutputRef.current = snapshot;
+      setIdentityOutput(snapshot);
+      setMessage(
+        'Read-only identity snapshot ready. Active Sketch and control identities remain unverified. Save and review locally.',
+      );
+    } catch {
+      identityOutputRef.current = null;
+      setIdentityOutput('');
+      setMessage(
+        'Dialog identity was not established. No CAD action was performed.',
+      );
+    }
+  };
+  const copyIdentity = async () => {
+    const snapshot = identityOutputRef.current;
+    const generation = reportGeneration.current;
+    if (!snapshot) return;
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(snapshot);
+      if (
+        identityOutputRef.current !== snapshot ||
+        reportGeneration.current !== generation
+      )
+        return;
+      setMessage(
+        'Sketch dialog identity copied. Save and review locally before sharing.',
+      );
+    } catch {
+      if (
+        identityOutputRef.current !== snapshot ||
+        reportGeneration.current !== generation
+      )
+        return;
+      setMessage(
+        'Select the Sketch dialog identity report below and copy it manually.',
+      );
+    }
+  };
   const copy = async () => {
+    const generation = reportGeneration.current;
     try {
       await navigator.clipboard.writeText(output);
+      if (reportGeneration.current !== generation) return;
       setMessage(
         exit
           ? 'Sketch exit diagnostic copied. Save and review locally before sharing.'
           : 'Sketch diagnostic copied.',
       );
     } catch {
+      if (reportGeneration.current !== generation) return;
       setMessage('Select the report below and copy it manually.');
     }
   };
@@ -85,6 +145,16 @@ export function SketchControlDiagnostic({
       >
         Capture Sketch exit control
       </button>
+      {onCaptureIdentity && (
+        <button
+          type="button"
+          className="leqad-button leqad-button--secondary"
+          onClick={captureIdentity}
+          disabled={pending}
+        >
+          Capture Sketch dialog identity
+        </button>
+      )}
       {pending && (
         <button
           type="button"
@@ -95,6 +165,23 @@ export function SketchControlDiagnostic({
         </button>
       )}
       {message && <p role="status">{message}</p>}
+      {identityOutput && (
+        <>
+          <button
+            type="button"
+            className="leqad-button leqad-button--secondary"
+            onClick={() => void copyIdentity()}
+          >
+            Copy Sketch dialog identity
+          </button>
+          <textarea
+            aria-label="Sketch dialog identity report"
+            readOnly
+            value={identityOutput}
+            rows={6}
+          />
+        </>
+      )}
       {output && (
         <>
           <button

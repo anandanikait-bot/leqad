@@ -1,5 +1,8 @@
 import { inspectRectangleDropdownRecognition } from '../../src/services/semanticTargets';
-import { createSketchControlCapture } from '../../src/services/sketchControlCapture';
+import {
+  createSketchControlCapture,
+  inspectSketchDialogIdentity,
+} from '../../src/services/sketchControlCapture';
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
@@ -290,6 +293,9 @@ async function renderFixturePanel() {
       guidanceRunner={guidanceRunner}
       onClearTarget={clearGuidanceHighlight}
       onObserveSketchUi={() => observeSketchGuidanceUi(document)}
+      onCaptureSketchDialogIdentity={() =>
+        inspectSketchDialogIdentity(document)
+      }
       onCaptureSketchControl={(purpose) =>
         createSketchControlCapture(document, purpose)
       }

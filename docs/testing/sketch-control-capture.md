@@ -1,6 +1,73 @@
 # Automatic Sketch recognition: local evidence handoff
 
-## Active Sketch exit-control capture
+## Capture Sketch dialog identity
+
+Both prior exit captures now have owner-confirmed outcomes: the first icon
+accepted/finished Sketch and the second canceled/discarded Sketch. Do not repeat
+either icon capture. Their visible dialog/SVG layout does not establish a unique
+Sketch-specific identity. The owner authorized **one targeted read-only identity
+snapshot** to obtain the missing label/source/relationship evidence.
+
+Use the latest successful PR #8 capture build linked in the PR. Extract the outer
+artifact ZIP, then the Chrome ZIP. Disable the older extension copy and use
+`chrome://extensions` → Developer mode → Load unpacked → the folder directly
+containing `manifest.json`. Refresh an authorized disposable Onshape Part Studio
+in regular Chrome. Do not use the extension-disabled reference recorder.
+
+1. Manually enter Sketch and leave it active. Enable recognition diagnostics in
+   Leqad and choose **Capture Sketch dialog identity**.
+2. This action takes an immediate local snapshot. **Do not click Accept, Cancel,
+   or any other CAD control.** No pointer-selection phase or capture listener is
+   started; no control is activated or model changed by the diagnostic.
+3. Choose **Copy Sketch dialog identity**, or manually copy the read-only
+   **Sketch dialog identity report** if clipboard access is unavailable.
+4. Save/review the sanitized JSON locally as pending review before sharing it.
+   Do not commit raw captures to GitHub. A NOT_ESTABLISHED result is useful too.
+
+The report is `leqad-sketch-dialog-identity/1`. CAPTURED means only that exact
+allowlisted label candidates and local relationships were observed. It **never**
+means active Sketch, immutable/static type identity, Finish/Cancel ownership,
+production uniqueness, editing permission or CAD geometry was verified. These
+fields remain UNKNOWN, NOT_ESTABLISHED, UNVERIFIED or NOT_INSPECTED. An absent
+editable attribute cannot prove that JavaScript never makes a label editable.
+
+The snapshot looks for exactly Sketch or Sketch plane (case/whitespace normalized)
+in a visible observed-type dialog with three direct branches. It records the
+source tag/allowlisted role, label source, bounded ancestor path and branch index,
+visibility, and SVG counts in candidate branches. The three-child structure only
+scopes **diagnostic inspection**; it is not a production selector or type proof.
+Missing label/control-region relationships, hidden or ambiguous dialogs, and
+incomplete inspection return NOT_ESTABLISHED. Partial structural fields remain
+available for review. SVG branches are never assigned Accept or Cancel identities.
+
+Editable controls/content, inherited editable contexts and numbered Sketch names
+are excluded. Form values, arbitrary names/text, IDs, classes, URLs, authentication
+material, HTML, SVG references/path data and unrelated page content are not
+exported. Only the two exact static-label candidates are retained; conflicting
+unsupported explicit accessible names cannot fall back to a known text label.
+
+Native `[role="dialog"],dialog` discovery uses the already observed role; its
+selector-engine work and initial match list have no imposed traversal bound.
+**Local inspection and report bounds** are separate and explicit: eight dialog
+candidates, 128 visited region nodes per dialog (including text/comments), six
+levels, 64 nodes/128 characters per name inspection, eight label records per
+dialog, three branch summaries and 32 ancestor/child-index checks. JSON is capped
+at 24,000 characters with truncation/incompleteness indicators. Candidate/depth/
+name/visibility limits preserve uncertainty; no partial search establishes a
+unique production target. No repeated polling or new reference harness is added.
+
+Turning off diagnostics, changing lesson/mode or unmounting removes the output.
+Clipboard completions from superseded snapshots are ignored. The output is a
+single request snapshot, not continuously current live state. Production Sketch
+and Rectangle recognition are unchanged. **Stop after this one owner snapshot**;
+implement a positive detector only after reviewing the resulting live identity
+evidence. The old icon/Rectangle recordings need not be repeated.
+
+## Active Sketch exit-control capture (historical workflow)
+
+The two owner captures described above have already supplied this workflow's
+outcomes. The following instructions document the shipped tool; they are **not**
+a request to repeat either capture.
 
 Status: the owner supplied a SHOW snapshot proving that context recognition is
 UNKNOWN while they are actually editing Sketch. Production Rectangle lookup did
