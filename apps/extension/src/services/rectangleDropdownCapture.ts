@@ -109,6 +109,8 @@ export interface RectangleDropdownNodeSummary {
   hiddenAttributePresent: boolean;
   actionableMarkup: 'MARKUP_SIGNAL' | 'NOT_EXPOSED';
   visibility: string;
+  connected: boolean;
+  enabled: 'ENABLED' | 'DISABLED' | 'UNKNOWN';
 }
 
 export interface RectangleDropdownSiblingSummary {
@@ -121,6 +123,11 @@ export interface RectangleDropdownCandidate {
   label: RectangleDropdownLabel | null;
   labelClassification: CandidateKind;
   inputPathMember: boolean;
+  inputRelation: {
+    kind: 'EVENT_PATH' | 'SIBLING_BRANCH' | 'EXPLICIT_ARIA' | 'UNKNOWN';
+    pathDistance: number | null;
+    siblingOffset: number | null;
+  };
   node: RectangleDropdownNodeSummary;
   ancestors: RectangleDropdownNodeSummary[];
   parentChildCount: number | null;
@@ -154,18 +161,37 @@ export interface RectangleDropdownManualSnapshot {
 }
 
 export interface RectangleDropdownTransition {
-  eventCategory: 'POINTER' | 'KEYBOARD' | null;
+  eventCategory: 'POINTER' | 'KEYBOARD' | 'CLICK' | null;
+  inputSequence: number;
+  scope: 'INPUT_AND_MUTATION_LOCAL';
+  inputAssociation: 'UNPROVEN';
   before: RectangleDropdownSnapshot;
   after: RectangleDropdownSnapshot;
   relationship: 'NESTED' | 'SEPARATE_DOCUMENT_BRANCH' | 'AMBIGUOUS' | 'UNKNOWN';
   changedCandidateCount: number;
 }
 
+export interface RectangleDropdownInteraction {
+  sequence: number;
+  eventCategory: RectangleDropdownTransition['eventCategory'];
+  clickObserved: boolean;
+  clickedLabel: RectangleDropdownLabel | null;
+  clickPathMatchesInput: boolean | null;
+  path: {
+    distance: number;
+    label: RectangleDropdownLabel | null;
+    node: RectangleDropdownNodeSummary;
+  }[];
+  pathTruncated: boolean;
+  localBefore: RectangleDropdownSnapshot;
+}
+
 export interface RectangleDropdownCaptureReport {
-  version: 'leqad-rectangle-dropdown/1';
+  version: 'leqad-rectangle-dropdown/2';
   status: RectangleDropdownCaptureStatus;
   captureMode: 'AUTOMATIC' | 'MANUAL_FALLBACK';
   baseline: RectangleDropdownSnapshot;
+  interactions: RectangleDropdownInteraction[];
   transitions: RectangleDropdownTransition[];
   manualSnapshots: RectangleDropdownManualSnapshot[];
   truncated: boolean;
@@ -206,7 +232,13 @@ interface InspectionOptions {
   inputPath?: readonly Element[];
   structuralChangeElements?: readonly Element[];
   scanRoot?: ParentNode;
+  referenceElement?: Element;
+  candidateElements?: readonly Element[];
 }
+
+// Local work reuses the existing mutation budget; the document cap stays 6000.
+const LOCAL_ELEMENT_LIMIT = FEATURE_LIST_CAPTURE_LIMITS.inspectedElements;
+const INTERACTION_LIMIT = 4;
 
 function isDropdownStructure(element: Element): boolean {
   return (
@@ -233,10 +265,18 @@ function hasBoundedAncestorRelation(
   return containsWithinLimit(left, right) || containsWithinLimit(right, left);
 }
 
-function referencesElement(source: Element, target: Element): boolean {
+function referencesElement(
+  source: Element,
+  target: Element,
+  attributes: readonly string[] = [
+    'aria-controls',
+    'aria-owns',
+    'aria-labelledby',
+  ],
+): boolean {
   const targetId = target.getAttribute('id');
   if (!targetId || targetId.length > 64) return false;
-  for (const attribute of ['aria-controls', 'aria-owns', 'aria-labelledby']) {
+  for (const attribute of attributes) {
     const value = source.getAttribute(attribute);
     if (!value || value.length > 128) continue;
     const ids = value.trim().split(/\s+/);
@@ -311,13 +351,17 @@ function normalizedLabel(value: string): string {
 function boundedText(element: Element): { text: string; complete: boolean } {
   const walker = element.ownerDocument.createTreeWalker(
     element,
-    4, // NodeFilter.SHOW_TEXT
+    0xffffffff, // SHOW_ALL: empty element wrappers count toward the bound too.
   );
   let current = walker.nextNode();
   let text = '';
   let visited = 0;
   while (current) {
     if (++visited > 64) return { text: '', complete: false };
+    if (current.nodeType !== 3) {
+      current = walker.nextNode();
+      continue;
+    }
     const parent = current.parentElement;
     if (parent?.closest('[aria-hidden="true"],svg,[data-leqad-root]')) {
       current = walker.nextNode();
@@ -526,7 +570,66 @@ function nodeSummary(element: Element): RectangleDropdownNodeSummary {
     hiddenAttributePresent: element.hasAttribute('hidden'),
     actionableMarkup: markup ? 'MARKUP_SIGNAL' : 'NOT_EXPOSED',
     visibility: boundedVisibility(element),
+    connected: element.isConnected,
+    enabled: boundedEnabled(element),
   };
+}
+
+function boundedEnabled(
+  element: Element,
+): RectangleDropdownNodeSummary['enabled'] {
+  if (!element.isConnected) return 'UNKNOWN';
+  let current: Element | null = element;
+  for (let depth = 0; current && depth < 12; depth++) {
+    if (
+      current.matches(':disabled') ||
+      current.getAttribute('aria-disabled') === 'true' ||
+      current.hasAttribute('inert')
+    )
+      return 'DISABLED';
+    current = current.parentElement;
+  }
+  return current ? 'UNKNOWN' : 'ENABLED';
+}
+
+function inputRelation(
+  element: Element,
+  path: readonly Element[],
+): RectangleDropdownCandidate['inputRelation'] {
+  for (const [distance, branch] of path.entries()) {
+    if (branch === element)
+      return { kind: 'EVENT_PATH', pathDistance: distance, siblingOffset: 0 };
+    if (['body', 'html'].includes(branch.localName)) continue;
+    if (explicitlyRelated(element, branch))
+      return {
+        kind: 'EXPLICIT_ARIA',
+        pathDistance: distance,
+        siblingOffset: null,
+      };
+    for (const direction of [-1, 1]) {
+      let sibling =
+        direction < 0
+          ? branch.previousElementSibling
+          : branch.nextElementSibling;
+      for (
+        let offset = 1;
+        sibling && offset <= RECTANGLE_DROPDOWN_CAPTURE_LIMITS.siblingRadius;
+        offset++
+      ) {
+        if (sibling === element)
+          return {
+            kind: 'SIBLING_BRANCH',
+            pathDistance: distance,
+            siblingOffset: direction * offset,
+          };
+        sibling =
+          direction < 0
+            ? sibling.previousElementSibling
+            : sibling.nextElementSibling;
+      }
+    }
+  }
+  return { kind: 'UNKNOWN', pathDistance: null, siblingOffset: null };
 }
 
 function classification(
@@ -571,6 +674,7 @@ function summarizeCandidate(
   structuralChange: boolean,
   reference: DOMRect | null,
   limits: RectangleDropdownCaptureLimits,
+  inputPath: readonly Element[] = [],
 ): RectangleDropdownCandidate {
   const markup = actionableMarkup(element);
   const ancestors: RectangleDropdownNodeSummary[] = [];
@@ -614,6 +718,7 @@ function summarizeCandidate(
       structuralChange,
     ),
     inputPathMember,
+    inputRelation: inputRelation(element, inputPath),
     node: nodeSummary(element),
     ancestors,
     parentChildCount: parentCount === null ? null : Math.min(parentCount, 100),
@@ -684,7 +789,11 @@ function isVisible(element: Element): boolean {
 function observedState(
   candidates: readonly InternalCandidate[],
 ): Pick<RectangleDropdownSnapshot, 'domObservedState' | 'stateBasis'> {
-  const hasRectangle = candidates.some(({ label }) => label === 'Rectangle');
+  const usable = ({ element }: InternalCandidate) =>
+    isVisible(element) && boundedEnabled(element) === 'ENABLED';
+  const rectangles = candidates.filter(
+    (candidate) => candidate.label === 'Rectangle' && usable(candidate),
+  );
   const visibleMenu = candidates.some(
     ({ element }) =>
       ['menu', 'listbox'].includes(safeRole(element)) && isVisible(element),
@@ -698,7 +807,8 @@ function observedState(
       label === 'Rectangle' &&
       element.hasAttribute('aria-haspopup') &&
       element.hasAttribute('aria-expanded') &&
-      isVisible(element),
+      isVisible(element) &&
+      boundedEnabled(element) === 'ENABLED',
   );
   const distinctActionRoots = exactTriggers.filter(
     ({ element }) =>
@@ -721,9 +831,47 @@ function observedState(
   if (distinctActionRoots.length > 1)
     return { domObservedState: 'UNKNOWN', stateBasis: 'UNKNOWN' };
 
-  if (hasRectangle && visibleMenu && visibleVariant)
+  const relatedMenus = candidates.filter(
+    (menu) =>
+      isMenuContainer(menu.element) &&
+      usable(menu) &&
+      rectangles.some(
+        (trigger) =>
+          actionableMarkup(trigger.element) &&
+          (trigger.element.contains(menu.element) ||
+            referencesElement(trigger.element, menu.element, [
+              'aria-controls',
+              'aria-owns',
+            ])),
+      ) &&
+      candidates.some(
+        (variant) =>
+          variant.label !== null &&
+          variant.label !== 'Rectangle' &&
+          usable(variant) &&
+          menu.element.contains(variant.element),
+      ),
+  );
+  if (relatedMenus.length === 1)
     return { domObservedState: 'OPEN', stateBasis: 'SEMANTIC_MENU' };
   return { domObservedState: 'UNKNOWN', stateBasis: 'UNKNOWN' };
+}
+
+function duplicateExactLabels(
+  candidates: readonly CandidatePriorityInput[],
+): boolean {
+  return candidates.some(
+    (candidate, index) =>
+      candidate.label !== null &&
+      candidates
+        .slice(index + 1)
+        .some(
+          (other) =>
+            other.label === candidate.label &&
+            !candidate.element.contains(other.element) &&
+            !other.element.contains(candidate.element),
+        ),
+  );
 }
 
 function inspect(
@@ -795,6 +943,7 @@ function inspect(
 
   if (options.inputPath)
     inputPathElements.forEach((element) => addCandidate(element));
+  options.candidateElements?.forEach((element) => addCandidate(element));
   if (options.structuralChangeElements)
     changeElements.forEach((element) => addCandidate(element, true));
   if (scanRoot instanceof Document || !options.scanRoot) {
@@ -826,8 +975,10 @@ function inspect(
   if (prioritized.length > limits.candidateRecords) truncated = true;
   const candidatesToSummarize = prioritized.slice(0, limits.candidateRecords);
   const referenceElement =
+    options.referenceElement ??
     candidatesToSummarize.find((candidate) => candidate.label === 'Rectangle')
-      ?.element ?? candidatesToSummarize[0]?.element;
+      ?.element ??
+    candidatesToSummarize[0]?.element;
   const referenceRect = referenceElement?.getBoundingClientRect() ?? null;
   const internal = candidatesToSummarize.map((candidate) => ({
     ...candidate,
@@ -847,20 +998,10 @@ function inspect(
       candidate.structuralChange,
       referenceRect,
       limits,
+      inputPathElements,
     ),
   }));
-  const visibleRectangles = candidatesToSummarize.filter(
-    ({ label }) => label === 'Rectangle',
-  );
-  const duplicateBranches = visibleRectangles.some((candidate, index) =>
-    visibleRectangles
-      .slice(index + 1)
-      .some(
-        ({ element }) =>
-          !candidate.element.contains(element) &&
-          !element.contains(candidate.element),
-      ),
-  );
+  const duplicateBranches = duplicateExactLabels(prioritized);
   const state = observedState(internal);
   const snapshot: RectangleDropdownSnapshot = {
     ...state,
@@ -951,6 +1092,21 @@ function cappedReport(
           },
         },
       })),
+      interactions: output.interactions.map((interaction) => ({
+        ...interaction,
+        localBefore: {
+          ...interaction.localBefore,
+          candidates: interaction.localBefore.candidates.slice(
+            0,
+            Math.max(0, interaction.localBefore.candidates.length - 1),
+          ),
+          scan: {
+            ...interaction.localBefore.scan,
+            status: 'INCOMPLETE' as const,
+            truncated: true,
+          },
+        },
+      })),
       manualSnapshots: output.manualSnapshots.map((manual) => ({
         ...manual,
         snapshot: {
@@ -969,6 +1125,19 @@ function cappedReport(
       truncated: true,
     };
     if (JSON.stringify(reduced) === JSON.stringify(output)) {
+      const longest =
+        output.interactions.reduce<RectangleDropdownInteraction | null>(
+          (result, item) =>
+            !result || item.path.length > result.path.length ? item : result,
+          null,
+        );
+      if (longest && longest.path.length > 1) {
+        longest.path.pop();
+        longest.pathTruncated = true;
+        longest.clickPathMatchesInput = null;
+        output = { ...output, status: 'INCOMPLETE', truncated: true };
+        continue;
+      }
       output = {
         ...output,
         status: 'INCOMPLETE',
@@ -1048,6 +1217,11 @@ function sanitizeNodeSummary(
         ? 'MARKUP_SIGNAL'
         : 'NOT_EXPOSED',
     visibility,
+    connected: value.connected === true,
+    enabled:
+      value.enabled === 'ENABLED' || value.enabled === 'DISABLED'
+        ? value.enabled
+        : 'UNKNOWN',
   };
 }
 
@@ -1109,6 +1283,7 @@ function sanitizeCandidate(
     label,
     labelClassification,
     inputPathMember: Boolean(value.inputPathMember),
+    inputRelation: sanitizeInputRelation(value.inputRelation),
     node: sanitizeNodeSummary(value.node),
     ancestors: (Array.isArray(value.ancestors) ? value.ancestors : [])
       .slice(0, RECTANGLE_DROPDOWN_CAPTURE_LIMITS.capturedAncestors)
@@ -1117,6 +1292,68 @@ function sanitizeCandidate(
     parentChildCountCapped: Boolean(value.parentChildCountCapped),
     siblings,
     relativeGeometry: sanitizeGeometry(value.relativeGeometry),
+  };
+}
+
+function sanitizeInputRelation(
+  value: RectangleDropdownCandidate['inputRelation'],
+): RectangleDropdownCandidate['inputRelation'] {
+  const kind =
+    value &&
+    ['EVENT_PATH', 'SIBLING_BRANCH', 'EXPLICIT_ARIA'].includes(value.kind)
+      ? value.kind
+      : 'UNKNOWN';
+  return {
+    kind,
+    pathDistance:
+      kind !== 'UNKNOWN' && Number.isInteger(value?.pathDistance)
+        ? Math.max(0, Math.min(9, value.pathDistance!))
+        : null,
+    siblingOffset:
+      kind !== 'UNKNOWN' && Number.isInteger(value?.siblingOffset)
+        ? Math.max(
+            -RECTANGLE_DROPDOWN_CAPTURE_LIMITS.siblingRadius,
+            Math.min(
+              RECTANGLE_DROPDOWN_CAPTURE_LIMITS.siblingRadius,
+              value.siblingOffset!,
+            ),
+          )
+        : null,
+  };
+}
+
+function sanitizeInteraction(
+  value: RectangleDropdownInteraction,
+  index: number,
+): RectangleDropdownInteraction {
+  const labels = new Set<RectangleDropdownLabel>(LABELS.values());
+  const path = Array.isArray(value.path) ? value.path : [];
+  return {
+    sequence: index + 1,
+    eventCategory: ['POINTER', 'KEYBOARD', 'CLICK'].includes(
+      value.eventCategory ?? '',
+    )
+      ? value.eventCategory
+      : null,
+    clickObserved: value.clickObserved === true,
+    clickedLabel: labels.has(value.clickedLabel!) ? value.clickedLabel : null,
+    clickPathMatchesInput:
+      !value.pathTruncated &&
+      path.length <= RECTANGLE_DROPDOWN_CAPTURE_LIMITS.capturedAncestors &&
+      typeof value.clickPathMatchesInput === 'boolean'
+        ? value.clickPathMatchesInput
+        : null,
+    path: path
+      .slice(0, RECTANGLE_DROPDOWN_CAPTURE_LIMITS.capturedAncestors)
+      .map((item, distance) => ({
+        distance,
+        label: labels.has(item.label!) ? item.label : null,
+        node: sanitizeNodeSummary(item.node),
+      })),
+    pathTruncated:
+      Boolean(value.pathTruncated) ||
+      path.length > RECTANGLE_DROPDOWN_CAPTURE_LIMITS.capturedAncestors,
+    localBefore: sanitizeSnapshot(value.localBefore),
   };
 }
 
@@ -1175,11 +1412,16 @@ function sanitizeReport(
   )
     .slice(0, 4)
     .map((transition) => ({
-      eventCategory:
-        transition.eventCategory === 'POINTER' ||
-        transition.eventCategory === 'KEYBOARD'
-          ? transition.eventCategory
-          : null,
+      eventCategory: ['POINTER', 'KEYBOARD', 'CLICK'].includes(
+        transition.eventCategory ?? '',
+      )
+        ? transition.eventCategory
+        : null,
+      inputSequence: Number.isInteger(transition.inputSequence)
+        ? Math.max(1, Math.min(INTERACTION_LIMIT, transition.inputSequence))
+        : 1,
+      scope: 'INPUT_AND_MUTATION_LOCAL' as const,
+      inputAssociation: 'UNPROVEN' as const,
       before: sanitizeSnapshot(transition.before),
       after: sanitizeSnapshot(transition.after),
       relationship: [
@@ -1209,9 +1451,18 @@ function sanitizeReport(
         : 'CLOSED') as RectangleDropdownUserReportedState,
       snapshot: sanitizeSnapshot(snapshot.snapshot),
     }));
+  const interactions = (
+    Array.isArray(report.interactions) ? report.interactions : []
+  )
+    .slice(0, INTERACTION_LIMIT)
+    .map(sanitizeInteraction);
   const truncated =
     Boolean(report.truncated) ||
     baseline.scan.truncated ||
+    interactions.length < (report.interactions?.length ?? 0) ||
+    interactions.some(
+      (item) => item.pathTruncated || item.localBefore.scan.truncated,
+    ) ||
     transitions.length < (report.transitions?.length ?? 0) ||
     manualSnapshots.length < (report.manualSnapshots?.length ?? 0) ||
     transitions.some(
@@ -1224,13 +1475,14 @@ function sanitizeReport(
     ? report.status
     : 'INCOMPLETE';
   return {
-    version: 'leqad-rectangle-dropdown/1',
+    version: 'leqad-rectangle-dropdown/2',
     status: truncated && status === 'CAPTURED' ? 'INCOMPLETE' : status,
     captureMode:
       report.captureMode === 'MANUAL_FALLBACK'
         ? 'MANUAL_FALLBACK'
         : 'AUTOMATIC',
     baseline,
+    interactions,
     transitions,
     manualSnapshots,
     truncated,
@@ -1288,46 +1540,59 @@ function changedCount(
   return changed + unmatched.length;
 }
 
-function withInternalCandidates(
-  candidates: InternalCandidate[],
-  truncated: boolean,
-  scannedElements: number,
-): RectangleDropdownSnapshot {
-  const prioritized = prioritizeCandidates(
-    candidates,
-    RECOGNITION_DIAGNOSTIC_LIMITS.capturedAncestors,
-  );
-  const candidatesToReport = prioritized.slice(
-    0,
-    RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords,
-  );
-  const state = observedState(candidatesToReport);
-  const candidateLimitReached =
-    prioritized.length > RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords;
-  const scanIncomplete = truncated || candidateLimitReached;
-  const exact = candidatesToReport.filter(({ label }) => label === 'Rectangle');
-  const duplicate = exact.some((candidate, index) =>
-    exact
-      .slice(index + 1)
-      .some(
-        ({ element }) =>
-          !candidate.element.contains(element) &&
-          !element.contains(candidate.element),
-      ),
-  );
-  return {
-    ...state,
-    domObservedState: duplicate ? 'UNKNOWN' : state.domObservedState,
-    stateBasis: duplicate ? 'UNKNOWN' : state.stateBasis,
-    ambiguity: duplicate ? 'DUPLICATE_EXACT_LABELS' : null,
-    candidates: candidatesToReport.map(({ summary }) => summary),
-    scan: {
-      status: scanIncomplete ? 'INCOMPLETE' : 'COMPLETE',
-      scannedElements,
-      unlistedLabelCount: candidates.filter(({ unlisted }) => unlisted).length,
-      truncated: scanIncomplete,
+function inspectInputContext(root: Document, inputPath: readonly Element[]) {
+  // A bounded parent branch is a diagnostic scope, not an identified command.
+  const branch =
+    inputPath
+      .slice(0, 4)
+      .filter((element) => !['body', 'html'].includes(element.localName))
+      .at(-1) ?? inputPath[0]!;
+  return inspect(root, {
+    inputPath,
+    scanRoot: branch,
+    referenceElement: inputPath[0]!,
+    limits: {
+      scannedElements: LOCAL_ELEMENT_LIMIT,
+      capturedAncestors: 2,
+      siblingRadius: 1,
     },
+  });
+}
+
+function inspectLocalChanges(
+  root: Document,
+  inputPath: readonly Element[],
+  known: readonly Element[],
+  changed: readonly Element[],
+  incomplete: boolean,
+) {
+  const elements = [...new Set([...inputPath, ...known, ...changed])];
+  const retained = new Set(elements.slice(0, LOCAL_ELEMENT_LIMIT));
+  const result = inspect(root, {
+    inputPath: inputPath.filter((element) => retained.has(element)),
+    candidateElements: known.filter((element) => retained.has(element)),
+    structuralChangeElements: changed.filter((element) =>
+      retained.has(element),
+    ),
+    scanRoot: root.createElement('div'),
+    referenceElement: inputPath[0]!,
+    limits: {
+      scannedElements: LOCAL_ELEMENT_LIMIT,
+      capturedAncestors: 2,
+      siblingRadius: 1,
+    },
+  });
+  const truncated =
+    incomplete ||
+    elements.length > LOCAL_ELEMENT_LIMIT ||
+    result.snapshot.scan.truncated;
+  result.snapshot.scan = {
+    ...result.snapshot.scan,
+    scannedElements: retained.size,
+    truncated,
+    status: truncated ? 'INCOMPLETE' : 'COMPLETE',
   };
+  return result;
 }
 
 /**
@@ -1340,285 +1605,337 @@ export function createRectangleDropdownCapture(
   timeoutMs: number = RECOGNITION_DIAGNOSTIC_LIMITS.captureTimeoutMs,
 ): RectangleDropdownCaptureTask {
   const view = root.defaultView;
-  const baselineInspection = inspect(root);
-  const baseline = baselineInspection.snapshot;
-  const initialLocation = root.location.href;
+  const baseline = inspect(root).snapshot;
+  const initialLocation = root.location.href; // In memory only; never exported.
   let active = true;
-  let inputCategory: RectangleDropdownTransition['eventCategory'] = null;
   let inputPath: Element[] = [];
+  let inputInspection: ReturnType<typeof inspectInputContext> | null = null;
+  const interactions: RectangleDropdownInteraction[] = [];
+  let currentInput: RectangleDropdownInteraction | null = null;
   let sawClosedAfterOpen = false;
   let truncated = baseline.scan.truncated;
+  let localIncomplete = false;
   let pendingFrame: number | null = null;
   let pendingFrameTimer: number | null = null;
   let timeout: number | null = null;
   let pendingRecords: MutationRecord[] = [];
-  let transitions: RectangleDropdownTransition[] = [];
-  let previous = baseline;
+  const transitions: RectangleDropdownTransition[] = [];
+  let previous: RectangleDropdownSnapshot | null = null;
   let resolve!: (result: RectangleDropdownCaptureResult) => void;
   const promise = new Promise<RectangleDropdownCaptureResult>((done) => {
     resolve = done;
   });
-  const observer: MutationObserver = new MutationObserver((records) => {
-    if (!active || !inputCategory || records.length === 0) return;
-    const room = Math.max(
-      0,
-      FEATURE_LIST_CAPTURE_LIMITS.inspectedElements - pendingRecords.length,
-    );
-    pendingRecords.push(...records.slice(0, room));
-    if (records.length > room) truncated = true;
-    if (pendingFrame !== null || pendingFrameTimer !== null) return;
-    if (view?.requestAnimationFrame) {
-      pendingFrame = view.requestAnimationFrame(processRecords);
-    } else {
-      pendingFrameTimer = view?.setTimeout(processRecords, 16) ?? null;
-    }
-  });
 
+  const schedule = () => {
+    if (pendingFrame !== null || pendingFrameTimer !== null) return;
+    if (view?.requestAnimationFrame)
+      pendingFrame = view.requestAnimationFrame(processRecords);
+    else pendingFrameTimer = view?.setTimeout(processRecords, 16) ?? null;
+  };
+  const observer = new MutationObserver((records) => {
+    if (!active || !currentInput || records.length === 0) return;
+    const room = Math.max(0, LOCAL_ELEMENT_LIMIT - pendingRecords.length);
+    pendingRecords.push(...records.slice(0, room));
+    if (records.length > room) {
+      truncated = true;
+      localIncomplete = true;
+    }
+    schedule();
+  });
+  const navigationEvents = [
+    'pagehide',
+    'popstate',
+    'hashchange',
+    'wxt:locationchange',
+  ] as const;
   const cleanup = () => {
     root.removeEventListener('pointerdown', onPointer, true);
+    root.removeEventListener('click', onClick, true);
     root.removeEventListener('keydown', onKeyboard, true);
-    view?.removeEventListener('pagehide', onNavigation, true);
-    view?.removeEventListener('popstate', onNavigation, true);
-    view?.removeEventListener('hashchange', onNavigation, true);
+    root.removeEventListener('visibilitychange', onVisibility);
+    for (const event of navigationEvents)
+      view?.removeEventListener(event, onNavigation, true);
     observer.disconnect();
     if (timeout !== null) view?.clearTimeout(timeout);
     if (pendingFrame !== null) view?.cancelAnimationFrame(pendingFrame);
     if (pendingFrameTimer !== null) view?.clearTimeout(pendingFrameTimer);
-    timeout = null;
-    pendingFrame = null;
-    pendingFrameTimer = null;
+    timeout = pendingFrame = pendingFrameTimer = null;
     pendingRecords = [];
   };
-
   const finish = (status: RectangleDropdownCaptureStatus) => {
     if (!active) return;
     active = false;
     cleanup();
     const finalStatus =
       status === 'CAPTURED' && truncated ? 'INCOMPLETE' : status;
-    const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/1',
+    resolve({
       status: finalStatus,
-      captureMode: 'AUTOMATIC',
-      baseline,
-      transitions,
-      manualSnapshots: [],
-      truncated,
-    };
-    resolve({ status: finalStatus, report });
+      report: {
+        version: 'leqad-rectangle-dropdown/2',
+        status: finalStatus,
+        captureMode: 'AUTOMATIC',
+        baseline,
+        interactions,
+        transitions,
+        manualSnapshots: [],
+        truncated,
+      },
+    });
   };
-
-  const eventPathFor = (event: Event): Element[] => {
-    const result: Element[] = [];
+  const eventPathFor = (event: Event) => {
     const path = event.composedPath?.() ?? [event.target];
+    const elements: Element[] = [];
+    let pathTruncated = false;
     for (const item of path) {
       if (!(item instanceof Element)) continue;
-      if (isLeqadOwned(item)) break;
-      result.push(item);
-      if (result.length >= RECOGNITION_DIAGNOSTIC_LIMITS.capturedAncestors)
+      if (isLeqadOwned(item)) return null;
+      if (
+        elements.length >= RECTANGLE_DROPDOWN_CAPTURE_LIMITS.capturedAncestors
+      ) {
+        pathTruncated = true;
         break;
+      }
+      elements.push(item);
     }
-    return result;
+    // Text editors and Leqad controls are outside this diagnostic's purpose.
+    if (
+      !elements.length ||
+      elements.some((element) =>
+        element.matches(
+          'input,textarea,select,[contenteditable]:not([contenteditable="false"])',
+        ),
+      )
+    )
+      return null;
+    return { elements, pathTruncated };
   };
-
-  const noteInput = (category: 'POINTER' | 'KEYBOARD', event: Event) => {
+  const noteInput = (
+    category: RectangleDropdownTransition['eventCategory'],
+    event: Event,
+    clickObserved = false,
+  ) => {
     if (!active) return;
-    const target = event.target;
-    if (target instanceof Element && isLeqadOwned(target)) return;
-    inputCategory = category;
-    inputPath = eventPathFor(event);
-  };
-  const onPointer = (event: Event) => noteInput('POINTER', event);
-  const onKeyboard = (event: Event) => noteInput('KEYBOARD', event);
-  const onNavigation = () => finish('CANCELLED');
-
-  const processRecords = () => {
-    pendingFrame = null;
-    pendingFrameTimer = null;
-    const records = pendingRecords;
-    pendingRecords = [];
-    if (!active || !inputCategory || records.length === 0) return;
     if (root.location.href !== initialLocation) {
       finish('CANCELLED');
       return;
     }
+    const path = eventPathFor(event);
+    if (!path) return;
+    if (
+      clickObserved &&
+      currentInput &&
+      inputPath[0] === path.elements[0] &&
+      !currentInput.clickObserved
+    ) {
+      currentInput.clickObserved = true;
+      currentInput.clickedLabel = labelFor(path.elements[0]!).label;
+      currentInput.clickPathMatchesInput =
+        currentInput.pathTruncated || path.pathTruncated
+          ? null
+          : inputPath.length === path.elements.length &&
+            inputPath.every(
+              (element, index) => element === path.elements[index],
+            );
+      truncated ||= path.pathTruncated;
+      return;
+    }
+    // Finish processing the previous input's mutations before attributing a new
+    // batch. Mutations predating the first input cannot establish a transition.
+    const queued = observer.takeRecords();
+    if (currentInput && (pendingRecords.length || queued.length)) {
+      const room = Math.max(0, LOCAL_ELEMENT_LIMIT - pendingRecords.length);
+      pendingRecords.push(...queued.slice(0, room));
+      localIncomplete ||= queued.length > room;
+      processRecords();
+      if (!active) return;
+    }
+    if (interactions.length >= INTERACTION_LIMIT) {
+      truncated = true;
+      finish('INCOMPLETE');
+      return;
+    }
+    inputPath = path.elements;
+    inputInspection = inspectInputContext(root, inputPath);
+    currentInput = {
+      sequence: interactions.length + 1,
+      eventCategory: category,
+      clickObserved,
+      clickedLabel: clickObserved ? labelFor(inputPath[0]!).label : null,
+      clickPathMatchesInput: clickObserved && !path.pathTruncated ? true : null,
+      path: inputPath.map((element, distance) => ({
+        distance,
+        label: labelFor(element).label,
+        node: nodeSummary(element),
+      })),
+      pathTruncated: path.pathTruncated,
+      localBefore: inputInspection.snapshot,
+    };
+    interactions.push(currentInput);
+    truncated ||= path.pathTruncated || inputInspection.snapshot.scan.truncated;
+    previous = inputInspection.snapshot;
+  };
+  const onPointer = (event: Event) => {
+    if (event instanceof MouseEvent && event.button !== 0) return;
+    noteInput('POINTER', event);
+  };
+  const onClick = (event: Event) => noteInput('CLICK', event, true);
+  const onKeyboard = (event: Event) => {
+    if (
+      event instanceof KeyboardEvent &&
+      ['Enter', ' ', 'ArrowDown'].includes(event.key)
+    )
+      noteInput('KEYBOARD', event);
+  };
+  const onNavigation = () => finish('CANCELLED');
+  const onVisibility = () => {
+    if (root.visibilityState === 'hidden') onNavigation();
+  };
 
-    const changedSubtrees: Element[] = [];
-    const changedContainers: Element[] = [];
-    let changedRecordCount = 0;
-    for (const record of records) {
-      if (changedRecordCount >= FEATURE_LIST_CAPTURE_LIMITS.inspectedElements) {
-        truncated = true;
+  const processRecords = () => {
+    if (pendingFrame !== null) view?.cancelAnimationFrame(pendingFrame);
+    if (pendingFrameTimer !== null) view?.clearTimeout(pendingFrameTimer);
+    pendingFrame = pendingFrameTimer = null;
+    const records = pendingRecords;
+    pendingRecords = [];
+    if (
+      !active ||
+      !currentInput ||
+      !inputInspection ||
+      !previous ||
+      !records.length
+    )
+      return;
+    if (root.location.href !== initialLocation) {
+      finish('CANCELLED');
+      return;
+    }
+    const changedElements = new Set<Element>();
+    let batchIncomplete = localIncomplete;
+    localIncomplete = false;
+    let inspectedMutationNodes = 0;
+    const add = (element: Element) => {
+      inspectedMutationNodes++;
+      if (isLeqadOwned(element) || ['body', 'html'].includes(element.localName))
+        return;
+      if (changedElements.size >= LOCAL_ELEMENT_LIMIT) {
+        batchIncomplete = true;
+        return;
+      }
+      changedElements.add(element);
+    };
+    recordLoop: for (const record of records) {
+      if (inspectedMutationNodes >= LOCAL_ELEMENT_LIMIT) {
+        batchIncomplete = true;
         break;
       }
       const target =
         record.target instanceof Element
           ? record.target
           : record.target.parentElement;
-      if (target && !isLeqadOwned(target)) {
-        changedContainers.push(target);
-        changedRecordCount++;
-      }
-      for (const node of record.addedNodes) {
-        if (
-          node instanceof Element &&
-          !isLeqadOwned(node) &&
-          changedRecordCount < FEATURE_LIST_CAPTURE_LIMITS.inspectedElements
-        ) {
-          changedSubtrees.push(node);
-          changedRecordCount++;
-        } else if (node instanceof Element && !isLeqadOwned(node)) {
-          truncated = true;
-        }
-      }
-      for (const node of record.removedNodes) {
-        if (
-          node instanceof Element &&
-          !isLeqadOwned(node) &&
-          changedRecordCount < FEATURE_LIST_CAPTURE_LIMITS.inspectedElements
-        ) {
-          changedSubtrees.push(node);
-          changedRecordCount++;
-        } else if (node instanceof Element && !isLeqadOwned(node)) {
-          truncated = true;
+      if (target) add(target);
+      for (const list of [record.addedNodes, record.removedNodes]) {
+        for (let index = 0; index < list.length; index++) {
+          if (inspectedMutationNodes >= LOCAL_ELEMENT_LIMIT) {
+            batchIncomplete = true;
+            break recordLoop;
+          }
+          const node = list[index]!;
+          if (!(node instanceof Element) || isLeqadOwned(node)) {
+            inspectedMutationNodes++;
+            continue;
+          }
+          const walker = root.createTreeWalker(node, 1);
+          let current: Node | null = node;
+          while (current && inspectedMutationNodes < LOCAL_ELEMENT_LIMIT) {
+            if (current instanceof Element) add(current);
+            current = walker.nextNode();
+          }
+          if (current) batchIncomplete = true;
         }
       }
     }
-    const roots = changedSubtrees.filter(
-      (element, index) =>
-        !changedSubtrees.some(
-          (other, otherIndex) =>
-            index !== otherIndex &&
-            other !== element &&
-            other.contains(element),
-        ),
-    );
-    const changedElements: Element[] = [...new Set(changedContainers)];
-    let remaining = Math.max(
-      0,
-      FEATURE_LIST_CAPTURE_LIMITS.inspectedElements - changedElements.length,
-    );
-    for (const changedRoot of roots) {
-      const walker = root.createTreeWalker(changedRoot, 1);
-      let current: Node | null = changedRoot;
-      while (current && remaining > 0) {
-        if (current instanceof Element && !isLeqadOwned(current)) {
-          changedElements.push(current);
-          remaining--;
-        }
-        current = walker.nextNode();
-      }
-      if (current) truncated = true;
-    }
-
-    // Inspecting this detached root avoids another full-page scan. The
-    // observer already enumerated every changed subtree under its 256-node cap.
-    const local = inspect(root, {
+    const local = inspectLocalChanges(
+      root,
       inputPath,
-      structuralChangeElements: changedElements,
-      scanRoot: root.createElement('div'),
-      limits: {
-        scannedElements: FEATURE_LIST_CAPTURE_LIMITS.inspectedElements,
-        candidateRecords: RECOGNITION_DIAGNOSTIC_LIMITS.candidateRecords,
-        capturedAncestors: RECOGNITION_DIAGNOSTIC_LIMITS.capturedAncestors,
-        siblingRadius: FEATURE_LIST_CAPTURE_LIMITS.siblingRadius,
-      },
-    });
-    truncated ||= local.snapshot.scan.truncated;
-    const updated = new Map<Element, InternalCandidate>();
-    for (const candidate of local.internal)
-      updated.set(candidate.element, candidate);
-    const merged = new Map<Element, InternalCandidate>();
-    for (const candidate of baselineInspection.internal) {
-      if (candidate.element.isConnected)
-        merged.set(candidate.element, candidate);
-    }
-    for (const candidate of updated.values())
-      merged.set(candidate.element, candidate);
-    const all = [...merged.values()];
-    const after = withInternalCandidates(
-      all,
-      truncated,
-      baseline.scan.scannedElements + local.snapshot.scan.scannedElements,
+      inputInspection.internal.map(({ element }) => element),
+      [...changedElements],
+      batchIncomplete,
     );
+    const after = local.snapshot;
     truncated ||= after.scan.truncated;
     const delta = changedCount(previous, after);
     const stateChanged = previous.domObservedState !== after.domObservedState;
-    const structuralMutation = records.some(
-      (record) => record.type === 'childList',
+    // Common app ancestors cannot establish that an unrelated panel changed
+    // because of this input. Only the actual indicated subtree is local here.
+    const relevantStructure = [...changedElements].some((element) =>
+      inputPath[0]?.contains(element),
     );
-    if (delta === 0 && !stateChanged && !structuralMutation) return;
-
-    const transition: RectangleDropdownTransition = {
-      eventCategory: inputCategory,
+    const changedLabel = [...changedElements].some(
+      (element) => labelFor(element).label !== null,
+    );
+    // Temporal coincidence is not a trigger/menu association. Unrelated changes
+    // must not terminate an UNKNOWN capture or fabricate a menu transition.
+    if (!stateChanged && !relevantStructure && !changedLabel) return;
+    if (!delta && !stateChanged && !relevantStructure) return;
+    if (transitions.length >= 4) {
+      truncated = true;
+      finish('INCOMPLETE');
+      return;
+    }
+    transitions.push({
+      eventCategory: currentInput.eventCategory,
+      inputSequence: currentInput.sequence,
+      scope: 'INPUT_AND_MUTATION_LOCAL',
+      inputAssociation: 'UNPROVEN',
       before: previous,
       after,
       relationship: relationFor(
-        all
+        local.internal
           .filter(({ label }) => label === 'Rectangle')
           .map(({ element }) => element),
-        all
+        local.internal
           .filter(({ label }) => label !== null && label !== 'Rectangle')
           .map(({ element }) => element),
       ),
       changedCandidateCount: delta,
-    };
-    transitions = [...transitions, transition];
+    });
     previous = after;
-
     if (baseline.domObservedState === 'OPEN') {
       if (!sawClosedAfterOpen && after.domObservedState === 'CLOSED') {
         sawClosedAfterOpen = true;
         return;
       }
-      if (sawClosedAfterOpen && after.domObservedState === 'OPEN') {
+      if (sawClosedAfterOpen && after.domObservedState === 'OPEN')
         finish('CAPTURED');
-        return;
-      }
       return;
     }
-    if (baseline.domObservedState === 'CLOSED') {
-      if (after.domObservedState === 'OPEN') {
-        finish('CAPTURED');
-        return;
-      }
-      if (
-        after.domObservedState === 'UNKNOWN' &&
-        (delta > 0 || structuralMutation)
-      ) {
-        finish('CAPTURED');
-        return;
-      }
-      // Continue waiting while an observed control remains closed. Unrelated
-      // page mutations cannot stand in for the dropdown's open transition.
-      return;
-    }
-    if (delta > 0 || structuralMutation) finish('CAPTURED');
+    if (
+      after.domObservedState === 'OPEN' ||
+      (after.domObservedState === 'UNKNOWN' &&
+        (relevantStructure || changedLabel))
+    )
+      finish('CAPTURED');
   };
 
   root.addEventListener('pointerdown', onPointer, {
     capture: true,
     passive: true,
   });
+  root.addEventListener('click', onClick, { capture: true, passive: true });
   root.addEventListener('keydown', onKeyboard, {
     capture: true,
     passive: true,
   });
-  view?.addEventListener('pagehide', onNavigation, {
-    capture: true,
-    passive: true,
-  });
-  view?.addEventListener('popstate', onNavigation, {
-    capture: true,
-    passive: true,
-  });
-  view?.addEventListener('hashchange', onNavigation, {
-    capture: true,
-    passive: true,
-  });
+  root.addEventListener('visibilitychange', onVisibility);
+  for (const event of navigationEvents)
+    view?.addEventListener(event, onNavigation, {
+      capture: true,
+      passive: true,
+    });
   observer.observe(root.documentElement, {
     subtree: true,
     childList: true,
+    characterData: true,
     attributes: true,
     attributeFilter: [
       'aria-expanded',
@@ -1630,6 +1947,9 @@ export function createRectangleDropdownCapture(
       'role',
       'title',
       'tabindex',
+      'disabled',
+      'aria-disabled',
+      'inert',
     ],
   });
   timeout =
@@ -1640,10 +1960,5 @@ export function createRectangleDropdownCapture(
         Math.min(timeoutMs, RECOGNITION_DIAGNOSTIC_LIMITS.captureTimeoutMs),
       ),
     ) ?? null;
-
-  return {
-    promise,
-    cancel: () => finish('CANCELLED'),
-    isActive: () => active,
-  };
+  return { promise, cancel: () => finish('CANCELLED'), isActive: () => active };
 }
