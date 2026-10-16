@@ -273,7 +273,11 @@ async function renderFixturePanel() {
       onCaptureSketchControl={() => createSketchControlCapture(document)}
       onCaptureTopRow={() => createTopRowCapture(document)}
       onCaptureRectangleDropdown={() =>
-        createRectangleDropdownCapture(document)
+        createRectangleDropdownCapture(
+          document,
+          undefined,
+          'OPEN_THEN_SELECT_RECTANGLE',
+        )
       }
       onCaptureRectangleDropdownSnapshot={(snapshotRole, userReportedState) =>
         captureManualRectangleDropdownSnapshot(

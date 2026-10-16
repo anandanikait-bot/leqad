@@ -411,6 +411,10 @@ test('simulated Rectangle dropdown diagnostic captures a pointer transition and 
         item.setAttribute('role', 'menuitem');
         item.setAttribute('aria-label', 'Corner rectangle');
         item.textContent = 'Simulated corner rectangle';
+        item.addEventListener('click', () => {
+          menu.remove();
+          trigger.setAttribute('aria-expanded', 'false');
+        });
         menu.append(item);
         document.body.append(menu);
       }
@@ -428,11 +432,12 @@ test('simulated Rectangle dropdown diagnostic captures a pointer transition and 
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .getByRole('button', { name: 'Capture Rectangle interaction' })
     .click();
   await page.locator('#simulated-rectangle-dropdown-trigger').click();
   await expect(page.locator('#simulated-rectangle-menu')).toBeVisible();
-  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Corner rectangle' }).click();
+  await expect(page.getByText(/Rectangle interaction recorded/i)).toBeVisible();
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
     .click();
@@ -440,7 +445,7 @@ test('simulated Rectangle dropdown diagnostic captures a pointer transition and 
     .getByLabel('Rectangle dropdown diagnostic output')
     .inputValue();
   const report = JSON.parse(output);
-  expect(report.version).toBe('leqad-rectangle-dropdown/2');
+  expect(report.version).toBe('leqad-rectangle-dropdown/3');
   expect(report.baseline.domObservedState).toBe('CLOSED');
   expect(report.transitions[0].eventCategory).toBe('POINTER');
   expect(report.transitions[0].after.domObservedState).toBe('OPEN');
@@ -465,6 +470,16 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
     trigger.setAttribute('aria-haspopup', 'menu');
     trigger.setAttribute('aria-expanded', 'false');
     trigger.id = 'simulated-rectangle-keyboard-trigger';
+    const option = document.createElement('button');
+    option.id = 'simulated-keyboard-option';
+    option.setAttribute('aria-label', 'Corner rectangle');
+    option.textContent = 'Corner rectangle';
+    option.style.cssText =
+      'position:fixed;right:100px;bottom:60px;z-index:2147483647';
+    option.addEventListener('click', () => {
+      option.remove();
+      trigger.setAttribute('aria-expanded', 'false');
+    });
     trigger.style.cssText =
       'position:fixed;right:16px;bottom:16px;z-index:2147483647';
     trigger.addEventListener('click', () => {
@@ -472,6 +487,9 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
         'aria-expanded',
         String(trigger.getAttribute('aria-expanded') !== 'true'),
       );
+      if (trigger.getAttribute('aria-expanded') === 'true')
+        document.body.append(option);
+      else option.remove();
     });
     document.body.append(trigger);
   });
@@ -492,10 +510,11 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .getByRole('button', { name: 'Capture Rectangle interaction' })
     .click();
   await trigger.press('Enter');
-  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page.locator('#simulated-keyboard-option').press('Enter');
+  await expect(page.getByText(/Rectangle interaction recorded/i)).toBeVisible();
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
     .click();
@@ -505,6 +524,7 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
   expect(keyboardReport.transitions[0].eventCategory).toBe('KEYBOARD');
   expect(keyboardReport.transitions[0].after.domObservedState).toBe('OPEN');
 
+  await trigger.click(); // Deliberately simulate an already-open baseline.
   await page
     .getByRole('button', { name: 'Turn off recognition diagnostics' })
     .click();
@@ -512,7 +532,7 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .getByRole('button', { name: 'Capture Rectangle interaction' })
     .click();
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -526,10 +546,11 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
       }),
   );
   await expect(
-    page.getByText(/Waiting for Rectangle menu change/i),
+    page.getByText(/Recording Rectangle opening and selection/i),
   ).toBeVisible();
   await trigger.click();
-  await expect(page.getByText(/Rectangle structure captured/i)).toBeVisible();
+  await page.locator('#simulated-keyboard-option').click();
+  await expect(page.getByText(/Rectangle interaction recorded/i)).toBeVisible();
   await page
     .getByRole('button', { name: 'Copy Rectangle dropdown report' })
     .click();
@@ -538,10 +559,12 @@ test('simulated Rectangle dropdown diagnostic observes keyboard activation and o
   );
   expect(reopenReport.baseline.domObservedState).toBe('OPEN');
   expect(
-    reopenReport.transitions.map(
-      (transition: { after: { domObservedState: string } }) =>
-        transition.after.domObservedState,
-    ),
+    reopenReport.transitions
+      .slice(0, 2)
+      .map(
+        (transition: { after: { domObservedState: string } }) =>
+          transition.after.domObservedState,
+      ),
   ).toEqual(['CLOSED', 'OPEN']);
 });
 
@@ -553,7 +576,7 @@ test('simulated Rectangle capture cleans up on navigation and fixture unmount', 
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   await page
-    .getByRole('button', { name: 'Capture Rectangle dropdown' })
+    .getByRole('button', { name: 'Capture Rectangle interaction' })
     .click();
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   await expect(page.getByText(/Rectangle capture stopped/i)).toBeVisible();

@@ -12,6 +12,37 @@ export type RectangleDropdownLabel =
 export type RectangleDropdownCaptureStatus =
   'CAPTURED' | 'INCOMPLETE' | 'TIMED_OUT' | 'CANCELLED';
 
+export type RectangleDropdownInteractionMode =
+  'OBSERVE_MENU' | 'OPEN_THEN_SELECT_RECTANGLE';
+export type RectangleDropdownCancelReason =
+  | 'USER_STOP'
+  | 'REPLACED'
+  | 'PANEL_UNMOUNT'
+  | 'PAGE_HIDDEN'
+  | 'NAVIGATION'
+  | 'CONTEXT_CHANGED'
+  | 'UNKNOWN';
+const WORKFLOW_STATES = [
+  'IDLE',
+  'WAITING_FOR_MENU_OPEN_INPUT',
+  'MENU_INTERACTION_OBSERVED',
+  'WAITING_FOR_VARIANT_CLICK',
+  'VARIANT_CLICK_OBSERVED',
+  'FINISHED',
+  'TIMED_OUT',
+  'CANCELLED',
+] as const;
+export type RectangleDropdownWorkflowState = (typeof WORKFLOW_STATES)[number];
+const CANCEL_REASONS: readonly RectangleDropdownCancelReason[] = [
+  'USER_STOP',
+  'REPLACED',
+  'PANEL_UNMOUNT',
+  'PAGE_HIDDEN',
+  'NAVIGATION',
+  'CONTEXT_CHANGED',
+  'UNKNOWN',
+];
+
 export interface RectangleDropdownCaptureLimits {
   scannedElements: number;
   candidateRecords: number;
@@ -187,7 +218,11 @@ export interface RectangleDropdownInteraction {
 }
 
 export interface RectangleDropdownCaptureReport {
-  version: 'leqad-rectangle-dropdown/2';
+  version: 'leqad-rectangle-dropdown/3';
+  interactionMode: RectangleDropdownInteractionMode;
+  workflowState: RectangleDropdownWorkflowState;
+  stateHistory: RectangleDropdownWorkflowState[];
+  cancelReason: RectangleDropdownCancelReason | null;
   status: RectangleDropdownCaptureStatus;
   captureMode: 'AUTOMATIC' | 'MANUAL_FALLBACK';
   baseline: RectangleDropdownSnapshot;
@@ -204,7 +239,7 @@ export interface RectangleDropdownCaptureResult {
 
 export interface RectangleDropdownCaptureTask {
   promise: Promise<RectangleDropdownCaptureResult>;
-  cancel(): void;
+  cancel(reason?: RectangleDropdownCancelReason): void;
   isActive(): boolean;
 }
 
@@ -1047,84 +1082,45 @@ function cappedReport(
   report: RectangleDropdownCaptureReport,
   limits: RectangleDropdownCaptureLimits,
 ): RectangleDropdownCaptureReport {
-  let output = report;
+  let output = report; // The caller has already rebuilt every field via sanitization.
+  const cappedStatus: RectangleDropdownCaptureStatus =
+    report.status === 'CANCELLED' || report.status === 'TIMED_OUT'
+      ? report.status
+      : 'INCOMPLETE';
+  const protectedCandidates = new Set<RectangleDropdownCandidate>();
+  for (const transition of output.transitions) {
+    const labels = new Set<RectangleDropdownLabel>();
+    for (const candidate of transition.after.candidates) {
+      if (
+        candidate.label &&
+        candidate.label !== 'Rectangle' &&
+        !labels.has(candidate.label)
+      ) {
+        labels.add(candidate.label);
+        protectedCandidates.add(candidate);
+      }
+    }
+  }
   while (JSON.stringify(output).length > limits.reportChars) {
-    const baseline = output.baseline;
-    const reduced = {
-      ...output,
-      status: 'INCOMPLETE' as const,
-      baseline: {
-        ...baseline,
-        candidates: baseline.candidates.slice(
-          0,
-          Math.max(0, baseline.candidates.length - 1),
-        ),
-        scan: {
-          ...baseline.scan,
-          status: 'INCOMPLETE' as const,
-          truncated: true,
-        },
-      },
-      transitions: output.transitions.map((transition) => ({
-        ...transition,
-        before: {
-          ...transition.before,
-          candidates: transition.before.candidates.slice(
-            0,
-            Math.max(0, transition.before.candidates.length - 1),
-          ),
-          scan: {
-            ...transition.before.scan,
-            status: 'INCOMPLETE' as const,
-            truncated: true,
-          },
-        },
-        after: {
-          ...transition.after,
-          candidates: transition.after.candidates.slice(
-            0,
-            Math.max(0, transition.after.candidates.length - 1),
-          ),
-          scan: {
-            ...transition.after.scan,
-            status: 'INCOMPLETE' as const,
-            truncated: true,
-          },
-        },
-      })),
-      interactions: output.interactions.map((interaction) => ({
-        ...interaction,
-        localBefore: {
-          ...interaction.localBefore,
-          candidates: interaction.localBefore.candidates.slice(
-            0,
-            Math.max(0, interaction.localBefore.candidates.length - 1),
-          ),
-          scan: {
-            ...interaction.localBefore.scan,
-            status: 'INCOMPLETE' as const,
-            truncated: true,
-          },
-        },
-      })),
-      manualSnapshots: output.manualSnapshots.map((manual) => ({
-        ...manual,
-        snapshot: {
-          ...manual.snapshot,
-          candidates: manual.snapshot.candidates.slice(
-            0,
-            Math.max(0, manual.snapshot.candidates.length - 1),
-          ),
-          scan: {
-            ...manual.snapshot.scan,
-            status: 'INCOMPLETE' as const,
-            truncated: true,
-          },
-        },
-      })),
-      truncated: true,
-    };
-    if (JSON.stringify(reduced) === JSON.stringify(output)) {
+    // Prefer the actual post-input option evidence over repeated pre-snapshots.
+    const snapshots = [
+      output.baseline,
+      ...output.interactions.map((item) => item.localBefore),
+      ...output.transitions.map((item) => item.before),
+      ...output.manualSnapshots.map((item) => item.snapshot),
+      ...[...output.transitions].reverse().map((item) => item.after),
+    ];
+    const snapshot = snapshots.find((item) =>
+      item.candidates.some((candidate) => !protectedCandidates.has(candidate)),
+    );
+    if (snapshot) {
+      const index = snapshot.candidates.findIndex(
+        (candidate) => !protectedCandidates.has(candidate),
+      );
+      snapshot.candidates.splice(index, 1);
+      snapshot.scan.truncated = true;
+      snapshot.scan.status = 'INCOMPLETE';
+    } else {
       const longest =
         output.interactions.reduce<RectangleDropdownInteraction | null>(
           (result, item) =>
@@ -1135,28 +1131,15 @@ function cappedReport(
         longest.path.pop();
         longest.pathTruncated = true;
         longest.clickPathMatchesInput = null;
-        output = { ...output, status: 'INCOMPLETE', truncated: true };
-        continue;
+      } else {
+        const remaining = snapshots.find((item) => item.candidates.length > 0);
+        if (!remaining) break; // Fixed metadata plus four one-node paths fits the cap.
+        remaining.candidates.pop();
+        remaining.scan.truncated = true;
+        remaining.scan.status = 'INCOMPLETE';
       }
-      output = {
-        ...output,
-        status: 'INCOMPLETE',
-        baseline: {
-          ...output.baseline,
-          candidates: [],
-          scan: {
-            ...output.baseline.scan,
-            status: 'INCOMPLETE',
-            truncated: true,
-          },
-        },
-        transitions: [],
-        manualSnapshots: [],
-        truncated: true,
-      };
-      break;
     }
-    output = reduced;
+    output = { ...output, status: cappedStatus, truncated: true };
   }
   return output;
 }
@@ -1475,7 +1458,26 @@ function sanitizeReport(
     ? report.status
     : 'INCOMPLETE';
   return {
-    version: 'leqad-rectangle-dropdown/2',
+    version: 'leqad-rectangle-dropdown/3',
+    interactionMode:
+      report.interactionMode === 'OPEN_THEN_SELECT_RECTANGLE'
+        ? 'OPEN_THEN_SELECT_RECTANGLE'
+        : 'OBSERVE_MENU',
+    workflowState: WORKFLOW_STATES.includes(report.workflowState)
+      ? report.workflowState
+      : 'IDLE',
+    stateHistory: (Array.isArray(report.stateHistory)
+      ? report.stateHistory
+      : []
+    )
+      .filter((state) => WORKFLOW_STATES.includes(state))
+      .slice(0, 8),
+    cancelReason:
+      status === 'CANCELLED'
+        ? CANCEL_REASONS.includes(report.cancelReason!)
+          ? report.cancelReason
+          : 'UNKNOWN'
+        : null,
     status: truncated && status === 'CAPTURED' ? 'INCOMPLETE' : status,
     captureMode:
       report.captureMode === 'MANUAL_FALLBACK'
@@ -1603,12 +1605,24 @@ function inspectLocalChanges(
 export function createRectangleDropdownCapture(
   root: Document,
   timeoutMs: number = RECOGNITION_DIAGNOSTIC_LIMITS.captureTimeoutMs,
+  interactionMode: RectangleDropdownInteractionMode = 'OBSERVE_MENU',
 ): RectangleDropdownCaptureTask {
   const view = root.defaultView;
   const baseline = inspect(root).snapshot;
   const initialLocation = root.location.href; // In memory only; never exported.
   let active = true;
+  let workflowState: RectangleDropdownWorkflowState = 'IDLE';
+  const stateHistory: RectangleDropdownWorkflowState[] = ['IDLE'];
+  const setState = (state: RectangleDropdownWorkflowState) => {
+    if (workflowState === state) return;
+    workflowState = state;
+    if (stateHistory.length < 8) stateHistory.push(state);
+  };
+  setState('WAITING_FOR_MENU_OPEN_INPUT');
+  let selectionPending = false;
   let inputPath: Element[] = [];
+  let openingPath: Element[] = [];
+  let openingNamedBranches: Element[] = [];
   let inputInspection: ReturnType<typeof inspectInputContext> | null = null;
   const interactions: RectangleDropdownInteraction[] = [];
   let currentInput: RectangleDropdownInteraction | null = null;
@@ -1662,16 +1676,31 @@ export function createRectangleDropdownCapture(
     timeout = pendingFrame = pendingFrameTimer = null;
     pendingRecords = [];
   };
-  const finish = (status: RectangleDropdownCaptureStatus) => {
+  const finish = (
+    status: RectangleDropdownCaptureStatus,
+    cancelReason: RectangleDropdownCancelReason | null = null,
+  ) => {
     if (!active) return;
     active = false;
+    setState(
+      status === 'CANCELLED'
+        ? 'CANCELLED'
+        : status === 'TIMED_OUT'
+          ? 'TIMED_OUT'
+          : 'FINISHED',
+    );
     cleanup();
     const finalStatus =
       status === 'CAPTURED' && truncated ? 'INCOMPLETE' : status;
     resolve({
       status: finalStatus,
       report: {
-        version: 'leqad-rectangle-dropdown/2',
+        version: 'leqad-rectangle-dropdown/3',
+        interactionMode,
+        workflowState,
+        stateHistory,
+        cancelReason:
+          status === 'CANCELLED' ? (cancelReason ?? 'UNKNOWN') : null,
         status: finalStatus,
         captureMode: 'AUTOMATIC',
         baseline,
@@ -1709,6 +1738,59 @@ export function createRectangleDropdownCapture(
       return null;
     return { elements, pathTruncated };
   };
+  const recordClick = (path: Element[]) => {
+    if (!currentInput) return;
+    // Inspect names through the nearest independent control boundary. A child
+    // label cannot hide a conflicting control name or turn the opener into an option.
+    const controlIndex = path.findIndex(
+      (element) => nodeSummary(element).actionableMarkup === 'MARKUP_SIGNAL',
+    );
+    const branch = path
+      .slice(0, controlIndex < 0 ? path.length : controlIndex + 1)
+      .filter((element) => !['body', 'html'].includes(element.localName));
+    const boundary = controlIndex < 0 ? null : path[controlIndex]!;
+    const isOpeningControl =
+      interactions.length > 1 &&
+      ((boundary !== null &&
+        (openingPath.includes(boundary) ||
+          boundary.hasAttribute('aria-haspopup'))) ||
+        openingPath.includes(path[0]!) ||
+        branch.some((element) => openingNamedBranches.includes(element)));
+    let singleChildChain = true;
+    const labels = new Set<RectangleDropdownLabel>();
+    for (const [index, element] of branch.entries()) {
+      if (index > 0) singleChildChain &&= element.children.length === 1;
+      const explicitName =
+        element.hasAttribute('aria-label') ||
+        element.hasAttribute('aria-labelledby') ||
+        element.hasAttribute('title');
+      const label = labelFor(element).label;
+      if (
+        (index === 0 ||
+          singleChildChain ||
+          explicitName ||
+          element === boundary) &&
+        label &&
+        label !== 'Rectangle'
+      )
+        labels.add(label);
+    }
+    const clickedLabel =
+      !isOpeningControl && labels.size === 1 ? [...labels][0]! : null;
+    currentInput.clickedLabel = clickedLabel;
+    if (interactionMode !== 'OPEN_THEN_SELECT_RECTANGLE') return;
+    if (
+      interactions.length === 1 &&
+      workflowState === 'WAITING_FOR_MENU_OPEN_INPUT'
+    ) {
+      setState('MENU_INTERACTION_OBSERVED');
+      setState('WAITING_FOR_VARIANT_CLICK');
+    } else if (interactions.length > 1 && clickedLabel !== null) {
+      setState('VARIANT_CLICK_OBSERVED');
+      selectionPending = true;
+      schedule(); // Let the host click handler run, including menu dismissal.
+    }
+  };
   const noteInput = (
     category: RectangleDropdownTransition['eventCategory'],
     event: Event,
@@ -1716,7 +1798,7 @@ export function createRectangleDropdownCapture(
   ) => {
     if (!active) return;
     if (root.location.href !== initialLocation) {
-      finish('CANCELLED');
+      finish('CANCELLED', 'NAVIGATION');
       return;
     }
     const path = eventPathFor(event);
@@ -1728,7 +1810,7 @@ export function createRectangleDropdownCapture(
       !currentInput.clickObserved
     ) {
       currentInput.clickObserved = true;
-      currentInput.clickedLabel = labelFor(path.elements[0]!).label;
+      recordClick(path.elements);
       currentInput.clickPathMatchesInput =
         currentInput.pathTruncated || path.pathTruncated
           ? null
@@ -1755,6 +1837,19 @@ export function createRectangleDropdownCapture(
       return;
     }
     inputPath = path.elements;
+    if (!interactions.length) {
+      openingPath = [...inputPath];
+      // Preserve only bounded exact named branches observed BEFORE opening.
+      // Shared body/app ancestors cannot be inferred to be the trigger.
+      openingNamedBranches = inputPath.filter((element) => {
+        const label = labelFor(element).label;
+        return (
+          !['body', 'html'].includes(element.localName) &&
+          label !== null &&
+          label !== 'Rectangle'
+        );
+      });
+    }
     inputInspection = inspectInputContext(root, inputPath);
     currentInput = {
       sequence: interactions.length + 1,
@@ -1773,6 +1868,7 @@ export function createRectangleDropdownCapture(
     interactions.push(currentInput);
     truncated ||= path.pathTruncated || inputInspection.snapshot.scan.truncated;
     previous = inputInspection.snapshot;
+    if (clickObserved) recordClick(inputPath);
   };
   const onPointer = (event: Event) => {
     if (event instanceof MouseEvent && event.button !== 0) return;
@@ -1786,9 +1882,9 @@ export function createRectangleDropdownCapture(
     )
       noteInput('KEYBOARD', event);
   };
-  const onNavigation = () => finish('CANCELLED');
+  const onNavigation = () => finish('CANCELLED', 'NAVIGATION');
   const onVisibility = () => {
-    if (root.visibilityState === 'hidden') onNavigation();
+    if (root.visibilityState === 'hidden') finish('CANCELLED', 'PAGE_HIDDEN');
   };
 
   const processRecords = () => {
@@ -1797,16 +1893,13 @@ export function createRectangleDropdownCapture(
     pendingFrame = pendingFrameTimer = null;
     const records = pendingRecords;
     pendingRecords = [];
-    if (
-      !active ||
-      !currentInput ||
-      !inputInspection ||
-      !previous ||
-      !records.length
-    )
+    if (!active || !currentInput || !inputInspection || !previous) return;
+    if (!records.length) {
+      if (selectionPending) finish('CAPTURED');
       return;
+    }
     if (root.location.href !== initialLocation) {
-      finish('CANCELLED');
+      finish('CANCELLED', 'NAVIGATION');
       return;
     }
     const changedElements = new Set<Element>();
@@ -1875,8 +1968,13 @@ export function createRectangleDropdownCapture(
     );
     // Temporal coincidence is not a trigger/menu association. Unrelated changes
     // must not terminate an UNKNOWN capture or fabricate a menu transition.
-    if (!stateChanged && !relevantStructure && !changedLabel) return;
-    if (!delta && !stateChanged && !relevantStructure) return;
+    if (
+      (!stateChanged && !relevantStructure && !changedLabel) ||
+      (!delta && !stateChanged && !relevantStructure)
+    ) {
+      if (selectionPending) finish('CAPTURED');
+      return;
+    }
     if (transitions.length >= 4) {
       truncated = true;
       finish('INCOMPLETE');
@@ -1900,6 +1998,14 @@ export function createRectangleDropdownCapture(
       changedCandidateCount: delta,
     });
     previous = after;
+    if (interactionMode === 'OPEN_THEN_SELECT_RECTANGLE') {
+      if (selectionPending) finish('CAPTURED');
+      else if (workflowState === 'WAITING_FOR_MENU_OPEN_INPUT') {
+        setState('MENU_INTERACTION_OBSERVED');
+        setState('WAITING_FOR_VARIANT_CLICK');
+      }
+      return;
+    }
     if (baseline.domObservedState === 'OPEN') {
       if (!sawClosedAfterOpen && after.domObservedState === 'CLOSED') {
         sawClosedAfterOpen = true;
@@ -1960,5 +2066,9 @@ export function createRectangleDropdownCapture(
         Math.min(timeoutMs, RECOGNITION_DIAGNOSTIC_LIMITS.captureTimeoutMs),
       ),
     ) ?? null;
-  return { promise, cancel: () => finish('CANCELLED'), isActive: () => active };
+  return {
+    promise,
+    cancel: (reason = 'UNKNOWN') => finish('CANCELLED', reason),
+    isActive: () => active,
+  };
 }

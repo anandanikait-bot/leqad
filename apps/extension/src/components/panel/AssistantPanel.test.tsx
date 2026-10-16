@@ -749,7 +749,11 @@ describe('AssistantPanel', () => {
   it('keeps Rectangle capture opt-in and offers manual UNKNOWN snapshots separately', async () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const report: RectangleDropdownCaptureReport = {
-      version: 'leqad-rectangle-dropdown/2',
+      version: 'leqad-rectangle-dropdown/3',
+      interactionMode: 'OBSERVE_MENU',
+      workflowState: 'FINISHED',
+      stateHistory: ['FINISHED'],
+      cancelReason: null,
       interactions: [],
       status: 'TIMED_OUT',
       captureMode: 'AUTOMATIC',
@@ -791,17 +795,17 @@ describe('AssistantPanel', () => {
     );
 
     expect(
-      screen.queryByRole('button', { name: 'Capture Rectangle dropdown' }),
+      screen.queryByRole('button', { name: 'Capture Rectangle interaction' }),
     ).toBeNull();
     fireEvent.click(
       screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
     );
     fireEvent.click(
-      screen.getByRole('button', { name: 'Capture Rectangle dropdown' }),
+      screen.getByRole('button', { name: 'Capture Rectangle interaction' }),
     );
     expect(onCaptureRectangleDropdown).toHaveBeenCalledTimes(1);
     expect(
-      screen.getByText(/click the exact option.*already-open menu/),
+      screen.getByText(/click Corner rectangle without returning to Leqad/),
     ).toBeTruthy();
     await act(async () => resolveCapture({ status: 'TIMED_OUT', report }));
 
@@ -861,7 +865,7 @@ describe('AssistantPanel', () => {
       screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
     );
     fireEvent.click(
-      screen.getByRole('button', { name: 'Capture Rectangle dropdown' }),
+      screen.getByRole('button', { name: 'Capture Rectangle interaction' }),
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
@@ -869,7 +873,7 @@ describe('AssistantPanel', () => {
 
     expect(task.cancel).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole('button', { name: 'Capture Rectangle dropdown' }),
+      screen.queryByRole('button', { name: 'Capture Rectangle interaction' }),
     ).toBeNull();
   });
 
@@ -1567,4 +1571,56 @@ describe('AssistantPanel', () => {
       vi.useRealTimers();
     }
   });
+});
+
+it('discards a cancelled Rectangle report when diagnostics are turned off', async () => {
+  const { AssistantPanel } = await import('./AssistantPanel');
+  const report: RectangleDropdownCaptureReport = {
+    version: 'leqad-rectangle-dropdown/3',
+    interactionMode: 'OPEN_THEN_SELECT_RECTANGLE',
+    workflowState: 'CANCELLED',
+    stateHistory: ['CANCELLED'],
+    cancelReason: 'USER_STOP',
+    status: 'CANCELLED',
+    captureMode: 'AUTOMATIC',
+    baseline: inspectRectangleDropdown(document),
+    interactions: [],
+    transitions: [],
+    manualSnapshots: [],
+    truncated: false,
+  };
+  let resolve!: (value: {
+    status: 'CANCELLED';
+    report: RectangleDropdownCaptureReport;
+  }) => void;
+  const task: RectangleDropdownCaptureTask = {
+    promise: new Promise((done) => {
+      resolve = done;
+    }),
+    cancel: vi.fn(),
+    isActive: () => true,
+  };
+  render(
+    <AssistantPanel
+      onRecognitionDiagnostics={() => '{}'}
+      onCaptureRectangleDropdown={() => task}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Capture Rectangle interaction' }),
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+  );
+  await act(async () => resolve({ status: 'CANCELLED', report }));
+  expect(
+    screen.queryByRole('button', { name: 'Copy Rectangle dropdown report' }),
+  ).toBeNull();
+  expect(screen.queryByText('Rectangle capture stopped.')).toBeNull();
 });
