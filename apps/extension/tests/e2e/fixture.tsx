@@ -195,9 +195,7 @@ const guidanceRunner = createGuidanceRunner(
     observe: (_observationId, onState) => {
       const readState = (): GuidanceObservedState =>
         _observationId === 'SKETCH_UI_ACTIVE'
-          ? observeSketchGuidanceUi(document).editingAppearsActive
-            ? 'OPEN'
-            : 'CLOSED'
+          ? observeSketchGuidanceUi(document).uiState
           : _observationId !== 'RECTANGLE_MENU_OPEN'
             ? 'UNKNOWN'
             : simulatedItemSelected
@@ -292,7 +290,9 @@ async function renderFixturePanel() {
       guidanceRunner={guidanceRunner}
       onClearTarget={clearGuidanceHighlight}
       onObserveSketchUi={() => observeSketchGuidanceUi(document)}
-      onCaptureSketchControl={() => createSketchControlCapture(document)}
+      onCaptureSketchControl={(purpose) =>
+        createSketchControlCapture(document, purpose)
+      }
       onCaptureTopRow={() => createTopRowCapture(document)}
       onCaptureRectangleDropdown={() =>
         createRectangleDropdownCapture(

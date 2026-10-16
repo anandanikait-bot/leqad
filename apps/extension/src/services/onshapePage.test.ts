@@ -234,6 +234,7 @@ describe('Onshape capability observations', () => {
 
     expect(observeSketchGuidanceUi(document)).toEqual({
       editingAppearsActive: true,
+      uiState: 'OPEN',
       dialogPlane: 'Top',
     });
     expect(observeOnshapeGuidanceContext(page, document)).toBe(

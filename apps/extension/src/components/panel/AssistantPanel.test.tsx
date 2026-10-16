@@ -588,6 +588,7 @@ describe('AssistantPanel', () => {
         onShowTarget={onShowTarget}
         onObserveSketchUi={() => ({
           editingAppearsActive: true,
+          uiState: 'OPEN',
           dialogPlane: 'Top',
         })}
       />,
@@ -1253,6 +1254,7 @@ describe('AssistantPanel', () => {
         initialSession={restoredSession('start-sketch')}
         onObserveSketchUi={() => ({
           editingAppearsActive: false,
+          uiState: 'UNKNOWN',
           dialogPlane: null,
         })}
         onSubscribeSketchUi={(listener) => {
@@ -1271,7 +1273,11 @@ describe('AssistantPanel', () => {
     ).toBeTruthy();
 
     act(() => {
-      publishSketchUi?.({ editingAppearsActive: true, dialogPlane: null });
+      publishSketchUi?.({
+        editingAppearsActive: true,
+        uiState: 'OPEN',
+        dialogPlane: null,
+      });
     });
 
     expect(screen.getByText(/already editing a sketch/)).toBeTruthy();

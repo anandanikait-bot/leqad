@@ -1,7 +1,10 @@
 import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import type { RectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import { SketchControlDiagnostic } from './SketchControlDiagnostic';
-import type { SketchControlCaptureTask } from '../../services/sketchControlCapture';
+import type {
+  SketchControlCaptureTask,
+  SketchControlCapturePurpose,
+} from '../../services/sketchControlCapture';
 import { useEffect, useRef, useState } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -84,7 +87,9 @@ interface AssistantPanelProps {
   onSketchCalibrationChange?: (
     calibration: SketchHighlightCalibration | null,
   ) => void | Promise<void>;
-  onCaptureSketchControl?: () => SketchControlCaptureTask;
+  onCaptureSketchControl?: (
+    purpose?: SketchControlCapturePurpose,
+  ) => SketchControlCaptureTask;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;

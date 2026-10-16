@@ -204,3 +204,63 @@ test('SHOW diagnosis distinguishes the actual stopped context gate, lookup and h
   await expect(page.locator('[data-guidance-simulation-menu]')).toHaveCount(0);
   await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
 });
+
+test('opt-in exit capture preserves a normal manual click without claiming active Sketch or target identity (simulation)', async ({
+  page,
+}) => {
+  await rectangleStep(page);
+  await page.evaluate(() => {
+    document.querySelector('#fixture-sketch-dialog')?.remove();
+    document
+      .querySelectorAll('[role="toolbar"]')
+      .forEach((node) => node.removeAttribute('role'));
+    const exit = document.createElement('div');
+    exit.id = 'simulated-exit';
+    exit.innerHTML =
+      '<svg width="16" height="16"><path d="M0 0 L16 16"></path></svg><span>Finish sketch</span>';
+    exit.style.cssText =
+      'position:fixed;left:40px;top:340px;width:140px;height:32px;background:white';
+    exit.addEventListener('click', () => {
+      document.body.dataset.manualExitClicks = String(
+        Number(document.body.dataset.manualExitClicks ?? 0) + 1,
+      );
+      exit.remove();
+    });
+    document.body.append(exit);
+  });
+  await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Enable recognition diagnostics' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Capture Sketch exit control', exact: true })
+    .click();
+  await expect(page.locator('#simulated-exit')).toHaveCount(1);
+  await page.locator('#simulated-exit svg').click();
+  const output = page.getByLabel('Sketch exit diagnostic report');
+  await expect(output).toBeVisible();
+  const json = await output.inputValue();
+  const report = JSON.parse(json);
+  expect(report).toMatchObject({
+    version: 'leqad-sketch-control/2',
+    capturePurpose: 'ACTIVE_SKETCH_EXIT',
+    activeSketchEvidence: 'NOT_ESTABLISHED_BY_USER_INDICATION',
+    productionRecognition: 'NOT_RUN',
+    uniqueness: 'NOT_EVALUATED',
+  });
+  expect(report.nodes[0]).toMatchObject({
+    tag: 'svg',
+    connected: true,
+    assessment: 'EXIT_IDENTITY_NOT_VERIFIED',
+  });
+  expect(json).not.toContain('simulated-exit');
+  expect(json).not.toContain('M0 0 L16 16');
+  await expect(page.locator('body')).toHaveAttribute(
+    'data-manual-exit-clicks',
+    '1',
+  );
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(output).toHaveCount(0);
+});

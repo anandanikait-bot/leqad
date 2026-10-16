@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SketchControlCaptureTask } from '../../services/sketchControlCapture';
+import type {
+  SketchControlCaptureTask,
+  SketchControlCapturePurpose,
+} from '../../services/sketchControlCapture';
 
 export function SketchControlDiagnostic({
   onCapture,
 }: {
-  onCapture: () => SketchControlCaptureTask;
+  onCapture: (
+    purpose?: SketchControlCapturePurpose,
+  ) => SketchControlCaptureTask;
 }) {
   const taskRef = useRef<SketchControlCaptureTask | null>(null);
   const [pending, setPending] = useState(false);
   const [output, setOutput] = useState('');
   const [message, setMessage] = useState('');
+  const [purpose, setPurpose] =
+    useState<SketchControlCapturePurpose>('SKETCH_COMMAND');
+  const exit = purpose === 'ACTIVE_SKETCH_EXIT';
   useEffect(
     () => () => {
       const task = taskRef.current;
@@ -18,13 +26,16 @@ export function SketchControlDiagnostic({
     },
     [],
   );
-  const capture = () => {
+  const capture = (nextPurpose: SketchControlCapturePurpose) => {
+    setPurpose(nextPurpose);
     taskRef.current?.cancel();
     setOutput('');
     setMessage(
-      'Click the actual Sketch toolbar control within 20 seconds. Your normal click will continue.',
+      nextPurpose === 'ACTIVE_SKETCH_EXIT'
+        ? 'While editing Sketch, click the actual Finish/Exit Sketch control within 20 seconds. Your normal click may exit Sketch. The diagnostic does not identify or activate it for you.'
+        : 'Click the actual Sketch toolbar control within 20 seconds. Your normal click will continue.',
     );
-    const task = onCapture();
+    const task = onCapture(nextPurpose);
     taskRef.current = task;
     setPending(true);
     void task.promise.then((result) => {
@@ -47,7 +58,11 @@ export function SketchControlDiagnostic({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(output);
-      setMessage('Sketch diagnostic copied.');
+      setMessage(
+        exit
+          ? 'Sketch exit diagnostic copied. Save and review locally before sharing.'
+          : 'Sketch diagnostic copied.',
+      );
     } catch {
       setMessage('Select the report below and copy it manually.');
     }
@@ -57,10 +72,18 @@ export function SketchControlDiagnostic({
       <button
         type="button"
         className="leqad-button leqad-button--secondary"
-        onClick={capture}
+        onClick={() => capture('SKETCH_COMMAND')}
         disabled={pending}
       >
         Capture Sketch control
+      </button>
+      <button
+        type="button"
+        className="leqad-button leqad-button--secondary"
+        onClick={() => capture('ACTIVE_SKETCH_EXIT')}
+        disabled={pending}
+      >
+        Capture Sketch exit control
       </button>
       {pending && (
         <button
@@ -79,10 +102,14 @@ export function SketchControlDiagnostic({
             className="leqad-button leqad-button--secondary"
             onClick={() => void copy()}
           >
-            Copy Sketch diagnostic
+            {exit ? 'Copy Sketch exit diagnostic' : 'Copy Sketch diagnostic'}
           </button>
           <textarea
-            aria-label="Sketch diagnostic report"
+            aria-label={
+              exit
+                ? 'Sketch exit diagnostic report'
+                : 'Sketch diagnostic report'
+            }
             readOnly
             value={output}
             rows={6}

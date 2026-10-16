@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -69,4 +70,49 @@ describe('Sketch control diagnostic panel', () => {
     );
     expect(start).toHaveBeenCalledTimes(2);
   });
+});
+
+it('captures a manually indicated exit control before its normal handler removes it (simulation)', async () => {
+  const control = document.createElement('div');
+  control.innerHTML = '<svg></svg><span>Finish sketch</span>';
+  document.body.append(control);
+  let clicks = 0;
+  control.addEventListener('click', () => {
+    clicks++;
+    control.remove();
+  });
+  render(
+    <SketchControlDiagnostic
+      onCapture={(purpose) => createSketchControlCapture(document, purpose)}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: 'Capture Sketch exit control',
+    }),
+  );
+  expect(screen.getByText(/Your normal click may exit Sketch/)).toBeTruthy();
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+  await act(async () => control.querySelector('svg')!.dispatchEvent(event));
+  const report = JSON.parse(
+    screen.getByLabelText<HTMLTextAreaElement>('Sketch exit diagnostic report')
+      .value,
+  );
+  expect(report).toMatchObject({
+    capturePurpose: 'ACTIVE_SKETCH_EXIT',
+    target: 'user-indicated-sketch-exit-control',
+    activeSketchEvidence: 'NOT_ESTABLISHED_BY_USER_INDICATION',
+    productionRecognition: 'NOT_RUN',
+    uniqueness: 'NOT_EVALUATED',
+  });
+  expect(report.nodes[0]).toMatchObject({
+    tag: 'svg',
+    connected: true,
+    assessment: 'EXIT_IDENTITY_NOT_VERIFIED',
+  });
+  expect(clicks).toBe(1);
+  expect(event.defaultPrevented).toBe(false);
+  expect(
+    screen.getByRole('button', { name: 'Copy Sketch exit diagnostic' }),
+  ).toBeTruthy();
 });

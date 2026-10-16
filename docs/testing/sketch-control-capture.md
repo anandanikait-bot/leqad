@@ -1,5 +1,63 @@
 # Automatic Sketch recognition: local evidence handoff
 
+## Active Sketch exit-control capture
+
+Status: the owner supplied a SHOW snapshot proving that context recognition is
+UNKNOWN while they are actually editing Sketch. Production Rectangle lookup did
+not run; a separate inspection found no semantic toolbar. We need the actual
+Finish/Exit Sketch control's identity and local structure before implementing a
+new active-Sketch signal. This capture is different from the old Rectangle v3
+opening/selection recording; do not repeat that recording.
+
+Use the latest successful PR #8 artifact linked in its description. In regular
+Chrome, extract the artifact and then the Chrome ZIP, disable the old Leqad copy,
+and load the folder containing `manifest.json` through `chrome://extensions` →
+Developer mode → Load unpacked. Refresh a disposable, authorized Part Studio.
+The independent reference recorder is not used here; it disables extensions.
+
+1. Manually enter Sketch and leave it active. Select Leqad Step 4 and press SHOW.
+2. Enable recognition diagnostics → **Capture Sketch exit control** (not the
+   older **Capture Sketch control**, which investigates the start command).
+3. Within 20 seconds, manually click the actual Finish/Exit Sketch control once.
+   **Your normal CAD click may close Sketch.** The diagnostic never activates a
+   control, suppresses the click, changes geometry or decides which control is
+   correct. If unsure, choose **Cancel Sketch capture** instead of guessing.
+4. Choose **Copy Sketch exit diagnostic**. If clipboard access fails, copy the
+   read-only **Sketch exit diagnostic report** field. Save the JSON locally as
+   pending review before sharing it here; do not commit it to GitHub.
+5. Separately report whether Sketch was active before your click and whether the
+   click actually exited Sketch. These are owner-reported UI observations, not
+   programmatic or CAD geometry verification.
+
+The new diagnostic reports `leqad-sketch-control/2`,
+`capturePurpose: ACTIVE_SKETCH_EXIT`, `productionRecognition: NOT_RUN`,
+`uniqueness: NOT_EVALUATED` and
+`activeSketchEvidence: NOT_ESTABLISHED_BY_USER_INDICATION`. Every candidate keeps
+`assessment: EXIT_IDENTITY_NOT_VERIFIED`; an exact label or click is not silently
+promoted into a production command identity or active-Sketch observation.
+
+Only the clicked element, up to nine ancestors, and at most six immediate
+neighbors of the first three branches are recorded (16 records total). Name and
+icon inspection have separate 64-node bounds; names are limited to 128 characters
+and three bounded name references. Only exact existing CAD labels are exported;
+unsupported names stay UNLISTED. Accessibility states use fixed enums or presence
+booleans. SVG/path/use **counts** are retained; SVG path data, hrefs, IDs, classes,
+HTML, arbitrary attributes, private CAD text, URLs and authentication data are
+omitted. Bounds are relative to the clicked element, rounded and capped; absolute
+screen coordinates are not exported. Context inspection remains bounded to 32
+ancestors, and incomplete visibility/enabled state remains UNKNOWN. JSON is
+limited to 24,000 characters, with truncation disclosed.
+
+No document scan, new production selector, persistence, network export, CAD
+click, geometry verification or permission inference is added. Capture is passive
+and one-shot, and removes its listeners on completion, timeout, cancellation,
+navigation, hidden-tab events, or panel lifecycle cleanup. Start-command capture
+remains available with its original purpose. Disable diagnostics after copying.
+
+**Stop here pending the owner capture.** A new active-Sketch detector and any
+nonsemantic Rectangle arrow adapter require reviewed live evidence and a fresh
+owner test. Simulated fixtures do not establish real Onshape compatibility.
+
 ## Status and known cause
 
 Baseline audited: `18e30fe`, branch `phase1-hardening`, PR #1.

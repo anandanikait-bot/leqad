@@ -4,6 +4,41 @@ Date: 2026-10-16. Base: PR #7, `062f87e867075d0915acc85fa9746d5b71f5fe69`.
 This is a separate production change, not another capture workflow revision.
 Keep all stacked PRs open and unmerged.
 
+## New owner SHOW snapshot: context failure established
+
+The [owner's reason-specific report](https://github.com/anandanikait-bot/leqad/pull/8#issuecomment-6210325141)
+now establishes that the real request stopped at `CONTEXT` with
+`SKETCH_CONTEXT_UNESTABLISHED`, `context: UNKNOWN`, and `productionLookup: NOT_RUN`.
+The production Rectangle resolver was not called. Independently, the read-only
+inspection found `NO_TOOLBAR_SEMANTICS`; eligibility was `NOT_EVALUATED`.
+
+`pageGate: ALLOWED` and zero read-only indicators do not establish editing
+permission. Neither the current Finish command matcher nor the plane-labelled
+Sketch dialog observer recognized the owner's active Sketch. This is a detection
+gap, not user error. The original sanitized v3 file was subsequently supplied and
+reviewed locally: its truncated nonsemantic paths, UNKNOWN enabled/context state,
+span geometry and unproven menu association do not establish an exit control or a
+safe dropdown arrow. The raw report remains local, outside approved reference data.
+
+One correctness fix is possible without inventing a positive signal: absence of
+supported active-Sketch evidence now reports `SKETCH_UI_ACTIVE: UNKNOWN`, rather
+than asserting `CLOSED`. Existing positive observations still report `OPEN`.
+The context gate and Rectangle admission rules are unchanged. A simulation joins
+the real context observer, Sketch UI observer, read-only inspection and runner to
+reproduce the owner report without executing target lookup or highlighting.
+
+The owner authorized a narrow, temporary **Capture Sketch exit control** option
+in the existing one-shot inspector. It records the user-indicated Finish/Exit
+control before its normal manual click handler runs, including bounded ancestry,
+nearby labels, relative bounds, visibility, enabled state, accessibility metadata
+and icon tag counts. It does not apply Sketch-command matching to exit candidates
+or claim that a clicked element establishes active Sketch. See the
+[local capture instructions](./sketch-control-capture.md#active-sketch-exit-control-capture).
+
+Real active-Sketch recognition and Rectangle highlighting remain **BLOCKED**
+until that evidence supports a detector and the owner accepts the actual result.
+No repeated Rectangle opening/selection recording is requested.
+
 ## Owner live acceptance follow-up: BLOCKED
 
 The owner tested candidate `02cc1fe9c99c591637243c0df64ae8ef1064273d` in real

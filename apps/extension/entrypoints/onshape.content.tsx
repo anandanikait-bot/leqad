@@ -227,10 +227,7 @@ export default defineContentScript({
               observe: (observationId) => {
                 if (observationId === 'SKETCH_UI_ACTIVE') {
                   return {
-                    current: observeSketchGuidanceUi(document)
-                      .editingAppearsActive
-                      ? 'OPEN'
-                      : 'CLOSED',
+                    current: observeSketchGuidanceUi(document).uiState,
                     unsubscribe: () => undefined,
                   };
                 }
@@ -258,8 +255,8 @@ export default defineContentScript({
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={observeSketchUi}
                   onSubscribeSketchUi={subscribeSketchUi}
-                  onCaptureSketchControl={() =>
-                    createSketchControlCapture(document)
+                  onCaptureSketchControl={(purpose) =>
+                    createSketchControlCapture(document, purpose)
                   }
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>

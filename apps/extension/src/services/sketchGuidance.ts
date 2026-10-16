@@ -6,6 +6,8 @@ import {
 
 export interface SketchGuidanceObservation {
   editingAppearsActive: boolean;
+  /** Absence of supported evidence does not establish that Sketch is closed. */
+  uiState: 'OPEN' | 'UNKNOWN';
   dialogPlane: ReferencePlane | null;
 }
 
@@ -29,6 +31,7 @@ export function observeSketchGuidanceUi(
     findSemanticTarget(root, 'finish-sketch') !== null || dialogPlane !== null;
   return {
     editingAppearsActive,
+    uiState: editingAppearsActive ? 'OPEN' : 'UNKNOWN',
     dialogPlane,
   };
 }

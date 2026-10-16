@@ -328,12 +328,14 @@ describe('context-scoped reference-plane recognition', () => {
     document.body.append(dialog);
     expect(observeSketchGuidanceUi(document)).toEqual({
       editingAppearsActive: true,
+      uiState: 'OPEN',
       dialogPlane: 'Top',
     });
     expect(findSelectedSemanticTargets(document, 'top-plane')).toEqual([]);
     dialog.hidden = true;
     expect(observeSketchGuidanceUi(document)).toEqual({
       editingAppearsActive: false,
+      uiState: 'UNKNOWN',
       dialogPlane: null,
     });
   });
