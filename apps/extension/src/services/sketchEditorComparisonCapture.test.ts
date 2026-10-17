@@ -24,6 +24,213 @@ function simulatedDialog() {
 afterEach(() => document.body.replaceChildren());
 
 describe('paired editor comparison capture', () => {
+  it('discovers a dialog and a non-ARIA cluster after over 6000 unrelated elements', () => {
+    const noise = document.createElement('section');
+    noise.innerHTML = '<div></div>'.repeat(6500);
+    document.body.append(noise);
+    simulatedDialog();
+    const cluster = document.createElement('section');
+    cluster.innerHTML =
+      '<div><svg></svg><span>Dimension</span></div><div><svg></svg></div><div><svg></svg></div>';
+    visible(cluster);
+    document.body.append(cluster);
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Sketch plane', inDialog: true }),
+        expect.objectContaining({ label: 'Dimension', inToolbar: false }),
+      ]),
+    );
+    expect(snapshot.candidateRegions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'DIALOG_CANDIDATE' }),
+        expect.objectContaining({ kind: 'STRUCTURAL_CLUSTER' }),
+      ]),
+    );
+    expect(snapshot.discovery.scannedElements).toBeLessThanOrEqual(6000);
+    expect(snapshot.incomplete).toBe(true);
+    expect(snapshot.activeSketchState).toBe('UNKNOWN');
+  });
+
+  it('keeps unnamed late dialog controls and multiple candidates without asserting identity', () => {
+    document.body.innerHTML = '<div></div>'.repeat(6100);
+    for (let i = 0; i < 2; i++) {
+      const dialog = simulatedDialog();
+      dialog.querySelector('span')!.remove();
+    }
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(
+      snapshot.candidateRegions.filter((r) => r.kind === 'DIALOG_CANDIDATE'),
+    ).toHaveLength(2);
+    expect(
+      snapshot.observations.some((o) => o.kind === 'SVG_STRUCTURE_ONLY'),
+    ).toBe(true);
+    expect(snapshot.limitations).toContain('MULTIPLE_CANDIDATE_REGIONS');
+    expect(snapshot.productionRecognition).toBe('NOT_RUN');
+  });
+
+  it('preserves privacy when targeted queries bypass editable or Leqad ancestors', () => {
+    document.body.innerHTML =
+      '<section contenteditable="true"><div role="dialog"><span>Sketch</span><svg></svg></div></section><section data-leqad-root><div role="toolbar"><button aria-label="Extrude"></button></div></section><section><button aria-label="private-name">Finish Sketch</button></section>';
+    visible(document.body);
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations.every((o) => o.label === null)).toBe(true);
+    expect(snapshot.candidateRegions).toEqual([]);
+    expect(JSON.stringify(snapshot)).not.toContain('private-name');
+  });
+
+  it('reports partial discovery instead of claiming absence after candidate or local bounds', () => {
+    for (let i = 0; i < 40; i++) simulatedDialog();
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(
+      snapshot.discovery.targeted.sources.some((s) => s.candidateLimitReached),
+    ).toBe(true);
+    expect(
+      snapshot.discovery.targeted.sources.some((s) => s.rootLimitReached),
+    ).toBe(true);
+    expect(snapshot.discovery.scannedElements).toBeLessThanOrEqual(6000);
+    expect(snapshot.discovery.targeted.nativeQueryWork).toBe(
+      'NOT_HARD_BOUNDED',
+    );
+    expect(snapshot.incomplete).toBe(true);
+    expect(JSON.stringify(snapshot).length).toBeLessThanOrEqual(12000);
+
+    document.body.replaceChildren();
+    const dialog = simulatedDialog();
+    dialog.prepend(document.createElement('section'));
+    dialog.firstElementChild!.innerHTML = '<div></div>'.repeat(200);
+    expect(
+      captureSketchEditorSnapshot(document, 'SKETCH').discovery.targeted
+        .localNodeLimitReached,
+    ).toBe(true);
+  });
+
+  it('does not traverse a shadow root or equate unvisited controls with absence', () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    host.attachShadow({ mode: 'open' }).innerHTML =
+      '<div role="dialog"><button aria-label="Finish Sketch"></button></div>';
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations).toEqual([]);
+    expect(snapshot.limitations).toContain('SHADOW_DOM_NOT_TRAVERSED');
+    expect(snapshot.discovery.openShadowBoundariesObserved).toBe(1);
+    expect(snapshot.incomplete).toBe(true);
+    expect(snapshot.discovery.targeted.coverage).toBe('PARTIAL_LIGHT_DOM_ONLY');
+    expect(snapshot.activeSketchState).toBe('UNKNOWN');
+  });
+
+  it('retains a genuinely deep dialog with conservative visibility and ancestry', () => {
+    let parent = document.body;
+    for (let i = 0; i < 40; i++) {
+      const next = document.createElement('div');
+      parent.append(next);
+      parent = next;
+    }
+    const dialog = simulatedDialog();
+    parent.append(dialog);
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Sketch plane',
+          visibility: 'UNKNOWN',
+          ancestryTruncated: true,
+        }),
+      ]),
+    );
+    expect(snapshot.discovery.depthLimitReached).toBe(true);
+  });
+
+  it('captures late hidden/replaced dialogs afresh and never retains a removed target', () => {
+    document.body.innerHTML = '<div></div>'.repeat(6100);
+    const dialog = simulatedDialog();
+    dialog.hidden = true;
+    expect(
+      captureSketchEditorSnapshot(document, 'SKETCH').candidateRegions,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'DIALOG_CANDIDATE',
+          visibility: 'HIDDEN',
+        }),
+      ]),
+    );
+    dialog.remove();
+    const replacement = simulatedDialog();
+    replacement.querySelector('span')!.textContent = 'Extrude';
+    const snapshot = captureSketchEditorSnapshot(document, 'EXTRUDE');
+    expect(snapshot.observations.some((o) => o.label === 'Sketch plane')).toBe(
+      false,
+    );
+    expect(snapshot.observations.some((o) => o.label === 'Extrude')).toBe(true);
+    replacement.remove();
+    expect(
+      captureSketchEditorSnapshot(document, 'EXTRUDE').candidateRegions,
+    ).toEqual([]);
+  });
+
+  it('invalidates observations when DOM changes during inspection and allows a fresh retry', () => {
+    const dialog = simulatedDialog();
+    let changed = false;
+    dialog.getBoundingClientRect = () => {
+      if (!changed) {
+        changed = true;
+        dialog.querySelector('span')!.textContent = 'Extrude';
+      }
+      return new DOMRect(10, 10, 60, 24);
+    };
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.discovery.domChangedDuringInspection).toBe(true);
+    expect(snapshot.incomplete).toBe(true);
+    expect(snapshot.observations).toEqual([]);
+    expect(snapshot.candidateRegions).toEqual([]);
+    expect(snapshot.limitations).toContain(
+      'DOM_CHANGED_DURING_INSPECTION_RETRY',
+    );
+    const retry = captureSketchEditorSnapshot(document, 'EXTRUDE');
+    expect(retry.discovery.domChangedDuringInspection).toBe(false);
+    expect(retry.observations.some((o) => o.label === 'Extrude')).toBe(true);
+  });
+
+  it('retains an exact named anchor even when its surrounding region exhausts its local budget', () => {
+    const group = document.createElement('section');
+    group.innerHTML =
+      '<div>' +
+      '<div></div>'.repeat(6500) +
+      '</div><button aria-label="Finish Sketch"></button>';
+    visible(group);
+    document.body.append(group);
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations.some((o) => o.label === 'Finish Sketch')).toBe(
+      true,
+    );
+    expect(snapshot.discovery.targeted.localNodeLimitReached).toBe(true);
+    expect(snapshot.incomplete).toBe(true);
+  });
+
+  it('samples beyond an early icon-heavy region instead of spending all SVG discovery on it', () => {
+    const early = document.createElement('section');
+    early.innerHTML =
+      '<div><svg></svg></div>'.repeat(32) + '<div></div>'.repeat(6500);
+    document.body.append(early);
+    const late = document.createElement('section');
+    late.innerHTML =
+      '<div><svg></svg><span>Dimension</span></div><div><svg></svg></div><div><svg></svg></div>';
+    visible(late);
+    document.body.append(late);
+    const snapshot = captureSketchEditorSnapshot(document, 'SKETCH');
+    expect(snapshot.observations.some((o) => o.label === 'Dimension')).toBe(
+      true,
+    );
+    expect(
+      snapshot.discovery.targeted.sources.find(
+        (s) => s.source === 'SVG_STRUCTURE',
+      )?.candidateLimitReached,
+    ).toBe(true);
+    expect(snapshot.discovery.scannedElements).toBeLessThanOrEqual(6000);
+    expect(snapshot.incomplete).toBe(true);
+  });
+
   it('captures read-only Sketch and other-editor snapshots and compares allowlisted signals', () => {
     const toolbar = document.createElement('div');
     toolbar.innerHTML =

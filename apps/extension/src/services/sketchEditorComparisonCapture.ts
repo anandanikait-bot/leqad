@@ -1,3 +1,8 @@
+import {
+  discoverEditorRegions,
+  EDITOR_DISCOVERY_LIMITS,
+} from './editorRegionDiscovery';
+
 export type EditorStateClaim = 'SKETCH' | 'EXTRUDE' | 'OTHER_FEATURE_EDITOR';
 
 const LIMITS = {
@@ -252,7 +257,17 @@ export interface SketchEditorSnapshot {
   reportTruncated: boolean;
   limits: typeof LIMITS;
   discovery: {
-    method: 'BOUNDED_LIGHT_DOM_BODY_SCAN';
+    method: 'TARGETED_REGIONS_THEN_BOUNDED_LIGHT_DOM_FALLBACK';
+    targeted: {
+      limits: typeof EDITOR_DISCOVERY_LIMITS;
+      sources: ReturnType<typeof discoverEditorRegions>['coverage'];
+      inspectedRoots: number;
+      localNodeLimitReached: boolean;
+      nativeQueryWork: 'NOT_HARD_BOUNDED';
+      coverage: 'PARTIAL_LIGHT_DOM_ONLY';
+    };
+    domChangedDuringInspection: boolean;
+    openShadowBoundariesObserved: number;
     scannedElements: number;
     maxDepthObserved: number;
     semanticToolbarCount: number;
@@ -510,6 +525,7 @@ function ancestry(element: Element, root: Element) {
 function walk(
   root: Element,
   visit: (element: Element, depth: number) => boolean | void,
+  budget: number = LIMITS.elements,
 ) {
   let current: Element | null = root;
   let depth = 0,
@@ -518,7 +534,7 @@ function walk(
     nodeLimit = false,
     depthLimit = false;
   while (current) {
-    if (scanned >= LIMITS.elements) {
+    if (scanned >= budget) {
       nodeLimit = true;
       break;
     }
@@ -554,16 +570,26 @@ function capture(
       : (root as Element);
   const records = new Map<Element, InternalNode>();
   let editableSubtreesSkipped = 0;
-  const scan = walk(scanRoot, (element, depth) => {
-    if (element !== scanRoot && isLeqad(element)) return false;
-    if (['script', 'style', 'template', 'noscript'].includes(element.localName))
+  let openShadowBoundariesObserved = 0;
+  // Targeted roots can bypass ancestors: preserve privacy exclusions even when
+  // the broad walk never visits their parent. No ancestor text is inspected.
+  const excluded = (element: Element) =>
+    Boolean(
+      element.closest(
+        `${EDITABLE},script,style,template,noscript,[data-leqad-root],[data-leqad-highlight]`,
+      ),
+    ) || isLeqad(element);
+  const discovery = discoverEditorRegions(scanRoot, LABELS, excluded);
+  const inspect = (element: Element, depth: number) => {
+    if (!element.isConnected || records.has(element)) return;
+    if (excluded(element)) {
+      if (element.matches(EDITABLE)) editableSubtreesSkipped++;
       return false;
+    }
+    if (element.shadowRoot) openShadowBoundariesObserved++;
     const parent = element.parentElement
       ? records.get(element.parentElement)
       : undefined;
-    const editable = element.matches(EDITABLE);
-    if (editable) editableSubtreesSkipped++;
-    if (editable) return false;
     const label = name(element);
     const roleValue = element.getAttribute('role');
     const role = roleValue
@@ -584,9 +610,16 @@ function capture(
       actionable,
       focusable,
       inDialog: Boolean(
-        parent?.inDialog || role === 'dialog' || element.localName === 'dialog',
+        parent?.inDialog ||
+        role === 'dialog' ||
+        element.localName === 'dialog' ||
+        element.closest('[role="dialog"],dialog'),
       ),
-      inToolbar: Boolean(parent?.inToolbar || role === 'toolbar'),
+      inToolbar: Boolean(
+        parent?.inToolbar ||
+        role === 'toolbar' ||
+        element.closest('[role="toolbar"]'),
+      ),
       ariaDisabled: element.getAttribute('aria-disabled') === 'true',
       nativeDisabled:
         isHtml(element) &&
@@ -599,18 +632,40 @@ function capture(
       labels: new Set(label.label ? [label.label] : []),
     };
     records.set(element, entry);
-    let ancestor = element.parentElement,
+  };
+  const scan = { scanned: 0, maxDepth: 0, nodeLimit: false, depthLimit: false };
+  let localNodeLimitReached = false;
+  for (const candidate of discovery.roots) {
+    const local = walk(
+      candidate,
+      inspect,
+      EDITOR_DISCOVERY_LIMITS.elementsPerRoot,
+    );
+    scan.scanned += local.scanned;
+    scan.maxDepth = Math.max(scan.maxDepth, local.maxDepth);
+    scan.depthLimit ||= local.depthLimit;
+    localNodeLimitReached ||= local.nodeLimit;
+  }
+  const fallback = walk(scanRoot, inspect, LIMITS.elements - scan.scanned);
+  scan.scanned += fallback.scanned;
+  scan.maxDepth = Math.max(scan.maxDepth, fallback.maxDepth);
+  scan.nodeLimit = fallback.nodeLimit;
+  scan.depthLimit ||= fallback.depthLimit;
+  // Aggregate after discovery so overlapping roots and out-of-order parents
+  // neither duplicate nor lose structural relationships.
+  for (const entry of records.values()) {
+    let ancestor = entry.element.parentElement,
       distance = 0;
     while (ancestor && distance++ < LIMITS.ancestors) {
       const summary = records.get(ancestor);
       if (summary) {
-        summary.actions += Number(actionable || focusable);
-        if (element.localName === 'svg') summary.svgs++;
-        if (label.label) summary.labels.add(label.label);
+        summary.actions += Number(entry.actionable || entry.focusable);
+        if (entry.element.localName === 'svg') summary.svgs++;
+        if (entry.name.label) summary.labels.add(entry.name.label);
       }
       ancestor = ancestor.parentElement;
     }
-  });
+  }
   const all = [...records.values()];
   const labelNodes = all.filter((item) => item.name.label);
   const priority = (item: InternalNode) =>
@@ -758,7 +813,13 @@ function capture(
   );
   const observationLimitReached = selectedNodes.length > LIMITS.observations;
   const regionLimitReached = regions.length > LIMITS.regions;
+  const discoveryLimited = discovery.coverage.some(
+    (source) => source.candidateLimitReached || source.rootLimitReached,
+  );
   const incomplete =
+    openShadowBoundariesObserved > 0 ||
+    discoveryLimited ||
+    localNodeLimitReached ||
     scan.nodeLimit ||
     scan.depthLimit ||
     ancestryLimitReached ||
@@ -766,6 +827,8 @@ function capture(
     observationLimitReached ||
     regionLimitReached;
   const codes = [
+    ...(discoveryLimited ? ['TARGETED_DISCOVERY_LIMIT_REACHED'] : []),
+    ...(localNodeLimitReached ? ['LOCAL_REGION_NODE_LIMIT_REACHED'] : []),
     ...(toolbars.length ? [] : ['NO_SEMANTIC_TOOLBAR_OBSERVED']),
     ...(regions.length ? [] : ['NO_TOOL_REGION_ESTABLISHED']),
     ...(scan.nodeLimit ? ['NODE_LIMIT_REACHED'] : []),
@@ -796,7 +859,17 @@ function capture(
     reportTruncated: false,
     limits: LIMITS,
     discovery: {
-      method: 'BOUNDED_LIGHT_DOM_BODY_SCAN',
+      method: 'TARGETED_REGIONS_THEN_BOUNDED_LIGHT_DOM_FALLBACK',
+      targeted: {
+        limits: EDITOR_DISCOVERY_LIMITS,
+        sources: discovery.coverage,
+        inspectedRoots: discovery.roots.length,
+        localNodeLimitReached,
+        nativeQueryWork: 'NOT_HARD_BOUNDED',
+        coverage: 'PARTIAL_LIGHT_DOM_ONLY',
+      },
+      domChangedDuringInspection: false,
+      openShadowBoundariesObserved,
       scannedElements: scan.scanned,
       maxDepthObserved: scan.maxDepth,
       semanticToolbarCount: toolbars.length,
@@ -820,16 +893,23 @@ function capture(
     limitations: [
       'EDITOR_STATE_IS_OWNER_REPORTED_ONLY',
       'SHADOW_DOM_NOT_TRAVERSED',
+      'NATIVE_SELECTOR_ENGINE_WORK_NOT_HARD_BOUNDED',
+      'TARGETED_DISCOVERY_DOES_NOT_ESTABLISH_EXHAUSTIVE_COVERAGE',
       'STRUCTURAL_CLUSTERS_ARE_CANDIDATES_NOT_VERIFIED_TOOLBARS',
       ...codes,
       'NO_CAD_ACTION_OR_GEOMETRY_CHECK_WAS_PERFORMED',
     ],
   };
   while (JSON.stringify(report).length > LIMITS.snapshotChars) {
-    const field = (['observations', 'candidateRegions'] as const).find(
-      (key) => report[key].length > 0,
-    );
-    if (!field) break;
+    const field =
+      report.observations.length > 2
+        ? 'observations'
+        : report.candidateRegions.length > 1
+          ? 'candidateRegions'
+          : report.observations.length
+            ? 'observations'
+            : 'candidateRegions';
+    if (!report[field].length) break;
     report = {
       ...report,
       [field]: report[field].slice(0, Math.floor(report[field].length / 2)),
@@ -859,7 +939,33 @@ export function captureSketchEditorSnapshot(
   root: ParentNode,
   state: EditorStateClaim,
 ) {
-  return capture(root, state);
+  const node = root as Node;
+  const doc = node.nodeType === 9 ? (root as Document) : node.ownerDocument;
+  const Observer = doc?.defaultView?.MutationObserver;
+  const observer = Observer ? new Observer(() => {}) : null;
+  observer?.observe(node, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    characterData: true,
+  });
+  try {
+    const report = capture(root, state);
+    if (observer?.takeRecords().length) {
+      report.incomplete = true;
+      report.observations = [];
+      report.candidateRegions = [];
+      report.discovery.domChangedDuringInspection = true;
+      report.discovery.regionStatus = 'INCOMPLETE';
+      report.discovery.candidateRegionCount = 0;
+      report.discovery.allowlistedCommandCount = 0;
+      report.discovery.semanticToolbarCount = 0;
+      report.limitations.push('DOM_CHANGED_DURING_INSPECTION_RETRY');
+    }
+    return report;
+  } finally {
+    observer?.disconnect();
+  }
 }
 
 function observationSignal(item: Observation) {

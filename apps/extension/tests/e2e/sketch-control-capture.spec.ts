@@ -103,7 +103,7 @@ test('Sketch capture cancels when disabled, navigated or paused and can retry', 
   ).toBeEnabled();
 });
 
-test('paired editor capture compares two owner-reported simulated states without CAD actions or recognition claims', async ({
+test('paired editor capture reaches simulated regions after 6500 unrelated nodes without CAD actions or recognition claims', async ({
   page,
 }) => {
   await page.goto('/fixture.html?unknown-permission');
@@ -114,8 +114,12 @@ test('paired editor capture compares two owner-reported simulated states without
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   const fakeRegion = await page.evaluate(() => {
+    const noise = document.createElement('section');
+    noise.innerHTML = '<div></div>'.repeat(6500);
+    document.body.prepend(noise);
     const region = document.createElement('div');
     region.id = 'private-simulated-region';
+    region.setAttribute('role', 'dialog');
     region.innerHTML =
       '<div><svg></svg><span>Sketch</span></div><button aria-label="Finish Sketch"></button><button aria-label="Cancel"></button>';
     region.style.cssText = 'position:fixed;left:10px;top:10px;z-index:1';
@@ -146,6 +150,7 @@ test('paired editor capture compares two owner-reported simulated states without
   await page.locator(`#${fakeRegion}`).evaluate((oldRegion) => {
     const replacement = document.createElement('div');
     replacement.id = oldRegion.id;
+    replacement.setAttribute('role', 'dialog');
     replacement.style.cssText = oldRegion.getAttribute('style') ?? '';
     replacement.innerHTML =
       '<button aria-label="Extrude"><svg></svg></button><button aria-label="Sketch"></button>';
@@ -175,6 +180,29 @@ test('paired editor capture compares two owner-reported simulated states without
     },
   });
   expect(report.stateA.ownerReportedState).toBe('SKETCH');
+  for (const snapshot of [report.stateA, report.stateB]) {
+    expect(snapshot.discovery.method).toBe(
+      'TARGETED_REGIONS_THEN_BOUNDED_LIGHT_DOM_FALLBACK',
+    );
+    expect(snapshot.discovery.scannedElements).toBeLessThanOrEqual(6000);
+    expect(snapshot.discovery.nodeLimitReached).toBe(true);
+    expect(snapshot.discovery.domChangedDuringInspection).toBe(false);
+    expect(
+      snapshot.candidateRegions.some(
+        (region: { kind: string }) => region.kind === 'DIALOG_CANDIDATE',
+      ),
+    ).toBe(true);
+  }
+  expect(
+    report.stateA.observations.some(
+      (item: { label: string }) => item.label === 'Finish Sketch',
+    ),
+  ).toBe(true);
+  expect(
+    report.stateB.observations.some(
+      (item: { label: string }) => item.label === 'Extrude',
+    ),
+  ).toBe(true);
   expect(report.stateB.ownerReportedState).toBe('EXTRUDE');
   expect(report.signals.stateAOnly.length).toBeGreaterThan(0);
   expect(report.signals.stateBOnly.length).toBeGreaterThan(0);
