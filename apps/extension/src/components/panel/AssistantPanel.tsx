@@ -6,6 +6,10 @@ import type {
   SketchControlCaptureTask,
   SketchControlCapturePurpose,
 } from '../../services/sketchControlCapture';
+import type {
+  EditorStateClaim,
+  SketchEditorSnapshot,
+} from '../../services/sketchEditorComparisonCapture';
 import { useEffect, useRef, useState } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -92,6 +96,9 @@ interface AssistantPanelProps {
   onCaptureSketchControl?: (
     purpose?: SketchControlCapturePurpose,
   ) => SketchControlCaptureTask;
+  onCaptureSketchEditorState?: (
+    state: EditorStateClaim,
+  ) => SketchEditorSnapshot;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
@@ -384,6 +391,7 @@ export function AssistantPanel({
   onShowCalibratedHighlight,
   onSketchCalibrationChange,
   onCaptureSketchControl,
+  onCaptureSketchEditorState,
   onCaptureSketchDialogIdentity,
   onCaptureTopRow,
   onRecognitionDiagnostics,
@@ -1875,6 +1883,12 @@ export function AssistantPanel({
                           <SketchControlDiagnostic
                             key={`${step.id}:${stepState.status}`}
                             onCapture={onCaptureSketchControl}
+                            {...(onCaptureSketchEditorState
+                              ? {
+                                  onCaptureEditorState:
+                                    onCaptureSketchEditorState,
+                                }
+                              : {})}
                             {...(onCaptureSketchDialogIdentity
                               ? {
                                   onCaptureIdentity:

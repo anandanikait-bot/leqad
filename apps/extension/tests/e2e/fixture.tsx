@@ -3,6 +3,7 @@ import {
   createSketchControlCapture,
   inspectSketchDialogIdentity,
 } from '../../src/services/sketchControlCapture';
+import { captureSketchEditorSnapshot } from '../../src/services/sketchEditorComparisonCapture';
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
@@ -298,6 +299,9 @@ async function renderFixturePanel() {
       }
       onCaptureSketchControl={(purpose) =>
         createSketchControlCapture(document, purpose)
+      }
+      onCaptureSketchEditorState={(state) =>
+        captureSketchEditorSnapshot(document, state)
       }
       onCaptureTopRow={() => createTopRowCapture(document)}
       onCaptureRectangleDropdown={() =>

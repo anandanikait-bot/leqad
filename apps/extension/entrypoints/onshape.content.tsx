@@ -4,6 +4,7 @@ import {
   createSketchControlCapture,
   inspectSketchDialogIdentity,
 } from '../src/services/sketchControlCapture';
+import { captureSketchEditorSnapshot } from '../src/services/sketchEditorComparisonCapture';
 import { createRoot } from 'react-dom/client';
 import { browser } from 'wxt/browser';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
@@ -263,6 +264,9 @@ export default defineContentScript({
                   }
                   onCaptureSketchControl={(purpose) =>
                     createSketchControlCapture(document, purpose)
+                  }
+                  onCaptureSketchEditorState={(state) =>
+                    captureSketchEditorSnapshot(document, state)
                   }
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>

@@ -9,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SketchControlDiagnostic } from './SketchControlDiagnostic';
 import { createSketchControlCapture } from '../../services/sketchControlCapture';
+import { captureSketchEditorSnapshot } from '../../services/sketchEditorComparisonCapture';
 
 afterEach(() => {
   cleanup();
@@ -69,6 +70,157 @@ describe('Sketch control diagnostic panel', () => {
       screen.getByRole('button', { name: 'Capture Sketch control' }),
     );
     expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it('captures a manual pair, labels both states owner-reported, and exposes clipboard fallback', async () => {
+    const region = document.createElement('div');
+    region.innerHTML =
+      '<div><svg></svg><span>Sketch</span></div><button aria-label="Finish Sketch"></button><button aria-label="Cancel"></button>';
+    const setVisible = (element: Element) => {
+      element.getBoundingClientRect = () => new DOMRect(10, 10, 60, 24);
+      for (const child of element.children) setVisible(child);
+    };
+    setVisible(region);
+    document.body.append(region);
+    let cadClicks = 0;
+    region.addEventListener('click', () => cadClicks++);
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: () => Promise.reject(new Error('simulated refusal')),
+      },
+    });
+    try {
+      render(
+        <SketchControlDiagnostic
+          onCapture={() => createSketchControlCapture(document)}
+          onCaptureEditorState={(state) =>
+            captureSketchEditorSnapshot(document, state)
+          }
+        />,
+      );
+      const stateA = screen.getByRole('button', {
+        name: 'Capture State A — Sketch',
+      });
+      const stateB = screen.getByRole('button', {
+        name: 'Capture State B — Other Editor',
+      });
+      expect((stateB as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(stateA);
+      fireEvent.change(screen.getByLabelText('State B reported editor'), {
+        target: { value: 'OTHER_FEATURE_EDITOR' },
+      });
+      expect((stateB as HTMLButtonElement).disabled).toBe(false);
+      expect(
+        screen.getByText('State A captured · owner-reported'),
+      ).toBeTruthy();
+
+      region.querySelector('span')!.textContent = 'Extrude';
+      fireEvent.click(stateB);
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Copy Sketch vs other editor report',
+        }),
+      );
+      const output = screen.getByLabelText<HTMLTextAreaElement>(
+        'Sketch vs other editor comparison report',
+      );
+      const report = JSON.parse(output.value);
+      expect(report).toMatchObject({
+        observationClaim: 'OWNER_REPORTED_ONLY',
+        activeSketchState: 'UNKNOWN',
+        productionRecognition: 'NOT_RUN',
+        permissionEvidence: 'NOT_INSPECTED',
+        geometryVerification: 'NOT_RUN',
+      });
+      expect(report.stateA.ownerReportedState).toBe('SKETCH');
+      expect(report.stateB.ownerReportedState).toBe('OTHER_FEATURE_EDITOR');
+      await waitFor(() =>
+        expect(screen.getByText(/Clipboard unavailable/)).toBeTruthy(),
+      );
+      expect(cadClicks).toBe(0);
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('re-capturing State A clears the old State B and refreshes the snapshot from the current DOM', () => {
+    const command = document.createElement('span');
+    command.textContent = 'Sketch';
+    command.getBoundingClientRect = () => new DOMRect(10, 10, 60, 24);
+    document.body.append(command);
+    render(
+      <SketchControlDiagnostic
+        onCapture={() => createSketchControlCapture(document)}
+        onCaptureEditorState={(state) =>
+          captureSketchEditorSnapshot(document, state)
+        }
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture State A — Sketch' }),
+    );
+    fireEvent.change(screen.getByLabelText('State B reported editor'), {
+      target: { value: 'OTHER_FEATURE_EDITOR' },
+    });
+    command.textContent = 'Extrude';
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture State B — Other Editor' }),
+    );
+    expect(
+      screen.getByRole('button', {
+        name: 'Copy Sketch vs other editor report',
+      }),
+    ).toBeTruthy();
+    command.textContent = 'Dimension';
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture State A — Sketch' }),
+    );
+    expect(
+      screen.queryByRole('button', {
+        name: 'Copy Sketch vs other editor report',
+      }),
+    ).toBeNull();
+    expect(screen.queryByText('State B captured · owner-reported')).toBeNull();
+  });
+
+  it('clears paired snapshots on unmount and does not restore them on remount', () => {
+    const onCaptureEditorState = vi.fn((state) =>
+      captureSketchEditorSnapshot(document, state),
+    );
+    const props = {
+      onCapture: () => createSketchControlCapture(document),
+      onCaptureEditorState,
+    };
+    const first = render(<SketchControlDiagnostic {...props} />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture State A — Sketch' }),
+    );
+    fireEvent.change(screen.getByLabelText('State B reported editor'), {
+      target: { value: 'EXTRUDE' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Capture State B — Extrude' }),
+    );
+    expect(
+      screen.getByRole('button', {
+        name: 'Copy Sketch vs other editor report',
+      }),
+    ).toBeTruthy();
+
+    first.unmount();
+    render(<SketchControlDiagnostic {...props} />);
+    expect(screen.queryByText('State A captured · owner-reported')).toBeNull();
+    expect(screen.queryByText('State B captured · owner-reported')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Capture State B — Other Editor' }),
+    ).toHaveProperty('disabled', true);
+    expect(screen.getByLabelText('State B reported editor')).toHaveProperty(
+      'value',
+      '',
+    );
   });
 });
 
