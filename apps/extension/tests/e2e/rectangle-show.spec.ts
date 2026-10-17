@@ -96,9 +96,16 @@ test('capture-grounded labels remain BLOCKED in a simulated unowned nonsemantic 
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await expect(
-    page.getByText(
-      /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
-    ),
+    page.getByText(/couldn’t safely highlight Corner rectangle/),
+  ).toBeVisible();
+  const fallback = page.getByText('Find using Onshape Search', {
+    exact: true,
+  });
+  await expect(fallback).toBeVisible();
+  await fallback.press('Enter');
+  await expect(page.getByText(/Search for Corner rectangle/)).toBeVisible();
+  await expect(
+    page.getByText(/Do not choose another Rectangle variant/),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Retry guidance' }),
@@ -397,4 +404,59 @@ test('one opt-in dialog identity snapshot retains only local allowlisted structu
     .getByRole('button', { name: 'Turn off recognition diagnostics' })
     .click();
   await expect(output).toHaveCount(0);
+});
+
+test('failed SHOW offers a collapsible manual Search Tools fallback without CAD actions or progress changes', async ({
+  page,
+}) => {
+  await rectangleStep(page);
+  // Simulated absence only; this fixture is not an Onshape capture.
+  await page
+    .locator('#fixture-rectangle')
+    .evaluate((element) => element.remove());
+  await page.getByRole('button', { name: 'SHOW', exact: true }).click();
+
+  const fallback = page.getByText('Find using Onshape Search', {
+    exact: true,
+  });
+  await expect(fallback).toBeVisible();
+  await fallback.press('Enter');
+  await expect(page.getByText(/Alt \+ C/)).toBeVisible();
+  await expect(page.getByText(/Option \+ C/)).toBeVisible();
+  await expect(page.getByText(/Search for Corner rectangle/)).toBeVisible();
+  await expect(
+    page.getByText(/Center point rectangle starts from its center/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Aligned Rectangle establishes a line direction/),
+  ).toBeVisible();
+  await expect(page.getByText(/do not verify tool activation/)).toBeVisible();
+  await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+  await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await expect(page.locator('[data-guidance-simulation-menu]')).toHaveCount(0);
+  await expect(page.locator('[data-leqad-panel]')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Collapse Leqad panel' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Expand Leqad panel' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Expand Leqad panel' }).click();
+  await expect(fallback).toBeVisible();
+  // The existing header drag handle lets the owner move the panel out of
+  // Search Tools' way without replacing the active lesson or its guidance.
+  const panel = page.locator('[data-leqad-panel]');
+  const before = await panel.boundingBox();
+  const header = page.getByRole('group', { name: 'Move Leqad panel' });
+  const handle = await header.boundingBox();
+  expect(before).not.toBeNull();
+  expect(handle).not.toBeNull();
+  await page.mouse.move(handle!.x + 28, handle!.y + 18);
+  await page.mouse.down();
+  await page.mouse.move(handle!.x + 72, handle!.y + 18);
+  await page.mouse.up();
+  const after = await panel.boundingBox();
+  expect(after!.x).toBeGreaterThan(before!.x + 20);
+  await expect(fallback).toBeVisible();
+  await expect(page.locator('[data-leqad-panel]')).toHaveCount(1);
+  await expect(page.locator('#host-click-count')).toHaveText('0');
 });

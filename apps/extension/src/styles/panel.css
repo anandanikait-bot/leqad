@@ -414,3 +414,44 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.leqad-native-search {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(13, 28, 67, 0.2);
+  border-radius: 8px;
+  background: #fffaf3;
+  color: var(--leqad-navy);
+  font-size: 12px;
+}
+
+.leqad-native-search > summary {
+  cursor: pointer;
+  font-weight: 650;
+  list-style-position: outside;
+}
+
+.leqad-native-search > summary:focus-visible {
+  outline: 3px solid var(--leqad-russet);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.leqad-native-search__content {
+  max-height: 18rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.leqad-native-search__content ol {
+  margin: 9px 0;
+  padding-left: 20px;
+}
+
+.leqad-native-search__content li {
+  margin: 7px 0;
+}
+
+.leqad-native-search__content p {
+  margin: 9px 0 0;
+}
