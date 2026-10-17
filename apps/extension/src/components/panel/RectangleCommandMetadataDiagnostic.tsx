@@ -90,17 +90,24 @@ export function RectangleCommandMetadataDiagnostic({
       if (menuTask.current !== task) return;
       menuTask.current = null;
       setMenuCapturePending(false);
-      if (result.status !== 'CAPTURED') {
+      if (result.status === 'CANCELLED') {
         setMessage(
           'State B was not captured. Return to Sketch, keep the menu closed, and arm State B again.',
         );
         return;
       }
       setSnapshots((current) => [...current.slice(0, 1), result.snapshot]);
+      if (result.status === 'TIMED_OUT') {
+        setMessage(
+          'State B timed out without a relevant Rectangle menu transition. Uncertain observations were saved; retry State B or copy the partial report.',
+        );
+        return;
+      }
       setMessage(
-        result.snapshot.menuMarkers > 0
-          ? 'State B saved as owner-reported; a bounded dropdown menu marker was observed after your click.'
-          : 'State B saved as owner-reported, but no allowlisted dropdown menu marker was observed. The report preserves that uncertainty.',
+        result.snapshot.interaction.menuAssociation ===
+          'LOCAL_TRANSITION_CANDIDATE'
+          ? 'State B saved: your input matched a local Rectangle arrow candidate and a menu changed inside its group. Ownership and active Sketch remain unverified.'
+          : 'State B saved with uncertain menu ownership. Review the interaction origin and menu association in the report; this does not establish a Rectangle action.',
       );
     });
   };
@@ -150,7 +157,11 @@ export function RectangleCommandMetadataDiagnostic({
             <button
               type="button"
               className="leqad-button leqad-button--secondary"
-              disabled={snapshots.length !== index || menuCapturePending}
+              disabled={
+                snapshots.length < 1 ||
+                snapshots.length > 2 ||
+                menuCapturePending
+              }
               onClick={armMenuCapture}
             >
               {menuCapturePending
@@ -178,7 +189,7 @@ export function RectangleCommandMetadataDiagnostic({
           Restart experiment
         </button>
       )}
-      {snapshots.length === STATES.length && (
+      {snapshots.length > 0 && !menuCapturePending && (
         <button
           type="button"
           className="leqad-button leqad-button--secondary"

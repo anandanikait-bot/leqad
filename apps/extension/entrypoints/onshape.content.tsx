@@ -291,10 +291,44 @@ export default defineContentScript({
                     )
                   }
                   onCaptureRectangleCommandMetadata={(state, generation) =>
-                    captureRectangleCommandMetadata(document, state, generation)
+                    captureRectangleCommandMetadata(
+                      document,
+                      state,
+                      generation,
+                      {
+                        pageSupport:
+                          currentPage.supported &&
+                          currentPage.elementType === 'part-studio'
+                            ? 'SUPPORTED_PART_STUDIO'
+                            : 'UNSUPPORTED',
+                        editability:
+                          currentPage.editability === 'read-only'
+                            ? 'READ_ONLY'
+                            : currentPage.editability === 'editable'
+                              ? 'EDITABLE'
+                              : 'UNKNOWN',
+                      },
+                    )
                   }
                   onCaptureRectangleMenuMetadata={(generation) =>
-                    createRectangleMenuMetadataCapture(document, generation)
+                    createRectangleMenuMetadataCapture(
+                      document,
+                      generation,
+                      undefined,
+                      {
+                        pageSupport:
+                          currentPage.supported &&
+                          currentPage.elementType === 'part-studio'
+                            ? 'SUPPORTED_PART_STUDIO'
+                            : 'UNSUPPORTED',
+                        editability:
+                          currentPage.editability === 'read-only'
+                            ? 'READ_ONLY'
+                            : currentPage.editability === 'editable'
+                              ? 'EDITABLE'
+                              : 'UNKNOWN',
+                      },
+                    )
                   }
                   onRecognitionDiagnostics={(capture) =>
                     collectRecognitionDiagnostics(document, capture)

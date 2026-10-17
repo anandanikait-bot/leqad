@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 // Simulated command metadata only. This fixture does not establish that the
-// same private attributes exist in an authenticated Onshape session.
+// eligibility and ownership observations generalize to authenticated Onshape.
 test('four-state Rectangle metadata experiment stays read-only and privacy bounded', async ({
   page,
 }) => {
@@ -10,18 +10,24 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
     const toolbar = document.createElement('div');
     toolbar.className = 'os-element-toolbar private-project-class';
     toolbar.dataset.fixtureCommandToolbar = 'true';
+    toolbar.style.cssText =
+      'position:fixed;left:400px;top:40px;width:100px;height:24px;display:flex';
     const group = document.createElement('div');
     group.dataset.fixtureRectangleGroup = 'true';
+    group.style.cssText =
+      'position:relative;display:flex;width:46px;height:24px';
     const face = document.createElement('div');
     face.setAttribute('command-id', 'RECTANGLE_TWO_CORNERS');
     face.style.cssText = 'width:32px;height:24px';
     const arrow = document.createElement('div');
     arrow.className = 'dropdown-arrow';
-    arrow.style.cssText = 'width:12px;height:24px';
+    arrow.style.cssText = 'width:14px;height:24px';
     arrow.addEventListener('pointerdown', () => {
       const menu = document.createElement('div');
       menu.className = 'os-tool-dropdown-content';
       menu.dataset.fixtureRectangleMenu = 'true';
+      menu.style.cssText =
+        'position:absolute;top:24px;left:0;width:120px;height:72px';
       for (const id of [
         'RECTANGLE_TWO_CORNERS',
         'RECTANGLE_CENTER',
@@ -32,7 +38,7 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
         item.style.cssText = 'width:120px;height:24px';
         menu.append(item);
       }
-      document.body.append(menu);
+      group.append(menu);
     });
     group.append(face, arrow);
     const line = document.createElement('div');
@@ -41,7 +47,18 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
     const unrelated = document.createElement('div');
     unrelated.setAttribute('command-id', 'PRIVATE_DOCUMENT_COMMAND');
     toolbar.append(line, group, unrelated);
-    document.body.append(toolbar);
+    let parent: HTMLElement = document.body;
+    for (let index = 0; index < 40; index++) {
+      const wrapper = document.createElement('div');
+      parent.append(wrapper);
+      parent = wrapper;
+    }
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.display = 'none';
+    for (let index = 0; index < 1000; index++)
+      svg.append(document.createElementNS(svg.namespaceURI, 'path'));
+    toolbar.append(svg);
+    parent.append(toolbar);
   });
 
   await page
@@ -57,6 +74,11 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
     })
     .click();
   await page.locator('.dropdown-arrow').click();
+  await expect(
+    page.getByRole('button', {
+      name: 'Record metadata State C — Another Rectangle variant',
+    }),
+  ).toBeEnabled();
 
   await page.evaluate(() => {
     document.querySelector('[data-fixture-rectangle-menu]')?.remove();
@@ -96,12 +118,21 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
   expect(report.snapshots[0]).toMatchObject({
     ownerReportedState: 'SKETCH_EDITING',
     sketchClue: 'PRESENT',
+    activeSketchState: 'UNKNOWN',
+    scan: { relevantRegionCoverage: 'COMPLETE', scannedElements: 3 },
     ownership: [
       expect.objectContaining({
         faceCommandId: 'RECTANGLE_TWO_CORNERS',
         arrowRelation: 'SAME_PARENT',
+        assessment: 'LOCAL_CANDIDATE',
+        eligibility: 'ELIGIBLE',
+        relativeBounds: { x: 32, y: 0, width: 14, height: 24 },
       }),
     ],
+  });
+  expect(report.snapshots[1].interaction).toMatchObject({
+    origin: 'RECTANGLE_ARROW_CANDIDATE',
+    menuAssociation: 'LOCAL_TRANSITION_CANDIDATE',
   });
   expect(
     report.snapshots[1].commands.filter(
