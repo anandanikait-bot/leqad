@@ -127,3 +127,11 @@ This fallback is a proposal, not an implemented new capture flow.
   This is a newly calculated local hash, not a claim about hosted artifact bytes.
 - Hosted CI and the tested commit/artifact are linked in the delivery response.
   No actual Onshape live test was performed in this environment.
+
+The first hosted run for this change (`38994918005`) failed because the lifecycle
+regression repeated three 6,100-node scans in one test, taking 6.4 seconds against
+Vitest's five-second timeout. The fixture now retains the large prefix for its
+late-hidden-target assertion and removes that unrelated subtree before the
+replacement/removal assertions. Dedicated late-discovery regressions retain their
+full adversarial DOM. No timeout, scanner limit or recognition requirement was
+relaxed. The final delivery links the subsequent run for the corrected test.

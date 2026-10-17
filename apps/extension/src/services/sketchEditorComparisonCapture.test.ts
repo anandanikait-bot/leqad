@@ -141,8 +141,10 @@ describe('paired editor comparison capture', () => {
     expect(snapshot.discovery.depthLimitReached).toBe(true);
   });
 
-  it('captures late hidden/replaced dialogs afresh and never retains a removed target', () => {
-    document.body.innerHTML = '<div></div>'.repeat(6100);
+  it('captures a late hidden dialog, then re-reads replacement and removed targets', () => {
+    const noise = document.createElement('section');
+    noise.innerHTML = '<div></div>'.repeat(6100);
+    document.body.append(noise);
     const dialog = simulatedDialog();
     dialog.hidden = true;
     expect(
@@ -155,6 +157,10 @@ describe('paired editor comparison capture', () => {
         }),
       ]),
     );
+    // Late discovery is asserted above and in dedicated adversarial tests.
+    // Subsequent snapshots test lifecycle invalidation; repeating the large
+    // prefix for these adds jsdom work without another distinct assertion.
+    noise.remove();
     dialog.remove();
     const replacement = simulatedDialog();
     replacement.querySelector('span')!.textContent = 'Extrude';
