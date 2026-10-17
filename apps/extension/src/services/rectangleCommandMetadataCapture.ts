@@ -121,16 +121,16 @@ function safeTag(element: Element): RectangleCommandRecord['tag'] {
 
 const ANCESTOR_LIMIT = 16;
 
-function visibility(element: HTMLElement): {
+function visibility(element: Element): {
   state: Visibility;
   ancestorLimitReached: boolean;
 } {
   if (!element.isConnected)
     return { state: 'UNKNOWN', ancestorLimitReached: false };
-  let current: HTMLElement | null = element;
+  let current: Element | null = element;
   for (let depth = 0; current && depth < ANCESTOR_LIMIT; depth += 1) {
     if (
-      current.hidden ||
+      (current instanceof HTMLElement && current.hidden) ||
       current.getAttribute('aria-hidden') === 'true' ||
       current.ownerDocument.defaultView?.getComputedStyle(current).display ===
         'none' ||
@@ -148,16 +148,17 @@ function visibility(element: HTMLElement): {
   };
 }
 
-function enabled(element: HTMLElement): {
+function enabled(element: Element): {
   state: Enabled;
   ancestorLimitReached: boolean;
 } {
-  let current: HTMLElement | null = element;
+  let current: Element | null = element;
   for (let depth = 0; current && depth < ANCESTOR_LIMIT; depth += 1) {
     if (
       current.getAttribute('aria-disabled') === 'true' ||
       current.classList.contains('disabled') ||
-      ('disabled' in current &&
+      (current instanceof HTMLElement &&
+        'disabled' in current &&
         Boolean((current as HTMLButtonElement).disabled))
     )
       return { state: 'DISABLED', ancestorLimitReached: false };
@@ -175,7 +176,7 @@ function locationOf(element: Element): CommandLocation {
 }
 
 function commandRecord(
-  element: HTMLElement,
+  element: Element,
   commandId: AllowlistedCommandId,
 ): { record: RectangleCommandRecord; ancestorLimitReached: boolean } {
   const visible = visibility(element);
@@ -265,10 +266,7 @@ export function captureRectangleCommandMetadata(
   const inspectedElements = new Set<Element>();
   const recordedCommandElements = new Set<Element>();
   const commands: RectangleCommandRecord[] = [];
-  const recordCommand = (
-    element: HTMLElement,
-    commandId: AllowlistedCommandId,
-  ) => {
+  const recordCommand = (element: Element, commandId: AllowlistedCommandId) => {
     if (recordedCommandElements.has(element)) return;
     if (commands.length >= LIMITS.commandRecords) {
       reasons.push('RECORD_LIMIT_REACHED');
@@ -284,9 +282,7 @@ export function captureRectangleCommandMetadata(
   // This keeps relevant evidence from being displaced by unrelated controls
   // without materializing an unbounded document-wide match list.
   for (const commandId of ALLOWLISTED_COMMAND_IDS) {
-    const first = root.querySelector<HTMLElement>(
-      `[command-id="${commandId}"]`,
-    );
+    const first = root.querySelector(`[command-id="${commandId}"]`);
     if (first) recordCommand(first, commandId);
   }
 
@@ -295,7 +291,7 @@ export function captureRectangleCommandMetadata(
     const walker = root.createTreeWalker(region, NodeFilter.SHOW_ELEMENT);
     let node = walker.nextNode();
     while (node) {
-      if (node instanceof HTMLElement && !inspectedElements.has(node)) {
+      if (node instanceof Element && !inspectedElements.has(node)) {
         if (scannedElements >= LIMITS.inspectedCommandElements) {
           inspectionStopped = true;
           break;
@@ -333,7 +329,6 @@ export function captureRectangleCommandMetadata(
       seenArrows.add(arrow);
       arrows.push(arrow);
     }
-    if (arrows.length >= LIMITS.arrowRecords) break;
   }
   const ownership = arrows.map((arrow) => {
     const parent = arrow.parentElement;
@@ -503,11 +498,16 @@ export function createRectangleMenuMetadataCapture(
       'RECTANGLE_MENU_OPEN',
       observationGeneration,
     );
-    if (
-      snapshot.menuMarkers === 0 &&
-      !snapshot.commands.some((command) => command.location === 'MENU')
-    )
-      return false;
+    const visibleMenuMarker = boundedClassElements(
+      root,
+      'os-tool-dropdown-content',
+      LIMITS.regions,
+    ).elements.some((menu) => visibility(menu).state === 'VISIBLE');
+    const visibleMenuCommand = snapshot.commands.some(
+      (command) =>
+        command.location === 'MENU' && command.visibility === 'VISIBLE',
+    );
+    if (!visibleMenuMarker && !visibleMenuCommand) return false;
     finish('CAPTURED');
     return true;
   };

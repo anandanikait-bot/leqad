@@ -161,6 +161,32 @@ describe('Rectangle command metadata capture', () => {
     ]);
   });
 
+  it('counts deeply nested SVG structure toward the traversal bound', () => {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'os-element-toolbar';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    for (let index = 0; index < 300; index += 1)
+      svg.append(
+        document.createElementNS('http://www.w3.org/2000/svg', 'path'),
+      );
+    toolbar.append(svg);
+    command('RECTANGLE_TWO_CORNERS', toolbar);
+    document.body.append(toolbar);
+
+    const snapshot = captureRectangleCommandMetadata(
+      document,
+      'SKETCH_EDITING',
+      1,
+    );
+
+    expect(snapshot.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      scannedElements: 256,
+      reasons: expect.arrayContaining(['COMMAND_LIMIT_REACHED']),
+    });
+    expect(snapshot.identity).toBe('UNKNOWN');
+  });
+
   it('bounds ancestor inspection and retains conservative visibility and enabledness', () => {
     const toolbar = document.createElement('div');
     toolbar.className = 'os-element-toolbar';
@@ -215,6 +241,36 @@ describe('Rectangle command metadata capture', () => {
       status: 'INCOMPLETE',
       reasons: expect.arrayContaining(['COMMAND_LIMIT_REACHED']),
     });
+  });
+
+  it('marks arrow overflow when a later bounded toolbar exceeds an exact first-toolbar cutoff', () => {
+    const firstToolbar = document.createElement('div');
+    firstToolbar.className = 'os-element-toolbar';
+    for (let index = 0; index < 16; index += 1) {
+      const arrow = document.createElement('div');
+      arrow.className = 'dropdown-arrow';
+      visible(arrow);
+      firstToolbar.append(arrow);
+    }
+    const secondToolbar = document.createElement('div');
+    secondToolbar.className = 'os-element-toolbar';
+    const laterArrow = document.createElement('div');
+    laterArrow.className = 'dropdown-arrow';
+    visible(laterArrow);
+    secondToolbar.append(laterArrow);
+    document.body.append(firstToolbar, secondToolbar);
+
+    const snapshot = captureRectangleCommandMetadata(
+      document,
+      'SKETCH_EDITING',
+      1,
+    );
+
+    expect(snapshot.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      reasons: expect.arrayContaining(['ARROW_LIMIT_REACHED']),
+    });
+    expect(snapshot.arrowMarkers).toBe(16);
   });
 
   it('marks an exact record-limit cutoff incomplete when a later Rectangle identity is omitted', () => {
@@ -339,6 +395,46 @@ describe('Rectangle command metadata capture', () => {
     );
     expect(ownerClicks).toBe(1);
     expect(task.isActive()).toBe(false);
+  });
+
+  it('ignores a pre-existing hidden menu and waits for the visible Rectangle menu transition', async () => {
+    vi.useFakeTimers();
+    const hiddenMenu = document.createElement('div');
+    hiddenMenu.className = 'os-tool-dropdown-content';
+    hiddenMenu.hidden = true;
+    document.body.append(hiddenMenu);
+    const trigger = document.createElement('div');
+    document.body.append(trigger);
+    trigger.addEventListener('pointerdown', () => {
+      trigger.className = 'pressed';
+      setTimeout(() => {
+        const menu = document.createElement('div');
+        menu.className = 'os-tool-dropdown-content';
+        const item = command('RECTANGLE_TWO_CORNERS', menu);
+        visible(menu);
+        visible(item);
+        document.body.append(menu);
+      }, 20);
+    });
+
+    const task = createRectangleMenuMetadataCapture(document, 2, 1_000);
+    await Promise.resolve();
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    await Promise.resolve();
+    expect(task.isActive()).toBe(true);
+    await vi.advanceTimersByTimeAsync(20);
+    const result = await task.promise;
+
+    expect(result.status).toBe('CAPTURED');
+    expect(result.snapshot.menuMarkers).toBe(2);
+    expect(result.snapshot.commands).toContainEqual(
+      expect.objectContaining({
+        commandId: 'RECTANGLE_TWO_CORNERS',
+        location: 'MENU',
+        visibility: 'VISIBLE',
+      }),
+    );
+    vi.useRealTimers();
   });
 
   it('times out or cancels cleanly without inventing an open menu', async () => {
