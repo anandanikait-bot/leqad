@@ -27,9 +27,10 @@ test('Corner Rectangle teaching survives simulated SHOW failure and self-reporte
   await expect(instruction).toBeVisible();
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(
-    page.getByText(
-      /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
-    ),
+    page.getByText(/couldn’t safely highlight Corner rectangle/),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Find using Onshape Search', { exact: true }),
   ).toBeVisible();
   await expect(instruction).toBeVisible();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);

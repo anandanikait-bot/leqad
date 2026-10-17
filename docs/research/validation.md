@@ -3,6 +3,8 @@
 Baseline: PR #8 at `4be3602fa322a744e720723175b90c14b65c105a`.
 Research branch: `research/existing-cad-guidance`.
 
+The first validation record below describes research commit `88ec6df`. The supplemental record at the end describes the follow-on Search Tools panel prototype on branch `integrate/native-search-guidance`; its checks do not promote simulated results to live Onshape evidence.
+
 ## Scope
 
 Changes are three research reports, this validation record, one isolated static instruction-card experiment, and CI commands exercising that experiment. No production extension, recognition, lesson, dependency, permission or model-verification code changed. No upstream implementation was copied.
@@ -30,4 +32,20 @@ Hosted CI is associated with the research PR's exact commit; do not substitute P
 
 All extension browser fixtures are simulated controls. The instruction card has no Onshape DOM, search, dropdown or geometry access. No new live Onshape acceptance result exists. The current live checklist and PR #8 recognition blockers remain unchanged. No fresh extension artifact is presented as an Onshape recognition fix.
 
-Owner next step: the short [native-search card trial](../../experiments/native-search-fallback/README.md), followed by an explicit product choice if manual assistance is to count toward a new milestone. Required automatic SHOW acceptance stays in force meanwhile.
+Owner next step at the research commit was the [native-search card trial](../../experiments/native-search-fallback/README.md). The required automatic SHOW acceptance remains in force.
+
+## Follow-on panel prototype validation — 2026-10-17
+
+Branch: `integrate/native-search-guidance`, based on research commit `88ec6df` and the stated PR #8 baseline. No change was made to `semanticTargets.ts`, Sketch context recognition, model verification, permissions, or lesson evidence levels. The added code is a manually operated Search Tools instruction card shown only after the Step 4 Rectangle SHOW path abstains; no tool is opened or selected by Leqad.
+
+- Focused unit/component tests: **66 passed** across `AssistantPanel.test.tsx` and `nativeSearchGuidance.test.ts`.
+- Full unit/component suite: **537 passed** across 29 files. One initial concurrent run timed out in the pre-existing 6,500-node DOM stress test; it passed in isolation (1.5 s) and in the clean full rerun (the full suite passed).
+- Full browser suite: **48 passed, 1 skipped**. The skipped test is the built-extension mount test, which detects managed Chromium `ExtensionInstallBlocklist=*`; no policy was changed. All extension UI/control fixtures are simulations.
+- Focused Search Tools browser regression: passed. It covers missing-target fallback, keyboard expansion, exact wording, no CAD action/progress change, collapse/re-expand, panel drag and one-panel behavior in a simulated fixture.
+- Static fallback browser check: **1 passed**; it remains a content/privacy preview, not live Onshape validation.
+- Reference tests: **45 passed**. Reference validation: PASS with **zero approved Onshape captures**; result explicitly says no live evidence exists.
+- Lint, typecheck and Prettier check: passed.
+- Chrome and Edge production builds and packaging: passed; each current zipped package is **160.79 kB**. Package hash comparison was not run against earlier artifacts; these are current local packages only.
+- Hosted CI for the follow-on implementation is tracked on its dependent PR. The earlier research PR's run and artifact are not substitutes for this implementation build.
+
+Live status: **BLOCKED / not tested**. Owner trial needs the current local Chrome package in a regular profile and an authorized disposable Onshape Part Studio. Automatic SHOW remains the acceptance path; the manual fallback is supplementary and does not satisfy it.

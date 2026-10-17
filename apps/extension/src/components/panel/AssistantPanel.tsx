@@ -71,6 +71,9 @@ import type {
   GuidanceRunnerState,
 } from '../../services/guidanceRunner';
 import { SketchCalibrationForm } from './SketchCalibrationForm';
+import { NativeSearchGuidance } from './NativeSearchGuidance';
+import type { NativeSearchAvailability } from './NativeSearchGuidance';
+import { getOnshapeNativeSearchGuidance } from '../../services/nativeSearchGuidance';
 import {
   CALIBRATED_HIGHLIGHT_MESSAGE,
   calibrationMatchesViewport,
@@ -486,6 +489,33 @@ export function AssistantPanel({
   const currentGuidanceActionId = guidanceActionForSemanticTarget(
     step?.semanticTarget ?? null,
   );
+  const nativeSearchGuidance = getOnshapeNativeSearchGuidance(
+    currentGuidanceActionId,
+  );
+  const currentGuidanceContext =
+    guidanceState?.rectangleShowDiagnostic?.context;
+  const nativeSearchAvailability: NativeSearchAvailability =
+    !page?.supported || page.elementType === 'other'
+      ? 'UNSUPPORTED'
+      : page.editability === 'read-only' ||
+          page.modelType === 'version' ||
+          page.modelType === 'microversion'
+        ? 'READ_ONLY'
+        : page.modelType === 'workspace' &&
+            page.elementType === 'part-studio' &&
+            page.editability === 'editable' &&
+            currentGuidanceContext === 'SKETCH_EDITING'
+          ? 'EDITABLE'
+          : 'UNKNOWN';
+  const showNativeSearchGuidance = Boolean(
+    nativeSearchGuidance &&
+    helpLevel === 'SHOW' &&
+    guidanceState?.request?.actionId === nativeSearchGuidance.actionId &&
+    guidanceState.request.level === 'SHOW' &&
+    ['FALLBACK', 'MISSING', 'AMBIGUOUS', 'UNSUPPORTED'].includes(
+      guidanceState.status,
+    ),
+  );
   const canCalibrateSketch = Boolean(
     page?.supported &&
     page.modelType === 'workspace' &&
@@ -596,11 +626,18 @@ export function AssistantPanel({
   useEffect(() => {
     if (!guidanceRunner) return;
     const running = guidanceRunner.getState();
+    const retainsWrittenFallbackOnCollapse = [
+      'MISSING',
+      'AMBIGUOUS',
+      'TIMED_OUT',
+      'FALLBACK',
+      'UNSUPPORTED',
+    ].includes(running.status);
     if (
       mode !== 'Learn' ||
-      collapsed ||
       stepState?.status === 'PAUSED' ||
-      stepState?.status === 'COMPLETED'
+      stepState?.status === 'COMPLETED' ||
+      (collapsed && !retainsWrittenFallbackOnCollapse)
     ) {
       if (running.status !== 'IDLE' && running.status !== 'CANCELLED') {
         setGuidanceState(guidanceRunner.cancel());
@@ -1662,7 +1699,9 @@ export function AssistantPanel({
                     )}
                     {guidanceMessage && (
                       <div className="leqad-guidance" aria-live="polite">
-                        {guidanceMessage}
+                        {showNativeSearchGuidance
+                          ? `Leqad couldn’t safely highlight ${nativeSearchGuidance!.commandName}.`
+                          : guidanceMessage}
                         {guidanceState?.retryAvailable && guidanceRunner && (
                           <button
                             type="button"
@@ -1673,6 +1712,12 @@ export function AssistantPanel({
                           </button>
                         )}
                       </div>
+                    )}
+                    {showNativeSearchGuidance && nativeSearchGuidance && (
+                      <NativeSearchGuidance
+                        guidance={nativeSearchGuidance}
+                        availability={nativeSearchAvailability}
+                      />
                     )}
                     {cursorCue && (
                       <p className="leqad-cursor-cue" aria-live="polite">

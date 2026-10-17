@@ -514,9 +514,7 @@ describe('AssistantPanel', () => {
         screen.queryByRole('button', { name: 'Retry guidance' }),
       ).toBeNull();
       expect(
-        screen.getByText(
-          /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
-        ),
+        screen.getByText('Find using Onshape Search', { exact: true }),
       ).toBeTruthy();
       expect(resolveTarget).toHaveBeenCalledTimes(1);
       // A new SHOW is still student-controlled after a real interface change.
@@ -525,6 +523,181 @@ describe('AssistantPanel', () => {
       expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
     },
   );
+
+  it('offers exact native Corner rectangle search instructions only after SHOW abstains', async () => {
+    const [panelModule, runnerModule] = await Promise.all([
+      import('./AssistantPanel'),
+      import('../../services/guidanceRunner'),
+    ]);
+    const onSessionChange = vi.fn();
+    const runner = runnerModule.createGuidanceRunner({
+      getContext: () => 'SKETCH_EDITING',
+      resolveTarget: () => ({ status: 'MISSING' }),
+      highlightTarget: vi.fn(() => false),
+      clearHighlight: vi.fn(),
+      observe: () => ({ current: 'OPEN', unsubscribe: vi.fn() }),
+    });
+    render(
+      <panelModule.AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        guidanceRunner={runner}
+        onSessionChange={onSessionChange}
+      />,
+    );
+
+    expect(
+      screen.queryByText('Find using Onshape Search', { exact: true }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(runner.getState().status).toBe('MISSING');
+    const summary = screen.getByText('Find using Onshape Search', {
+      exact: true,
+    });
+    expect(
+      screen.getByText(/couldn.t safely highlight Corner rectangle/i),
+    ).toBeTruthy();
+    expect(summary.closest('details')?.open).toBe(false);
+    fireEvent.click(summary);
+    expect(summary.closest('details')?.open).toBe(true);
+    expect(screen.getByText(/Alt \+ C/)).toBeTruthy();
+    expect(screen.getByText(/Option \+ C/)).toBeTruthy();
+    expect(screen.getByText(/Search for Corner rectangle/)).toBeTruthy();
+    expect(
+      screen.getByText(/If Search Tools is hidden.*Show Search tools/s),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/If the exact command is missing or unavailable/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Center point rectangle starts from its center/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Aligned Rectangle establishes a line direction/),
+    ).toBeTruthy();
+    expect(screen.getByText(/Leqad did not select the tool/)).toBeTruthy();
+    expect(
+      screen.queryByText(/Leqad could not confirm this context/),
+    ).toBeNull();
+    expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+    expect(onSessionChange).not.toHaveBeenCalled();
+    runner.dispose();
+  });
+
+  it('explains native search conservatively for read-only and unknown contexts', async () => {
+    const [panelModule, runnerModule] = await Promise.all([
+      import('./AssistantPanel'),
+      import('../../services/guidanceRunner'),
+    ]);
+    const runner = runnerModule.createGuidanceRunner({
+      getContext: () => 'UNKNOWN',
+      resolveTarget: () => ({ status: 'MISSING' }),
+      highlightTarget: () => false,
+      clearHighlight: vi.fn(),
+      observe: () => ({ current: 'UNKNOWN', unsubscribe: vi.fn() }),
+    });
+    const { rerender } = render(
+      <panelModule.AssistantPanel
+        page={{ ...confirmedPage, editability: 'unknown' }}
+        initialSession={restoredSession('draw-rectangle')}
+        guidanceRunner={runner}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    fireEvent.click(
+      screen.getByText('Find using Onshape Search', { exact: true }),
+    );
+    expect(
+      screen.getByText(/Leqad cannot confirm that this is an editable Sketch/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Only continue if Onshape lets you edit this Sketch/),
+    ).toBeTruthy();
+
+    rerender(
+      <panelModule.AssistantPanel
+        page={{
+          ...confirmedPage,
+          editability: 'read-only',
+          modelType: 'version',
+        }}
+        initialSession={restoredSession('draw-rectangle')}
+        guidanceRunner={runner}
+      />,
+    );
+    expect(screen.getByText(/This view is read-only/)).toBeTruthy();
+    expect(screen.queryByText(/Open Search Tools/)).toBeNull();
+    expect(screen.queryByText(/Search for Corner rectangle/)).toBeNull();
+    expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
+    runner.dispose();
+  });
+
+  it('keeps native search conditional when the page is editable but Sketch is not active', async () => {
+    const [panelModule, runnerModule] = await Promise.all([
+      import('./AssistantPanel'),
+      import('../../services/guidanceRunner'),
+    ]);
+    const runner = runnerModule.createGuidanceRunner({
+      getContext: () => 'PART_STUDIO',
+      resolveTarget: () => ({ status: 'MISSING' }),
+      highlightTarget: () => false,
+      clearHighlight: vi.fn(),
+      observe: () => ({ current: 'CLOSED', unsubscribe: vi.fn() }),
+    });
+    render(
+      <panelModule.AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        guidanceRunner={runner}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    fireEvent.click(
+      screen.getByText('Find using Onshape Search', { exact: true }),
+    );
+    expect(
+      screen.getByText(/Leqad cannot confirm that this is an editable Sketch/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Only continue if Onshape lets you edit this Sketch/),
+    ).toBeTruthy();
+    expect(screen.getByText(/Search for Corner rectangle/)).toBeTruthy();
+    runner.dispose();
+  });
+
+  it('keeps automatic SHOW primary and hides native search on success, other steps and help levels', async () => {
+    const [panelModule, runnerModule] = await Promise.all([
+      import('./AssistantPanel'),
+      import('../../services/guidanceRunner'),
+    ]);
+    const highlightTarget = vi.fn(() => true);
+    const runner = runnerModule.createGuidanceRunner({
+      getContext: () => 'SKETCH_EDITING',
+      resolveTarget: () => ({ status: 'FOUND' }),
+      highlightTarget,
+      clearHighlight: vi.fn(),
+      observe: () => ({ current: 'OPEN', unsubscribe: vi.fn() }),
+    });
+    render(
+      <panelModule.AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        guidanceRunner={runner}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+    expect(highlightTarget).toHaveBeenCalledWith('rectangle-tool-group');
+    expect(runner.getState().status).toBe('READY');
+    expect(
+      screen.queryByText('Find using Onshape Search', { exact: true }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+    expect(
+      screen.queryByText('Find using Onshape Search', { exact: true }),
+    ).toBeNull();
+    runner.dispose();
+  });
 
   it.each([
     [
