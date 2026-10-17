@@ -1,0 +1,200 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  createRectangleCommandMetadataReport,
+  serializeRectangleCommandMetadataReport,
+} from '../../services/rectangleCommandMetadataCapture';
+import type {
+  RectangleCommandCaptureState,
+  RectangleCommandMetadataSnapshot,
+  RectangleMenuMetadataCaptureTask,
+} from '../../services/rectangleCommandMetadataCapture';
+
+interface RectangleCommandMetadataDiagnosticProps {
+  onCapture: (
+    state: RectangleCommandCaptureState,
+    generation: number,
+  ) => RectangleCommandMetadataSnapshot;
+  onCaptureMenuOpen: (generation: number) => RectangleMenuMetadataCaptureTask;
+}
+
+const STATES = [
+  {
+    state: 'SKETCH_EDITING',
+    label: 'State A — Sketch editing',
+    instruction:
+      'Enter Sketch on Top, leave the Rectangle menu closed, then capture State A.',
+  },
+  {
+    state: 'RECTANGLE_MENU_OPEN',
+    label: 'State B — Rectangle dropdown open',
+    instruction:
+      'Arm State B, then click the Rectangle dropdown in Onshape. Leqad observes that one interaction without blocking or repeating it.',
+  },
+  {
+    state: 'OTHER_RECTANGLE_VARIANT',
+    label: 'State C — Another Rectangle variant',
+    instruction:
+      'Manually choose another Rectangle variant, return to the Sketch toolbar, then capture State C.',
+  },
+  {
+    state: 'EXTRUDE_EDITING',
+    label: 'State D — Extrude editing',
+    instruction: 'Exit Sketch, manually open Extrude, then capture State D.',
+  },
+] as const satisfies readonly {
+  state: RectangleCommandCaptureState;
+  label: string;
+  instruction: string;
+}[];
+
+export function RectangleCommandMetadataDiagnostic({
+  onCapture,
+  onCaptureMenuOpen,
+}: RectangleCommandMetadataDiagnosticProps) {
+  const [snapshots, setSnapshots] = useState<
+    RectangleCommandMetadataSnapshot[]
+  >([]);
+  const [output, setOutput] = useState('');
+  const [message, setMessage] = useState('');
+  const [menuCapturePending, setMenuCapturePending] = useState(false);
+  const menuTask = useRef<RectangleMenuMetadataCaptureTask | null>(null);
+
+  useEffect(
+    () => () => {
+      const activeTask = menuTask.current;
+      menuTask.current = null;
+      activeTask?.cancel();
+    },
+    [],
+  );
+
+  const capture = (state: RectangleCommandCaptureState, index: number) => {
+    const snapshot = onCapture(state, index + 1);
+    setSnapshots((current) => [...current.slice(0, index), snapshot]);
+    setOutput('');
+    setMessage(
+      `State ${String.fromCharCode(65 + index)} saved as owner-reported with bounded DOM observations.`,
+    );
+  };
+
+  const armMenuCapture = () => {
+    const task = onCaptureMenuOpen(2);
+    menuTask.current?.cancel();
+    menuTask.current = task;
+    setMenuCapturePending(true);
+    setOutput('');
+    setMessage(
+      'State B armed. Now click the Rectangle dropdown once in Onshape. Leqad will not click it for you.',
+    );
+    void task.promise.then((result) => {
+      if (menuTask.current !== task) return;
+      menuTask.current = null;
+      setMenuCapturePending(false);
+      if (result.status !== 'CAPTURED') {
+        setMessage(
+          'State B was not captured. Return to Sketch, keep the menu closed, and arm State B again.',
+        );
+        return;
+      }
+      setSnapshots((current) => [...current.slice(0, 1), result.snapshot]);
+      setMessage(
+        result.snapshot.menuMarkers > 0
+          ? 'State B saved as owner-reported; a bounded dropdown menu marker was observed after your click.'
+          : 'State B saved as owner-reported, but no allowlisted dropdown menu marker was observed. The report preserves that uncertainty.',
+      );
+    });
+  };
+
+  const copy = async () => {
+    const serialized = serializeRectangleCommandMetadataReport(
+      createRectangleCommandMetadataReport(snapshots),
+    );
+    setOutput(serialized);
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(serialized);
+      setMessage(
+        'Sanitized command metadata report copied. Review it locally before sharing.',
+      );
+    } catch {
+      setMessage(
+        'Clipboard unavailable. Select and copy the sanitized report below.',
+      );
+    }
+  };
+
+  const restart = () => {
+    const activeTask = menuTask.current;
+    menuTask.current = null;
+    activeTask?.cancel();
+    setMenuCapturePending(false);
+    setSnapshots([]);
+    setOutput('');
+    setMessage('Experiment restarted. No prior snapshot is retained.');
+  };
+
+  return (
+    <section aria-label="Rectangle command metadata experiment">
+      <h4>Rectangle command metadata experiment</h4>
+      <p>
+        Read-only and local. You perform every Onshape action. State names are
+        owner-reported; the report separately records bounded command, toolbar,
+        arrow, menu, visibility, and ownership observations. It does not run
+        production recognition or verify CAD geometry.
+      </p>
+      {STATES.map((entry, index) => (
+        <div key={entry.state}>
+          <p>{entry.instruction}</p>
+          {index === 1 ? (
+            <button
+              type="button"
+              className="leqad-button leqad-button--secondary"
+              disabled={snapshots.length !== index || menuCapturePending}
+              onClick={armMenuCapture}
+            >
+              {menuCapturePending
+                ? 'Waiting for Rectangle dropdown interaction…'
+                : 'Arm metadata State B — then open Rectangle dropdown'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="leqad-button leqad-button--secondary"
+              disabled={snapshots.length !== index || menuCapturePending}
+              onClick={() => capture(entry.state, index)}
+            >
+              Record metadata {entry.label}
+            </button>
+          )}
+        </div>
+      ))}
+      {snapshots.length > 0 && (
+        <button
+          type="button"
+          className="leqad-button leqad-button--text"
+          onClick={restart}
+        >
+          Restart experiment
+        </button>
+      )}
+      {snapshots.length === STATES.length && (
+        <button
+          type="button"
+          className="leqad-button leqad-button--secondary"
+          onClick={() => void copy()}
+        >
+          Copy command metadata report
+        </button>
+      )}
+      {message && <p role="status">{message}</p>}
+      {output && (
+        <textarea
+          readOnly
+          aria-label="Rectangle command metadata diagnostic output"
+          value={output}
+        />
+      )}
+    </section>
+  );
+}

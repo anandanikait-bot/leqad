@@ -26,6 +26,10 @@ import type {
   RectangleDropdownCaptureTask,
   RectangleDropdownManualSnapshot,
 } from '../../services/rectangleDropdownCapture';
+import {
+  captureRectangleCommandMetadata,
+  createRectangleMenuMetadataCapture,
+} from '../../services/rectangleCommandMetadataCapture';
 
 const confirmedPage: OnshapePageContext = {
   supported: true,
@@ -813,6 +817,46 @@ describe('AssistantPanel', () => {
     );
     expect(
       screen.queryByLabelText('Recognition diagnostics output'),
+    ).toBeNull();
+  });
+
+  it('keeps the four-state command metadata experiment behind diagnostic opt-in', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const capture = vi.fn((state, generation) =>
+      captureRectangleCommandMetadata(document, state, generation),
+    );
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        onRecognitionDiagnostics={() => '{}'}
+        onCaptureRectangleCommandMetadata={capture}
+        onCaptureRectangleMenuMetadata={(generation) =>
+          createRectangleMenuMetadataCapture(document, generation)
+        }
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText('Rectangle command metadata experiment'),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+    );
+    expect(
+      screen.getByLabelText('Rectangle command metadata experiment'),
+    ).toBeTruthy();
+    expect(capture).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Record metadata State A — Sketch editing',
+      }),
+    );
+    expect(capture).toHaveBeenCalledWith('SKETCH_EDITING', 1);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Turn off recognition diagnostics' }),
+    );
+    expect(
+      screen.queryByLabelText('Rectangle command metadata experiment'),
     ).toBeNull();
   });
 

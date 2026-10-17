@@ -39,6 +39,10 @@ import {
   createRectangleDropdownCapture,
 } from '../src/services/rectangleDropdownCapture';
 import {
+  captureRectangleCommandMetadata,
+  createRectangleMenuMetadataCapture,
+} from '../src/services/rectangleCommandMetadataCapture';
+import {
   createSketchGuidanceMonitor,
   observeSketchGuidanceUi,
 } from '../src/services/sketchGuidance';
@@ -285,6 +289,12 @@ export default defineContentScript({
                       snapshotRole,
                       userReportedState,
                     )
+                  }
+                  onCaptureRectangleCommandMetadata={(state, generation) =>
+                    captureRectangleCommandMetadata(document, state, generation)
+                  }
+                  onCaptureRectangleMenuMetadata={(generation) =>
+                    createRectangleMenuMetadataCapture(document, generation)
                   }
                   onRecognitionDiagnostics={(capture) =>
                     collectRecognitionDiagnostics(document, capture)
