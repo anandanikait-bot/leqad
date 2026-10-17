@@ -26,7 +26,10 @@ import type {
   RectangleDropdownCaptureTask,
   RectangleDropdownManualSnapshot,
 } from '../../services/rectangleDropdownCapture';
-import { captureRectangleCommandMetadata } from '../../services/rectangleCommandMetadataCapture';
+import {
+  captureRectangleCommandMetadata,
+  createRectangleMenuMetadataCapture,
+} from '../../services/rectangleCommandMetadataCapture';
 
 const confirmedPage: OnshapePageContext = {
   supported: true,
@@ -827,6 +830,9 @@ describe('AssistantPanel', () => {
         page={confirmedPage}
         onRecognitionDiagnostics={() => '{}'}
         onCaptureRectangleCommandMetadata={capture}
+        onCaptureRectangleMenuMetadata={(generation) =>
+          createRectangleMenuMetadataCapture(document, generation)
+        }
       />,
     );
 

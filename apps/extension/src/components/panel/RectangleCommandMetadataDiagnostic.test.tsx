@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,6 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RectangleCommandMetadataDiagnostic } from './RectangleCommandMetadataDiagnostic';
 import { captureRectangleCommandMetadata } from '../../services/rectangleCommandMetadataCapture';
+import type { RectangleMenuMetadataCaptureTask } from '../../services/rectangleCommandMetadataCapture';
 
 afterEach(() => {
   cleanup();
@@ -24,18 +26,37 @@ describe('Rectangle command metadata diagnostic', () => {
     const capture = vi.fn((state, generation) =>
       captureRectangleCommandMetadata(document, state, generation),
     );
+    const captureMenuOpen = vi.fn(
+      (generation: number): RectangleMenuMetadataCaptureTask => ({
+        promise: Promise.resolve({
+          status: 'CAPTURED',
+          snapshot: captureRectangleCommandMetadata(
+            document,
+            'RECTANGLE_MENU_OPEN',
+            generation,
+          ),
+        }),
+        cancel: vi.fn(),
+        isActive: () => true,
+      }),
+    );
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: () => Promise.reject(new Error('blocked')) },
     });
 
-    render(<RectangleCommandMetadataDiagnostic onCapture={capture} />);
+    render(
+      <RectangleCommandMetadataDiagnostic
+        onCapture={capture}
+        onCaptureMenuOpen={captureMenuOpen}
+      />,
+    );
 
     const stateA = screen.getByRole('button', {
       name: 'Record metadata State A — Sketch editing',
     });
     const stateB = screen.getByRole('button', {
-      name: 'Record metadata State B — Rectangle dropdown open',
+      name: 'Arm metadata State B — then open Rectangle dropdown',
     });
     const stateC = screen.getByRole('button', {
       name: 'Record metadata State C — Another Rectangle variant',
@@ -50,7 +71,10 @@ describe('Rectangle command metadata diagnostic', () => {
     fireEvent.click(stateA);
     expect((stateB as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(stateB);
-    expect((stateC as HTMLButtonElement).disabled).toBe(false);
+    expect(captureMenuOpen).toHaveBeenCalledWith(2);
+    await waitFor(() =>
+      expect((stateC as HTMLButtonElement).disabled).toBe(false),
+    );
     fireEvent.click(stateC);
     expect((stateD as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(stateD);
@@ -75,7 +99,7 @@ describe('Rectangle command metadata diagnostic', () => {
       'OTHER_RECTANGLE_VARIANT',
       'EXTRUDE_EDITING',
     ]);
-    expect(capture.mock.calls.map((call) => call[1])).toEqual([1, 2, 3, 4]);
+    expect(capture.mock.calls.map((call) => call[1])).toEqual([1, 3, 4]);
     expect(cadClicks).not.toHaveBeenCalled();
   });
 
@@ -83,7 +107,17 @@ describe('Rectangle command metadata diagnostic', () => {
     const capture = vi.fn((state, generation) =>
       captureRectangleCommandMetadata(document, state, generation),
     );
-    render(<RectangleCommandMetadataDiagnostic onCapture={capture} />);
+    const captureMenuOpen = vi.fn((): RectangleMenuMetadataCaptureTask => ({
+      promise: new Promise(() => undefined),
+      cancel: vi.fn(),
+      isActive: () => true,
+    }));
+    render(
+      <RectangleCommandMetadataDiagnostic
+        onCapture={capture}
+        onCaptureMenuOpen={captureMenuOpen}
+      />,
+    );
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -100,5 +134,36 @@ describe('Rectangle command metadata diagnostic', () => {
       screen.queryByLabelText('Rectangle command metadata diagnostic output'),
     ).toBeNull();
     expect(capture).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels an armed menu observation when the diagnostic unmounts', async () => {
+    const cancel = vi.fn();
+    const task: RectangleMenuMetadataCaptureTask = {
+      promise: new Promise(() => undefined),
+      cancel,
+      isActive: () => true,
+    };
+    const capture = vi.fn((state, generation) =>
+      captureRectangleCommandMetadata(document, state, generation),
+    );
+    const view = render(
+      <RectangleCommandMetadataDiagnostic
+        onCapture={capture}
+        onCaptureMenuOpen={() => task}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Record metadata State A — Sketch editing',
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Arm metadata State B — then open Rectangle dropdown',
+      }),
+    );
+
+    await act(async () => view.unmount());
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 });

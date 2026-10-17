@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   captureRectangleCommandMetadata,
   createRectangleCommandMetadataReport,
+  createRectangleMenuMetadataCapture,
   serializeRectangleCommandMetadataReport,
 } from './rectangleCommandMetadataCapture';
 
@@ -216,6 +217,66 @@ describe('Rectangle command metadata capture', () => {
     });
   });
 
+  it('marks an exact record-limit cutoff incomplete when a later Rectangle identity is omitted', () => {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'os-element-toolbar';
+    for (let index = 0; index < 24; index += 1) command('LINESEGMENT', toolbar);
+    command('RECTANGLE_TWO_CORNERS', toolbar);
+    document.body.append(toolbar);
+
+    const snapshot = captureRectangleCommandMetadata(
+      document,
+      'SKETCH_EDITING',
+      1,
+    );
+
+    expect(snapshot.scan).toMatchObject({
+      status: 'INCOMPLETE',
+      reasons: expect.arrayContaining(['RECORD_LIMIT_REACHED']),
+    });
+    expect(snapshot.identity).toBe('UNKNOWN');
+  });
+
+  it('does not let duplicate non-Rectangle clues contaminate a unique Rectangle identity', () => {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'os-element-toolbar';
+    command('LINESEGMENT', toolbar);
+    command('LINESEGMENT', toolbar);
+    command('RECTANGLE_TWO_CORNERS', toolbar);
+    document.body.append(toolbar);
+
+    const snapshot = captureRectangleCommandMetadata(
+      document,
+      'SKETCH_EDITING',
+      1,
+    );
+
+    expect(snapshot.sketchClue).toBe('AMBIGUOUS');
+    expect(snapshot.identity).toBe('OBSERVED');
+  });
+
+  it('inspects arrows only in the bounded toolbar set', () => {
+    for (let index = 0; index < 20; index += 1) {
+      const toolbar = document.createElement('div');
+      toolbar.className = 'os-element-toolbar';
+      const arrow = document.createElement('div');
+      arrow.className = 'dropdown-arrow';
+      visible(arrow);
+      toolbar.append(arrow);
+      document.body.append(toolbar);
+    }
+
+    const snapshot = captureRectangleCommandMetadata(
+      document,
+      'SKETCH_EDITING',
+      1,
+    );
+
+    expect(snapshot.scan.reasons).toContain('REGION_LIMIT_REACHED');
+    expect(snapshot.arrowMarkers).toBe(8);
+    expect(snapshot.ownership).toHaveLength(8);
+  });
+
   it('keeps owner-reported states separate from observed command evidence', () => {
     const toolbar = document.createElement('div');
     toolbar.className = 'os-element-toolbar';
@@ -238,6 +299,66 @@ describe('Rectangle command metadata capture', () => {
         }),
       ],
     });
+  });
+
+  it('arms before the owner click and captures the opened menu without dispatching CAD input', async () => {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'os-element-toolbar';
+    const group = document.createElement('div');
+    const arrow = document.createElement('div');
+    arrow.className = 'dropdown-arrow';
+    visible(arrow);
+    group.append(command('RECTANGLE_TWO_CORNERS', group), arrow);
+    toolbar.append(group);
+    document.body.append(toolbar);
+    let ownerClicks = 0;
+    arrow.addEventListener('pointerdown', () => {
+      ownerClicks += 1;
+      const menu = document.createElement('div');
+      menu.className = 'os-tool-dropdown-content';
+      command('RECTANGLE_TWO_CORNERS', menu);
+      document.body.append(menu);
+    });
+
+    const task = createRectangleMenuMetadataCapture(document, 2, 1_000);
+    await Promise.resolve();
+    arrow.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const result = await task.promise;
+
+    expect(result.status).toBe('CAPTURED');
+    expect(result.snapshot).toMatchObject({
+      ownerReportedState: 'RECTANGLE_MENU_OPEN',
+      observationGeneration: 2,
+      menuMarkers: 1,
+    });
+    expect(result.snapshot.commands).toContainEqual(
+      expect.objectContaining({
+        commandId: 'RECTANGLE_TWO_CORNERS',
+        location: 'MENU',
+      }),
+    );
+    expect(ownerClicks).toBe(1);
+    expect(task.isActive()).toBe(false);
+  });
+
+  it('times out or cancels cleanly without inventing an open menu', async () => {
+    vi.useFakeTimers();
+    const timedOut = createRectangleMenuMetadataCapture(document, 2, 40);
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(40);
+    expect(await timedOut.promise).toMatchObject({
+      status: 'TIMED_OUT',
+      snapshot: { menuMarkers: 0, identity: 'MISSING' },
+    });
+
+    const cancelled = createRectangleMenuMetadataCapture(document, 2, 40);
+    await Promise.resolve();
+    cancelled.cancel();
+    await expect(cancelled.promise).resolves.toMatchObject({
+      status: 'CANCELLED',
+    });
+    expect(cancelled.isActive()).toBe(false);
+    vi.useRealTimers();
   });
 
   it('serializes a closed privacy-safe schema even when input is poisoned', () => {

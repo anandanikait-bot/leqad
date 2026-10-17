@@ -18,6 +18,22 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
     const arrow = document.createElement('div');
     arrow.className = 'dropdown-arrow';
     arrow.style.cssText = 'width:12px;height:24px';
+    arrow.addEventListener('pointerdown', () => {
+      const menu = document.createElement('div');
+      menu.className = 'os-tool-dropdown-content';
+      menu.dataset.fixtureRectangleMenu = 'true';
+      for (const id of [
+        'RECTANGLE_TWO_CORNERS',
+        'RECTANGLE_CENTER',
+        'RECTANGLE_ALIGNED',
+      ]) {
+        const item = document.createElement('div');
+        item.setAttribute('command-id', id);
+        item.style.cssText = 'width:120px;height:24px';
+        menu.append(item);
+      }
+      document.body.append(menu);
+    });
     group.append(face, arrow);
     const line = document.createElement('div');
     line.setAttribute('command-id', 'LINESEGMENT');
@@ -35,27 +51,12 @@ test('four-state Rectangle metadata experiment stays read-only and privacy bound
     .getByRole('button', { name: 'Record metadata State A — Sketch editing' })
     .click();
 
-  await page.evaluate(() => {
-    const menu = document.createElement('div');
-    menu.className = 'os-tool-dropdown-content';
-    menu.dataset.fixtureRectangleMenu = 'true';
-    for (const id of [
-      'RECTANGLE_TWO_CORNERS',
-      'RECTANGLE_CENTER',
-      'RECTANGLE_ALIGNED',
-    ]) {
-      const item = document.createElement('div');
-      item.setAttribute('command-id', id);
-      item.style.cssText = 'width:120px;height:24px';
-      menu.append(item);
-    }
-    document.body.append(menu);
-  });
   await page
     .getByRole('button', {
-      name: 'Record metadata State B — Rectangle dropdown open',
+      name: 'Arm metadata State B — then open Rectangle dropdown',
     })
     .click();
+  await page.locator('.dropdown-arrow').click();
 
   await page.evaluate(() => {
     document.querySelector('[data-fixture-rectangle-menu]')?.remove();

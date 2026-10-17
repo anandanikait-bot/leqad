@@ -50,7 +50,12 @@ targets, or use these selectors in production recognition.
 
 The opt-in **Rectangle command metadata experiment** takes four explicit,
 manual snapshots. Each state name is owner-reported. DOM fields remain separate
-observations and `productionRecognition` remains `NOT_RUN`.
+observations and `productionRecognition` remains `NOT_RUN`. State B is armed
+while the menu is closed, then observes the owner's next Onshape pointer
+interaction and the bounded DOM transition. This avoids clicking back into the
+Leqad panel after the menu opens, which could close a portaled menu before it is
+recorded. The listener is one-shot and time-bounded; it never prevents,
+repeats, or synthesizes the owner's input.
 
 The fixed allowlist contains only:
 
@@ -80,8 +85,11 @@ installed. Do not share document or account identifiers.
 1. Enable **recognition diagnostics** in Leqad.
 2. Enter Sketch on the Top plane and leave the Rectangle menu closed. Select
    **Record metadata State A — Sketch editing**.
-3. Manually open the Rectangle dropdown and leave it open. Select **Record
-   metadata State B — Rectangle dropdown open**.
+3. Select **Arm metadata State B — then open Rectangle dropdown**. After Leqad
+   says State B is armed, click the Rectangle dropdown arrow once in Onshape.
+   Do not return to the Leqad panel until it reports that State B was saved. If
+   no allowlisted menu marker is observed, the report records that uncertainty
+   instead of inventing an open menu.
 4. Manually choose a different Rectangle variant and return to the same Sketch
    toolbar. Select **Record metadata State C — Another Rectangle variant**.
 5. Exit Sketch and manually open Extrude. Select **Record metadata State D —

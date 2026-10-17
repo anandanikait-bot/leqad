@@ -97,6 +97,20 @@ export interface RectangleCommandMetadataReport {
   snapshots: RectangleCommandMetadataSnapshot[];
 }
 
+export type RectangleMenuMetadataCaptureStatus =
+  'CAPTURED' | 'TIMED_OUT' | 'CANCELLED';
+
+export interface RectangleMenuMetadataCaptureResult {
+  status: RectangleMenuMetadataCaptureStatus;
+  snapshot: RectangleCommandMetadataSnapshot;
+}
+
+export interface RectangleMenuMetadataCaptureTask {
+  promise: Promise<RectangleMenuMetadataCaptureResult>;
+  cancel: () => void;
+  isActive: () => boolean;
+}
+
 function safeTag(element: Element): RectangleCommandRecord['tag'] {
   return element.localName === 'button' ||
     element.localName === 'div' ||
@@ -205,101 +219,158 @@ function isAllowlistedCommandId(value: string): value is AllowlistedCommandId {
   return (ALLOWLISTED_COMMAND_IDS as readonly string[]).includes(value);
 }
 
+function boundedClassElements(
+  root: Document,
+  className: string,
+  limit: number,
+): { elements: HTMLElement[]; total: number; truncated: boolean } {
+  const collection = root.getElementsByClassName(className);
+  const elements: HTMLElement[] = [];
+  for (let index = 0; index < collection.length && index < limit; index += 1) {
+    const element = collection.item(index);
+    if (element instanceof HTMLElement) elements.push(element);
+  }
+  return {
+    elements,
+    total: collection.length,
+    truncated: collection.length > limit,
+  };
+}
+
 export function captureRectangleCommandMetadata(
   root: Document,
   ownerReportedState: RectangleCommandCaptureState,
   observationGeneration: number,
 ): RectangleCommandMetadataSnapshot {
   const reasons: RectangleCommandMetadataSnapshot['scan']['reasons'] = [];
-  const toolbars = [
-    ...root.querySelectorAll<HTMLElement>('.os-element-toolbar'),
-  ];
-  const menus = [
-    ...root.querySelectorAll<HTMLElement>('.os-tool-dropdown-content'),
-  ];
+  const toolbarMatches = boundedClassElements(
+    root,
+    'os-element-toolbar',
+    LIMITS.regions,
+  );
+  const menuMatches = boundedClassElements(
+    root,
+    'os-tool-dropdown-content',
+    LIMITS.regions,
+  );
+  const toolbars = toolbarMatches.elements;
+  const menus = menuMatches.elements;
   const regions = [...toolbars, ...menus];
-  if (regions.length > LIMITS.regions) reasons.push('REGION_LIMIT_REACHED');
+  if (toolbarMatches.truncated || menuMatches.truncated)
+    reasons.push('REGION_LIMIT_REACHED');
 
   let scannedElements = 0;
   let unallowlistedCommandIds = 0;
   let unallowlistedCountCapped = false;
-  for (const region of regions.slice(0, LIMITS.regions)) {
-    const elements = region.querySelectorAll<HTMLElement>('[command-id]');
-    for (const element of elements) {
-      if (scannedElements >= LIMITS.inspectedCommandElements) {
-        unallowlistedCountCapped = true;
-        break;
-      }
-      scannedElements += 1;
-      const commandId = element.getAttribute('command-id') ?? '';
-      if (!isAllowlistedCommandId(commandId)) unallowlistedCommandIds += 1;
-    }
-    if (scannedElements >= LIMITS.inspectedCommandElements) break;
-  }
-  const regionCommandCount = regions
-    .slice(0, LIMITS.regions)
-    .reduce(
-      (count, region) => count + region.querySelectorAll('[command-id]').length,
-      0,
-    );
-  if (
-    regionCommandCount > LIMITS.inspectedCommandElements ||
-    unallowlistedCountCapped
-  )
-    reasons.push('COMMAND_LIMIT_REACHED');
-
+  const inspectedElements = new Set<Element>();
+  const recordedCommandElements = new Set<Element>();
   const commands: RectangleCommandRecord[] = [];
+  const recordCommand = (
+    element: HTMLElement,
+    commandId: AllowlistedCommandId,
+  ) => {
+    if (recordedCommandElements.has(element)) return;
+    if (commands.length >= LIMITS.commandRecords) {
+      reasons.push('RECORD_LIMIT_REACHED');
+      return;
+    }
+    recordedCommandElements.add(element);
+    const inspected = commandRecord(element, commandId);
+    commands.push(inspected.record);
+    if (inspected.ancestorLimitReached) reasons.push('ANCESTOR_LIMIT_REACHED');
+  };
+
+  // Ask the DOM for at most one exact match per allowlisted identity first.
+  // This keeps relevant evidence from being displaced by unrelated controls
+  // without materializing an unbounded document-wide match list.
   for (const commandId of ALLOWLISTED_COMMAND_IDS) {
-    const matches = root.querySelectorAll<HTMLElement>(
+    const first = root.querySelector<HTMLElement>(
       `[command-id="${commandId}"]`,
     );
-    for (const element of matches) {
-      if (commands.length >= LIMITS.commandRecords) {
-        reasons.push('RECORD_LIMIT_REACHED');
-        break;
-      }
-      const inspected = commandRecord(element, commandId);
-      commands.push(inspected.record);
-      if (inspected.ancestorLimitReached)
-        reasons.push('ANCESTOR_LIMIT_REACHED');
-    }
-    if (commands.length >= LIMITS.commandRecords) break;
+    if (first) recordCommand(first, commandId);
   }
 
-  const arrows = [
-    ...new Set(
-      toolbars.flatMap((toolbar) => [
-        ...toolbar.querySelectorAll<HTMLElement>('.dropdown-arrow'),
-      ]),
-    ),
-  ];
-  if (arrows.length > LIMITS.arrowRecords) reasons.push('ARROW_LIMIT_REACHED');
-  const ownership = arrows.slice(0, LIMITS.arrowRecords).map((arrow) => {
+  let inspectionStopped = false;
+  for (const region of regions) {
+    const walker = root.createTreeWalker(region, NodeFilter.SHOW_ELEMENT);
+    let node = walker.nextNode();
+    while (node) {
+      if (node instanceof HTMLElement && !inspectedElements.has(node)) {
+        if (scannedElements >= LIMITS.inspectedCommandElements) {
+          inspectionStopped = true;
+          break;
+        }
+        inspectedElements.add(node);
+        scannedElements += 1;
+        if (node.hasAttribute('command-id')) {
+          const commandId = node.getAttribute('command-id') ?? '';
+          if (isAllowlistedCommandId(commandId)) recordCommand(node, commandId);
+          else unallowlistedCommandIds += 1;
+        }
+      }
+      node = walker.nextNode();
+    }
+    if (inspectionStopped) break;
+  }
+  if (inspectionStopped) {
+    unallowlistedCountCapped = true;
+    reasons.push('COMMAND_LIMIT_REACHED');
+  }
+
+  const arrows: HTMLElement[] = [];
+  const seenArrows = new Set<Element>();
+  for (const toolbar of toolbars) {
+    const collection = toolbar.getElementsByClassName('dropdown-arrow');
+    const remaining = LIMITS.arrowRecords - arrows.length;
+    if (collection.length > remaining) reasons.push('ARROW_LIMIT_REACHED');
+    for (
+      let index = 0;
+      index < collection.length && index < remaining;
+      index += 1
+    ) {
+      const arrow = collection.item(index);
+      if (!(arrow instanceof HTMLElement) || seenArrows.has(arrow)) continue;
+      seenArrows.add(arrow);
+      arrows.push(arrow);
+    }
+    if (arrows.length >= LIMITS.arrowRecords) break;
+  }
+  const ownership = arrows.map((arrow) => {
     const parent = arrow.parentElement;
-    const commandChildren = parent
-      ? [...parent.children].filter(
-          (child): child is HTMLElement =>
-            child instanceof HTMLElement && child.hasAttribute('command-id'),
-        )
-      : [];
+    const commandChildren: HTMLElement[] = [];
+    const parentChildCount = parent?.children.length ?? 0;
+    for (
+      let index = 0;
+      parent && index < parent.children.length && index <= 32;
+      index += 1
+    ) {
+      const child = parent.children.item(index);
+      if (child instanceof HTMLElement && child.hasAttribute('command-id'))
+        commandChildren.push(child);
+    }
     const knownFaces = commandChildren
       .map((child) => child.getAttribute('command-id') ?? '')
       .filter(isAllowlistedCommandId);
     const relation: ArrowRelation =
-      knownFaces.length === 1
-        ? 'SAME_PARENT'
-        : knownFaces.length > 1
-          ? 'AMBIGUOUS'
-          : 'NONE';
+      parentChildCount > 32
+        ? 'AMBIGUOUS'
+        : knownFaces.length === 1
+          ? 'SAME_PARENT'
+          : knownFaces.length > 1
+            ? 'AMBIGUOUS'
+            : 'NONE';
     const arrowVisibility = visibility(arrow);
     if (arrowVisibility.ancestorLimitReached)
       reasons.push('ANCESTOR_LIMIT_REACHED');
     return {
-      faceCommandId: knownFaces.length === 1 ? knownFaces[0]! : null,
+      faceCommandId:
+        parentChildCount <= 32 && knownFaces.length === 1
+          ? knownFaces[0]!
+          : null,
       arrowRelation: relation,
       visibleArrowCount: arrowVisibility.state === 'VISIBLE' ? 1 : 0,
-      parentChildCount: cappedCount(parent?.children.length ?? 0, 32),
-      parentChildCountCapped: (parent?.children.length ?? 0) > 32,
+      parentChildCount: cappedCount(parentChildCount, 32),
+      parentChildCountCapped: parentChildCount > 32,
     };
   });
 
@@ -311,8 +382,11 @@ export function captureRectangleCommandMetadata(
       record.visibility === 'VISIBLE' &&
       record.enabled === 'ENABLED',
   );
-  const duplicateRectangleIdentity = commands.some((record, index) =>
-    commands.some(
+  const rectangleCommands = commands.filter((record) =>
+    RECTANGLE_COMMAND_IDS.has(record.commandId),
+  );
+  const duplicateRectangleIdentity = rectangleCommands.some((record, index) =>
+    rectangleCommands.some(
       (candidate, candidateIndex) =>
         candidateIndex !== index &&
         candidate.commandId === record.commandId &&
@@ -333,9 +407,9 @@ export function captureRectangleCommandMetadata(
   return {
     ownerReportedState,
     observationGeneration: Math.max(1, Math.trunc(observationGeneration)),
-    toolbarMarkers: cappedCount(toolbars.length, LIMITS.regions),
+    toolbarMarkers: cappedCount(toolbarMatches.total, LIMITS.regions),
     arrowMarkers: cappedCount(arrows.length, LIMITS.arrowRecords),
-    menuMarkers: cappedCount(menus.length, LIMITS.regions),
+    menuMarkers: cappedCount(menuMatches.total, LIMITS.regions),
     menuPlacement:
       menus.length === 0
         ? 'NOT_OBSERVED'
@@ -357,6 +431,128 @@ export function captureRectangleCommandMetadata(
       unallowlistedCountCapped,
       reasons: [...new Set(reasons)],
     },
+  };
+}
+
+const MENU_CAPTURE_TIMEOUT_MS = 20_000;
+const POST_INTERACTION_SETTLE_MS = 500;
+
+function eventComesFromLeqad(event: Event): boolean {
+  return event.composedPath().some((target) => {
+    if (!(target instanceof Element)) return false;
+    return (
+      target.localName.startsWith('leqad-') ||
+      target.matches('[data-leqad-root], [data-leqad-highlight]')
+    );
+  });
+}
+
+/**
+ * Arms a single read-only observation before the owner opens the Rectangle
+ * dropdown. The owner click is never cancelled or reproduced by Leqad.
+ */
+export function createRectangleMenuMetadataCapture(
+  root: Document,
+  observationGeneration: number,
+  timeoutMs = MENU_CAPTURE_TIMEOUT_MS,
+): RectangleMenuMetadataCaptureTask {
+  const view = root.defaultView;
+  const boundedTimeout = Math.max(
+    1,
+    Math.min(MENU_CAPTURE_TIMEOUT_MS, Math.trunc(timeoutMs)),
+  );
+  let active = true;
+  let listenerInstalled = false;
+  let observer: MutationObserver | null = null;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let settleTimeout: ReturnType<typeof setTimeout> | undefined;
+  let resolveResult!: (result: RectangleMenuMetadataCaptureResult) => void;
+
+  const promise = new Promise<RectangleMenuMetadataCaptureResult>((resolve) => {
+    resolveResult = resolve;
+  });
+
+  const removeListener = () => {
+    if (!listenerInstalled) return;
+    root.removeEventListener('pointerdown', onPointerDown, true);
+    listenerInstalled = false;
+  };
+
+  const finish = (status: RectangleMenuMetadataCaptureStatus) => {
+    if (!active) return;
+    active = false;
+    removeListener();
+    observer?.disconnect();
+    observer = null;
+    if (timeout !== undefined) clearTimeout(timeout);
+    if (settleTimeout !== undefined) clearTimeout(settleTimeout);
+    resolveResult({
+      status,
+      snapshot: captureRectangleCommandMetadata(
+        root,
+        'RECTANGLE_MENU_OPEN',
+        observationGeneration,
+      ),
+    });
+  };
+
+  const captureIfMenuObserved = () => {
+    if (!active) return false;
+    const snapshot = captureRectangleCommandMetadata(
+      root,
+      'RECTANGLE_MENU_OPEN',
+      observationGeneration,
+    );
+    if (
+      snapshot.menuMarkers === 0 &&
+      !snapshot.commands.some((command) => command.location === 'MENU')
+    )
+      return false;
+    finish('CAPTURED');
+    return true;
+  };
+
+  function onPointerDown(event: Event) {
+    if (!active || eventComesFromLeqad(event)) return;
+    removeListener();
+    const Observer = view?.MutationObserver;
+    if (Observer && root.documentElement) {
+      observer = new Observer(() => {
+        captureIfMenuObserved();
+      });
+      observer.observe(root.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: [
+          'class',
+          'command-id',
+          'hidden',
+          'style',
+          'aria-hidden',
+          'aria-disabled',
+        ],
+      });
+    }
+    settleTimeout = setTimeout(
+      () => finish('CAPTURED'),
+      POST_INTERACTION_SETTLE_MS,
+    );
+  }
+
+  // The arm action itself originates in Leqad. Deferring registration ensures
+  // it cannot be mistaken for the owner's next interaction with Onshape.
+  queueMicrotask(() => {
+    if (!active) return;
+    root.addEventListener('pointerdown', onPointerDown, true);
+    listenerInstalled = true;
+    timeout = setTimeout(() => finish('TIMED_OUT'), boundedTimeout);
+  });
+
+  return {
+    promise,
+    cancel: () => finish('CANCELLED'),
+    isActive: () => active,
   };
 }
 

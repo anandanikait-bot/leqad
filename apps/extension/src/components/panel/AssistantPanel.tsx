@@ -78,6 +78,7 @@ import { getOnshapeNativeSearchGuidance } from '../../services/nativeSearchGuida
 import type {
   RectangleCommandCaptureState,
   RectangleCommandMetadataSnapshot,
+  RectangleMenuMetadataCaptureTask,
 } from '../../services/rectangleCommandMetadataCapture';
 import {
   CALIBRATED_HIGHLIGHT_MESSAGE,
@@ -118,6 +119,9 @@ interface AssistantPanelProps {
     state: RectangleCommandCaptureState,
     generation: number,
   ) => RectangleCommandMetadataSnapshot;
+  onCaptureRectangleMenuMetadata?: (
+    generation: number,
+  ) => RectangleMenuMetadataCaptureTask;
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
@@ -410,6 +414,7 @@ export function AssistantPanel({
   onCaptureRectangleDropdown,
   onCaptureRectangleDropdownSnapshot,
   onCaptureRectangleCommandMetadata,
+  onCaptureRectangleMenuMetadata,
   onCheckStep,
   onSessionChange,
   onPanelPreferencesChange,
@@ -1985,11 +1990,13 @@ export function AssistantPanel({
                           </button>
                         </>
                       )}
-                      {onCaptureRectangleCommandMetadata && (
-                        <RectangleCommandMetadataDiagnostic
-                          onCapture={onCaptureRectangleCommandMetadata}
-                        />
-                      )}
+                      {onCaptureRectangleCommandMetadata &&
+                        onCaptureRectangleMenuMetadata && (
+                          <RectangleCommandMetadataDiagnostic
+                            onCapture={onCaptureRectangleCommandMetadata}
+                            onCaptureMenuOpen={onCaptureRectangleMenuMetadata}
+                          />
+                        )}
                       {capturePending && (
                         <button
                           type="button"

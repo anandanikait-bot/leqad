@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createRectangleCommandMetadataReport,
   serializeRectangleCommandMetadataReport,
@@ -6,6 +6,7 @@ import {
 import type {
   RectangleCommandCaptureState,
   RectangleCommandMetadataSnapshot,
+  RectangleMenuMetadataCaptureTask,
 } from '../../services/rectangleCommandMetadataCapture';
 
 interface RectangleCommandMetadataDiagnosticProps {
@@ -13,6 +14,7 @@ interface RectangleCommandMetadataDiagnosticProps {
     state: RectangleCommandCaptureState,
     generation: number,
   ) => RectangleCommandMetadataSnapshot;
+  onCaptureMenuOpen: (generation: number) => RectangleMenuMetadataCaptureTask;
 }
 
 const STATES = [
@@ -26,7 +28,7 @@ const STATES = [
     state: 'RECTANGLE_MENU_OPEN',
     label: 'State B — Rectangle dropdown open',
     instruction:
-      'Manually open the Rectangle dropdown, leave it open, then capture State B.',
+      'Arm State B, then click the Rectangle dropdown in Onshape. Leqad observes that one interaction without blocking or repeating it.',
   },
   {
     state: 'OTHER_RECTANGLE_VARIANT',
@@ -47,12 +49,24 @@ const STATES = [
 
 export function RectangleCommandMetadataDiagnostic({
   onCapture,
+  onCaptureMenuOpen,
 }: RectangleCommandMetadataDiagnosticProps) {
   const [snapshots, setSnapshots] = useState<
     RectangleCommandMetadataSnapshot[]
   >([]);
   const [output, setOutput] = useState('');
   const [message, setMessage] = useState('');
+  const [menuCapturePending, setMenuCapturePending] = useState(false);
+  const menuTask = useRef<RectangleMenuMetadataCaptureTask | null>(null);
+
+  useEffect(
+    () => () => {
+      const activeTask = menuTask.current;
+      menuTask.current = null;
+      activeTask?.cancel();
+    },
+    [],
+  );
 
   const capture = (state: RectangleCommandCaptureState, index: number) => {
     const snapshot = onCapture(state, index + 1);
@@ -61,6 +75,34 @@ export function RectangleCommandMetadataDiagnostic({
     setMessage(
       `State ${String.fromCharCode(65 + index)} saved as owner-reported with bounded DOM observations.`,
     );
+  };
+
+  const armMenuCapture = () => {
+    const task = onCaptureMenuOpen(2);
+    menuTask.current?.cancel();
+    menuTask.current = task;
+    setMenuCapturePending(true);
+    setOutput('');
+    setMessage(
+      'State B armed. Now click the Rectangle dropdown once in Onshape. Leqad will not click it for you.',
+    );
+    void task.promise.then((result) => {
+      if (menuTask.current !== task) return;
+      menuTask.current = null;
+      setMenuCapturePending(false);
+      if (result.status !== 'CAPTURED') {
+        setMessage(
+          'State B was not captured. Return to Sketch, keep the menu closed, and arm State B again.',
+        );
+        return;
+      }
+      setSnapshots((current) => [...current.slice(0, 1), result.snapshot]);
+      setMessage(
+        result.snapshot.menuMarkers > 0
+          ? 'State B saved as owner-reported; a bounded dropdown menu marker was observed after your click.'
+          : 'State B saved as owner-reported, but no allowlisted dropdown menu marker was observed. The report preserves that uncertainty.',
+      );
+    });
   };
 
   const copy = async () => {
@@ -83,6 +125,10 @@ export function RectangleCommandMetadataDiagnostic({
   };
 
   const restart = () => {
+    const activeTask = menuTask.current;
+    menuTask.current = null;
+    activeTask?.cancel();
+    setMenuCapturePending(false);
     setSnapshots([]);
     setOutput('');
     setMessage('Experiment restarted. No prior snapshot is retained.');
@@ -100,14 +146,27 @@ export function RectangleCommandMetadataDiagnostic({
       {STATES.map((entry, index) => (
         <div key={entry.state}>
           <p>{entry.instruction}</p>
-          <button
-            type="button"
-            className="leqad-button leqad-button--secondary"
-            disabled={snapshots.length !== index}
-            onClick={() => capture(entry.state, index)}
-          >
-            Record metadata {entry.label}
-          </button>
+          {index === 1 ? (
+            <button
+              type="button"
+              className="leqad-button leqad-button--secondary"
+              disabled={snapshots.length !== index || menuCapturePending}
+              onClick={armMenuCapture}
+            >
+              {menuCapturePending
+                ? 'Waiting for Rectangle dropdown interaction…'
+                : 'Arm metadata State B — then open Rectangle dropdown'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="leqad-button leqad-button--secondary"
+              disabled={snapshots.length !== index || menuCapturePending}
+              onClick={() => capture(entry.state, index)}
+            >
+              Record metadata {entry.label}
+            </button>
+          )}
         </div>
       ))}
       {snapshots.length > 0 && (
