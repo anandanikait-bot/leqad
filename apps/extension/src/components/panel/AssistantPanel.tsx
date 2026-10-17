@@ -72,8 +72,13 @@ import type {
 } from '../../services/guidanceRunner';
 import { SketchCalibrationForm } from './SketchCalibrationForm';
 import { NativeSearchGuidance } from './NativeSearchGuidance';
+import { RectangleCommandMetadataDiagnostic } from './RectangleCommandMetadataDiagnostic';
 import type { NativeSearchAvailability } from './NativeSearchGuidance';
 import { getOnshapeNativeSearchGuidance } from '../../services/nativeSearchGuidance';
+import type {
+  RectangleCommandCaptureState,
+  RectangleCommandMetadataSnapshot,
+} from '../../services/rectangleCommandMetadataCapture';
 import {
   CALIBRATED_HIGHLIGHT_MESSAGE,
   calibrationMatchesViewport,
@@ -109,6 +114,10 @@ interface AssistantPanelProps {
     snapshotRole: 'BEFORE' | 'AFTER',
     userReportedState: 'OPEN' | 'CLOSED',
   ) => RectangleDropdownManualSnapshot;
+  onCaptureRectangleCommandMetadata?: (
+    state: RectangleCommandCaptureState,
+    generation: number,
+  ) => RectangleCommandMetadataSnapshot;
   page?: OnshapePageContext;
   initialSession?: LessonSession | null;
   initialPanelPreferences?: PanelPreferences;
@@ -400,6 +409,7 @@ export function AssistantPanel({
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
   onCaptureRectangleDropdownSnapshot,
+  onCaptureRectangleCommandMetadata,
   onCheckStep,
   onSessionChange,
   onPanelPreferencesChange,
@@ -1974,6 +1984,11 @@ export function AssistantPanel({
                               : 'Capture Rectangle interaction'}
                           </button>
                         </>
+                      )}
+                      {onCaptureRectangleCommandMetadata && (
+                        <RectangleCommandMetadataDiagnostic
+                          onCapture={onCaptureRectangleCommandMetadata}
+                        />
                       )}
                       {capturePending && (
                         <button

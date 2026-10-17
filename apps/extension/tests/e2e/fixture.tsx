@@ -33,6 +33,7 @@ import {
   captureManualRectangleDropdownSnapshot,
   createRectangleDropdownCapture,
 } from '../../src/services/rectangleDropdownCapture';
+import { captureRectangleCommandMetadata } from '../../src/services/rectangleCommandMetadataCapture';
 
 const host = document.createElement('leqad-e2e-host');
 host.style.position = 'fixed';
@@ -317,6 +318,9 @@ async function renderFixturePanel() {
           snapshotRole,
           userReportedState,
         )
+      }
+      onCaptureRectangleCommandMetadata={(state, generation) =>
+        captureRectangleCommandMetadata(document, state, generation)
       }
       onRecognitionDiagnostics={(capture) =>
         collectRecognitionDiagnostics(document, capture)
