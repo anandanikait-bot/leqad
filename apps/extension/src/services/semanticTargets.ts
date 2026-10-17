@@ -1,3 +1,4 @@
+import type { RectangleDropdownDiagnostic } from './rectangleShowDiagnostics';
 import {
   enabledState,
   isLeqadOwned,
@@ -8,6 +9,7 @@ import {
   isReferencePlaneTarget,
   referencePlaneCandidate,
   referencePlaneCandidates,
+  observedSketchDialogPlane,
 } from './referencePlanes';
 export type SemanticTargetId =
   | 'top-plane'
@@ -15,6 +17,7 @@ export type SemanticTargetId =
   | 'right-plane'
   | 'sketch'
   | 'rectangle'
+  | 'rectangle-dropdown'
   | 'dimension'
   | 'finish-sketch'
   | 'part-studio-tab'
@@ -44,6 +47,7 @@ export type TargetVisibility =
 export type TargetEnabledState = 'ENABLED' | 'DISABLED' | 'UNKNOWN';
 
 export interface SemanticTargetRecognition {
+  rectangleDiagnostic?: RectangleDropdownDiagnostic;
   targetId: SemanticTargetId;
   status: TargetRecognitionStatus;
   element: HTMLElement | null;
@@ -74,6 +78,12 @@ const TARGET_LABELS: Record<SemanticTargetId, readonly string[]> = {
   'right-plane': ['right plane'],
   sketch: ['sketch', 'create sketch', 'start sketch'],
   rectangle: ['rectangle', 'corner rectangle', 'center point rectangle'],
+  'rectangle-dropdown': [
+    'rectangle',
+    'corner rectangle',
+    'center point rectangle',
+    'aligned rectangle',
+  ],
   dimension: ['dimension', 'sketch dimension'],
   'finish-sketch': ['finish sketch', 'exit sketch', 'close sketch'],
   'part-studio-tab': ['part studio'],
@@ -268,12 +278,187 @@ export function inspectSketchCommandMatch(element: HTMLElement) {
   };
 }
 
+/**
+ * Group-only semantic path. The owner's nonsemantic icon/div capture cannot
+ * identify an arrow boundary or popup ownership. Do NOT generalize the Sketch
+ * structural fallback here. Standard toolbar + named popup control semantics
+ * must be present at runtime; last-used names never identify an exact option.
+ */
+function collectRectangleDropdown(root: ParentNode): {
+  candidates: TargetCandidate[];
+  diagnostic: RectangleDropdownDiagnostic;
+} {
+  const finish = recognizeSemanticTarget(root, 'finish-sketch');
+  const dialogPlaneObserved = observedSketchDialogPlane(root) !== null;
+  const activeSketch = finish.status === 'FOUND' || dialogPlaneObserved;
+  const readOnlyIndicators = findSemanticTargets(
+    root,
+    'read-only-indicator',
+  ).length;
+  const diagnostic: RectangleDropdownDiagnostic = {
+    sketchContext: activeSketch ? 'OBSERVED' : 'UNESTABLISHED',
+    finishControl: finish.status,
+    dialogPlaneObserved,
+    readOnlyIndicators,
+    lookup: {
+      state: 'COMPLETE',
+      reason: 'NO_TOOLBAR_SEMANTICS',
+      toolbars: 0,
+      popupControls: 0,
+      exactNames: 0,
+    },
+    eligibility: {
+      state: 'NOT_EVALUATED',
+      candidateCount: 0,
+      usableCount: 0,
+      rejections: [],
+    },
+  };
+  const reject = (
+    reason: RectangleDropdownDiagnostic['eligibility']['rejections'][number],
+  ) => {
+    if (!diagnostic.eligibility.rejections.includes(reason))
+      diagnostic.eligibility.rejections.push(reason);
+  };
+  const incomplete = () => {
+    diagnostic.lookup.state = 'INCOMPLETE';
+    diagnostic.lookup.reason = 'LOOKUP_LIMIT_REACHED';
+    return { candidates: [], diagnostic };
+  };
+  const toolbars = root.querySelectorAll<HTMLElement>('[role="toolbar"]');
+  diagnostic.lookup.toolbars = Math.min(17, toolbars.length);
+  if (toolbars.length > 16) return incomplete(); // No partial uniqueness claim.
+  const controls = new Set<HTMLElement>();
+  for (const toolbar of toolbars) {
+    const descendants = toolbar.querySelectorAll<HTMLElement>(
+      'button[aria-haspopup], [role="button"][aria-haspopup]',
+    );
+    if (descendants.length > 128) {
+      diagnostic.lookup.popupControls = Math.min(
+        513,
+        controls.size + descendants.length,
+      );
+      return incomplete();
+    }
+    for (const control of descendants) controls.add(control);
+    if (controls.size > 512) {
+      diagnostic.lookup.popupControls = 513;
+      return incomplete();
+    }
+  }
+  diagnostic.lookup.popupControls = controls.size;
+  diagnostic.lookup.reason =
+    toolbars.length === 0
+      ? 'NO_TOOLBAR_SEMANTICS'
+      : controls.size === 0
+        ? 'NO_POPUP_CONTROLS'
+        : 'NO_EXACT_GROUP_NAME';
+  const candidates: TargetCandidate[] = [];
+  for (const control of controls) {
+    const strategy = matchStrategy(
+      control,
+      TARGET_LABELS['rectangle-dropdown'],
+    );
+    if (!strategy || strategy === 'WEAK_TEXT') continue;
+    diagnostic.lookup.exactNames++;
+    diagnostic.lookup.reason = 'CANDIDATES_INSPECTED';
+    if (
+      control.hasAttribute('role') &&
+      control.getAttribute('role') !== 'button'
+    ) {
+      reject('CONFLICTING_ROLE');
+      continue;
+    }
+    if (
+      !['menu', 'true'].includes(control.getAttribute('aria-haspopup') ?? '')
+    ) {
+      reject('POPUP_NOT_MENU');
+      continue;
+    }
+    // Reject aggregate containers containing independent controls/menu items.
+    if (
+      control.querySelector(
+        'button,[role="button"],[role="menuitem"],[role="option"],input,[role="toolbar"]',
+      )
+    ) {
+      reject('AGGREGATE_CONTROL');
+      continue;
+    }
+    let ancestor: HTMLElement | null = control;
+    let contextValid = activeSketch && readOnlyIndicators === 0;
+    let forbiddenContext = false;
+    for (
+      let depth = 0;
+      ancestor && depth < 16;
+      depth++, ancestor = ancestor.parentElement
+    ) {
+      if (
+        ancestor.matches(
+          'dialog,[role="dialog"],[aria-modal="true"],[role="menu"],[role="listbox"],[role="tree"],[role="treegrid"],[role="img"],canvas,svg',
+        ) ||
+        isLeqadOwned(ancestor)
+      ) {
+        contextValid = false;
+        forbiddenContext = true;
+        reject('INVALID_CONTEXT');
+        break;
+      }
+    }
+    if (ancestor) {
+      contextValid = false;
+      if (!forbiddenContext) reject('ANCESTOR_LIMIT');
+    }
+    candidates.push({
+      element: control,
+      strategy: 'VALIDATED_CONTEXT',
+      confidence: 'MEDIUM',
+      rank: STRATEGY_RANK.VALIDATED_CONTEXT,
+      visibility: visibilityState(control),
+      enabled: enabledState(control),
+      leqadOwned: isLeqadOwned(control),
+      contextValid,
+    });
+  }
+  diagnostic.eligibility.candidateCount = candidates.length;
+  diagnostic.eligibility.usableCount = candidates.filter(usable).length;
+  for (const candidate of candidates) {
+    if (candidate.visibility !== 'VISIBLE')
+      reject(
+        candidate.visibility === 'UNKNOWN'
+          ? 'VISIBILITY_UNKNOWN'
+          : candidate.visibility,
+      );
+    if (candidate.enabled !== 'ENABLED')
+      reject(candidate.enabled === 'DISABLED' ? 'DISABLED' : 'ENABLED_UNKNOWN');
+  }
+  diagnostic.eligibility.state =
+    diagnostic.lookup.exactNames === 0
+      ? 'NOT_EVALUATED'
+      : diagnostic.eligibility.usableCount > 1
+        ? 'AMBIGUOUS'
+        : diagnostic.eligibility.usableCount === 1
+          ? 'UNIQUE_USABLE'
+          : 'REJECTED';
+  return { candidates, diagnostic };
+}
+/** Read-only lookup inspection; this does not run SHOW, highlight, or verify CAD. */
+export function inspectRectangleDropdownRecognition(
+  root: ParentNode,
+): RectangleDropdownDiagnostic {
+  return collectRectangleDropdown(root).diagnostic;
+}
+function rectangleDropdownCandidates(root: ParentNode): TargetCandidate[] {
+  return collectRectangleDropdown(root).candidates;
+}
+
 function candidatesFor(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): TargetCandidate[] {
   if (isReferencePlaneTarget(targetId))
     return referencePlaneCandidates(root, targetId);
+  if (targetId === 'rectangle' || targetId === 'rectangle-dropdown')
+    return rectangleDropdownCandidates(root);
   const candidates: TargetCandidate[] = [];
   const labels = TARGET_LABELS[targetId];
   for (const element of root.querySelectorAll<HTMLElement>(
@@ -322,6 +507,13 @@ export function recognizeSemanticTarget(
   root: ParentNode,
   targetId: SemanticTargetId,
 ): SemanticTargetRecognition {
+  if (targetId === 'rectangle' || targetId === 'rectangle-dropdown') {
+    const evidence = collectRectangleDropdown(root);
+    return {
+      ...recognitionFromCandidates(targetId, evidence.candidates),
+      rectangleDiagnostic: evidence.diagnostic,
+    };
+  }
   return recognitionFromCandidates(targetId, candidatesFor(root, targetId));
 }
 
@@ -408,6 +600,10 @@ export function isUsableSemanticTarget(
       candidate && candidate.element === element && usable(candidate),
     );
   }
+  if (targetId === 'rectangle' || targetId === 'rectangle-dropdown')
+    return rectangleDropdownCandidates(element.ownerDocument).some(
+      (candidate) => candidate.element === element && usable(candidate),
+    );
   const strategy =
     targetId === 'sketch' && isStructuralSketchCommand(element)
       ? 'VALIDATED_CONTEXT'
@@ -498,6 +694,7 @@ export function createTargetHighlight(
   target: HTMLElement,
   host: HTMLElement = target.ownerDocument.body,
   targetId?: SemanticTargetId,
+  onRemoved?: () => void,
 ): TargetHighlight {
   const document = target.ownerDocument;
   const view = document.defaultView;
@@ -534,6 +731,7 @@ export function createTargetHighlight(
     view?.removeEventListener('resize', scheduleRefresh);
     view?.removeEventListener('scroll', scheduleRefresh, true);
     overlay.remove();
+    onRemoved?.();
   };
 
   const refresh = () => {
@@ -593,6 +791,8 @@ export function createTargetHighlight(
         'aria-hidden',
         'aria-disabled',
         'aria-expanded',
+        'aria-haspopup',
+        'aria-modal',
         'role',
         'title',
         'data-tooltip',
@@ -624,11 +824,15 @@ export function createSemanticHighlighter(root: ParentNode) {
   const view = document.defaultView!;
   let highlight: TargetHighlight | null = null;
   let timer: number | null = null;
+  let cleanupRectangle: (() => void) | null = null;
   const clear = () => {
+    cleanupRectangle?.();
+    cleanupRectangle = null;
     if (timer !== null) view.clearTimeout(timer);
     timer = null;
-    highlight?.remove();
+    const previous = highlight;
     highlight = null;
+    previous?.remove();
   };
   return {
     clear,
@@ -641,6 +845,9 @@ export function createSemanticHighlighter(root: ParentNode) {
         recognition.element,
         document.body,
         targetId,
+        targetId === 'rectangle' || targetId === 'rectangle-dropdown'
+          ? clear
+          : undefined,
       );
       if (!highlight.element.isConnected) {
         clear();
@@ -650,6 +857,58 @@ export function createSemanticHighlighter(root: ParentNode) {
           element: null,
           explanation:
             'The recognized control became unavailable before highlighting.',
+        };
+      }
+      if (targetId === 'rectangle' || targetId === 'rectangle-dropdown') {
+        const control = recognition.element;
+        const isPanelInput = (event: Event) =>
+          event
+            .composedPath()
+            .some((node) => node instanceof Element && isLeqadOwned(node));
+        const clicked = (event: Event) => {
+          if (!isPanelInput(event)) clear();
+        };
+        const focusChanged = (event: Event) => {
+          if (!isPanelInput(event) && !event.composedPath().includes(control))
+            clear();
+        };
+        const keyboard = (event: KeyboardEvent) => {
+          if (
+            ['Enter', ' ', 'ArrowDown'].includes(event.key) &&
+            !isPanelInput(event)
+          )
+            clear();
+        };
+        const hidden = () => {
+          if (document.visibilityState === 'hidden') clear();
+        };
+        const events = [
+          'pagehide',
+          'popstate',
+          'hashchange',
+          'wxt:locationchange',
+          'blur',
+        ] as const;
+        document.addEventListener('click', clicked, {
+          capture: true,
+          passive: true,
+        });
+        document.addEventListener('keydown', keyboard, {
+          capture: true,
+          passive: true,
+        });
+        document.addEventListener('focusin', focusChanged, {
+          capture: true,
+          passive: true,
+        });
+        document.addEventListener('visibilitychange', hidden);
+        for (const event of events) view.addEventListener(event, clear);
+        cleanupRectangle = () => {
+          document.removeEventListener('click', clicked, true);
+          document.removeEventListener('keydown', keyboard, true);
+          document.removeEventListener('focusin', focusChanged, true);
+          document.removeEventListener('visibilitychange', hidden);
+          for (const event of events) view.removeEventListener(event, clear);
         };
       }
       timer = view.setTimeout(clear, SEMANTIC_HIGHLIGHT_DURATION_MS);

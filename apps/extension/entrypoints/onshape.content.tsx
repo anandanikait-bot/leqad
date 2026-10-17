@@ -1,4 +1,10 @@
-import { createSketchControlCapture } from '../src/services/sketchControlCapture';
+import { rectangleShowPageGate } from '../src/services/rectangleShowDiagnostics';
+import { inspectRectangleDropdownRecognition } from '../src/services/semanticTargets';
+import {
+  createSketchControlCapture,
+  inspectSketchDialogIdentity,
+} from '../src/services/sketchControlCapture';
+import { captureSketchEditorSnapshot } from '../src/services/sketchEditorComparisonCapture';
 import { createRoot } from 'react-dom/client';
 import { browser } from 'wxt/browser';
 import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
@@ -166,6 +172,13 @@ export default defineContentScript({
               return definition?.semanticTarget ?? null;
             };
             const guidanceRunner = createGuidanceRunner({
+              inspectRectangleShow: () => ({
+                pageGate: rectangleShowPageGate(
+                  currentPage,
+                  onshapeUrlMatchesContextKey(window.location.href, contextKey),
+                ),
+                target: inspectRectangleDropdownRecognition(document),
+              }),
               getContext: () =>
                 observeOnshapeGuidanceContext(currentPage, document),
               resolveTarget: (targetId) => {
@@ -176,10 +189,34 @@ export default defineContentScript({
                   semanticTarget,
                 );
                 return recognition.status === 'FOUND'
-                  ? { status: 'FOUND' }
+                  ? {
+                      status: 'FOUND',
+                      ...(recognition.rectangleDiagnostic
+                        ? {
+                            rectangleDiagnostic:
+                              recognition.rectangleDiagnostic,
+                          }
+                        : {}),
+                    }
                   : recognition.status === 'AMBIGUOUS'
-                    ? { status: 'AMBIGUOUS' }
-                    : { status: 'MISSING' };
+                    ? {
+                        status: 'AMBIGUOUS',
+                        ...(recognition.rectangleDiagnostic
+                          ? {
+                              rectangleDiagnostic:
+                                recognition.rectangleDiagnostic,
+                            }
+                          : {}),
+                      }
+                    : {
+                        status: 'MISSING',
+                        ...(recognition.rectangleDiagnostic
+                          ? {
+                              rectangleDiagnostic:
+                                recognition.rectangleDiagnostic,
+                            }
+                          : {}),
+                      };
               },
               highlightTarget: (targetId) => {
                 const semanticTarget = semanticTargetFor(targetId);
@@ -194,15 +231,12 @@ export default defineContentScript({
               observe: (observationId) => {
                 if (observationId === 'SKETCH_UI_ACTIVE') {
                   return {
-                    current: observeSketchGuidanceUi(document)
-                      .editingAppearsActive
-                      ? 'OPEN'
-                      : 'CLOSED',
+                    current: observeSketchGuidanceUi(document).uiState,
                     unsubscribe: () => undefined,
                   };
                 }
-                // Rectangle menu transitions stay UNKNOWN until the owner
-                // provides authenticated Onshape DOM evidence.
+                // The v3 capture provides labels and input paths, but current
+                // menu ownership and OPEN/selected states remain unestablished.
                 return {
                   current: 'UNKNOWN',
                   unsubscribe: () => undefined,
@@ -225,8 +259,14 @@ export default defineContentScript({
                   onClearTarget={clearHighlight}
                   onObserveSketchUi={observeSketchUi}
                   onSubscribeSketchUi={subscribeSketchUi}
-                  onCaptureSketchControl={() =>
-                    createSketchControlCapture(document)
+                  onCaptureSketchDialogIdentity={() =>
+                    inspectSketchDialogIdentity(document)
+                  }
+                  onCaptureSketchControl={(purpose) =>
+                    createSketchControlCapture(document, purpose)
+                  }
+                  onCaptureSketchEditorState={(state) =>
+                    captureSketchEditorSnapshot(document, state)
                   }
                   onCaptureTopRow={() => createTopRowCapture(document)}
                   onCaptureRectangleDropdown={() =>

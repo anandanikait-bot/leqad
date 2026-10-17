@@ -18,7 +18,7 @@ describe('closed guidance registry', () => {
     expect(GUIDANCE_REGISTRY['rectangle-tool-group']).toMatchObject({
       actionId: 'rectangle-tool-group',
       targetId: 'rectangle-tool-group',
-      semanticTarget: 'rectangle',
+      semanticTarget: 'rectangle-dropdown',
       requiredContext: 'SKETCH_EDITING',
       supportedLevels: ['HINT', 'SHOW'],
       hintContentId: 'rectangle-tool-group',
@@ -27,6 +27,7 @@ describe('closed guidance registry', () => {
       GUIDANCE_REGISTRY['rectangle-tool-group'].guideRecipe,
     ).toBeUndefined();
     expect(GUIDANCE_TARGET_IDS).not.toContain('corner-rectangle');
+    expect(GUIDANCE_TARGET_IDS).not.toContain('corner-rectangle-option');
     expect(GUIDANCE_TARGET_IDS).not.toContain('aligned-rectangle');
     expect(
       GUIDANCE_REGISTRY['rectangle-tool-group'].requiredObservations,

@@ -1,5 +1,15 @@
+import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
+import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
+import type { RectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import { SketchControlDiagnostic } from './SketchControlDiagnostic';
-import type { SketchControlCaptureTask } from '../../services/sketchControlCapture';
+import type {
+  SketchControlCaptureTask,
+  SketchControlCapturePurpose,
+} from '../../services/sketchControlCapture';
+import type {
+  EditorStateClaim,
+  SketchEditorSnapshot,
+} from '../../services/sketchEditorComparisonCapture';
 import { useEffect, useRef, useState } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -82,7 +92,13 @@ interface AssistantPanelProps {
   onSketchCalibrationChange?: (
     calibration: SketchHighlightCalibration | null,
   ) => void | Promise<void>;
-  onCaptureSketchControl?: () => SketchControlCaptureTask;
+  onCaptureSketchDialogIdentity?: () => SketchDialogIdentityReport;
+  onCaptureSketchControl?: (
+    purpose?: SketchControlCapturePurpose,
+  ) => SketchControlCaptureTask;
+  onCaptureSketchEditorState?: (
+    state: EditorStateClaim,
+  ) => SketchEditorSnapshot;
   onCaptureTopRow?: () => TopRowCaptureTask;
   onRecognitionDiagnostics?: (capture?: TopRowCaptureReport) => string;
   onCaptureRectangleDropdown?: () => RectangleDropdownCaptureTask;
@@ -375,6 +391,8 @@ export function AssistantPanel({
   onShowCalibratedHighlight,
   onSketchCalibrationChange,
   onCaptureSketchControl,
+  onCaptureSketchEditorState,
+  onCaptureSketchDialogIdentity,
   onCaptureTopRow,
   onRecognitionDiagnostics,
   onCaptureRectangleDropdown,
@@ -447,6 +465,17 @@ export function AssistantPanel({
     null,
   );
   const rectangleCaptureGeneration = useRef(0);
+  const copiedRectangleShow = useRef<RectangleShowDiagnostic | null>(null);
+  useEffect(() => {
+    if (
+      copiedRectangleShow.current &&
+      copiedRectangleShow.current !== guidanceState?.rectangleShowDiagnostic
+    ) {
+      copiedRectangleShow.current = null;
+      setDiagnosticsOutput('');
+      setDiagnosticsMessage('');
+    }
+  }, [guidanceState?.rectangleShowDiagnostic]);
   const learningHistoryRef = useRef<LearningHistory>(
     initialLearningHistory ?? createEmptyLearningHistory(),
   );
@@ -1129,8 +1158,39 @@ export function AssistantPanel({
     }
   };
 
+  const copyRectangleShowDiagnosis = async () => {
+    if (!diagnosticsEnabled || !guidanceState?.rectangleShowDiagnostic) return;
+    const snapshot = guidanceState.rectangleShowDiagnostic;
+    copiedRectangleShow.current = snapshot;
+    const output = serializeRectangleShowDiagnostic(snapshot);
+    setDiagnosticsOutput(output);
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(output);
+      if (
+        copiedRectangleShow.current !== snapshot ||
+        guidanceRunner?.getState().rectangleShowDiagnostic !== snapshot
+      )
+        return;
+      setDiagnosticsMessage(
+        'Rectangle SHOW diagnosis copied. Save and review it locally before sharing.',
+      );
+    } catch {
+      if (
+        copiedRectangleShow.current !== snapshot ||
+        guidanceRunner?.getState().rectangleShowDiagnostic !== snapshot
+      )
+        return;
+      setDiagnosticsMessage(
+        'Copy the read-only Rectangle SHOW diagnosis below. Save and review it locally before sharing.',
+      );
+    }
+  };
+
   const copyDiagnostics = async () => {
     if (!diagnosticsEnabled || !onRecognitionDiagnostics) return;
+    copiedRectangleShow.current = null;
     try {
       const report = onRecognitionDiagnostics(captureReport ?? undefined);
       setDiagnosticsOutput(report);
@@ -1773,6 +1833,7 @@ export function AssistantPanel({
                         rectangleCaptureTaskRef.current = null;
                         setRectangleCapturePending(false);
                       }
+                      copiedRectangleShow.current = null;
                       setDiagnosticsEnabled(!diagnosticsEnabled);
                       setDiagnosticsOutput('');
                       setRectangleDiagnosticsOutput('');
@@ -1791,9 +1852,29 @@ export function AssistantPanel({
                         Local only. Captures bounded parent and sibling
                         relationships, relative geometry, and exact known label
                         matches. Page text and identifiers are omitted;
-                        JavaScript click handling is not inspected. Production
-                        Show me recognition is not run.
+                        JavaScript click handling is not inspected. General
+                        tree/click captures do not run production SHOW.
+                        Rectangle SHOW diagnosis separates the last SHOW gate
+                        from a read-only target inspection.
                       </p>
+                      {guidanceState?.rectangleShowDiagnostic && (
+                        <>
+                          <p>
+                            Last Rectangle SHOW:{' '}
+                            {guidanceState.rectangleShowDiagnostic.stage} ·{' '}
+                            {guidanceState.rectangleShowDiagnostic.reason}. This
+                            is a request snapshot, not a live or geometry
+                            verification result.
+                          </p>
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--secondary"
+                            onClick={() => void copyRectangleShowDiagnosis()}
+                          >
+                            Copy Rectangle SHOW diagnosis
+                          </button>
+                        </>
+                      )}
                       {onCaptureSketchControl &&
                         mode === 'Learn' &&
                         stepState.status !== 'PAUSED' &&
@@ -1802,6 +1883,18 @@ export function AssistantPanel({
                           <SketchControlDiagnostic
                             key={`${step.id}:${stepState.status}`}
                             onCapture={onCaptureSketchControl}
+                            {...(onCaptureSketchEditorState
+                              ? {
+                                  onCaptureEditorState:
+                                    onCaptureSketchEditorState,
+                                }
+                              : {})}
+                            {...(onCaptureSketchDialogIdentity
+                              ? {
+                                  onCaptureIdentity:
+                                    onCaptureSketchDialogIdentity,
+                                }
+                              : {})}
                           />
                         )}
                       {onCaptureTopRow && (

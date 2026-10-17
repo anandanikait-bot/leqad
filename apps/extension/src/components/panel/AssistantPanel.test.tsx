@@ -466,7 +466,11 @@ describe('AssistantPanel', () => {
       status: 'READY',
       request: { level: 'SHOW' },
     });
-    expect(screen.getByText(/highlighted control is ready/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /temporary highlight was shown for the Rectangle dropdown control/,
+      ),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
     expect(runner.getState()).toMatchObject({ status: 'UNSUPPORTED' });
     expect(
@@ -480,7 +484,7 @@ describe('AssistantPanel', () => {
   });
 
   it.each(['MISSING', 'AMBIGUOUS'] as const)(
-    'offers a written instruction and explicit Retry guidance for %s targets',
+    'offers Corner Rectangle instructions without blind Retry for %s targets',
     async (targetStatus) => {
       const [panelModule, runnerModule] = await Promise.all([
         import('./AssistantPanel'),
@@ -507,10 +511,16 @@ describe('AssistantPanel', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(
-        screen.getByRole('button', { name: 'Retry guidance' }),
+        screen.queryByRole('button', { name: 'Retry guidance' }),
+      ).toBeNull();
+      expect(
+        screen.getByText(
+          /Manually open the Rectangle dropdown arrow and choose Corner Rectangle/,
+        ),
       ).toBeTruthy();
-      expect(screen.getByText(/Follow the written instruction/)).toBeTruthy();
-      fireEvent.click(screen.getByRole('button', { name: 'Retry guidance' }));
+      expect(resolveTarget).toHaveBeenCalledTimes(1);
+      // A new SHOW is still student-controlled after a real interface change.
+      fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(resolveTarget).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
     },
@@ -578,6 +588,7 @@ describe('AssistantPanel', () => {
         onShowTarget={onShowTarget}
         onObserveSketchUi={() => ({
           editingAppearsActive: true,
+          uiState: 'OPEN',
           dialogPlane: 'Top',
         })}
       />,
@@ -1243,6 +1254,7 @@ describe('AssistantPanel', () => {
         initialSession={restoredSession('start-sketch')}
         onObserveSketchUi={() => ({
           editingAppearsActive: false,
+          uiState: 'UNKNOWN',
           dialogPlane: null,
         })}
         onSubscribeSketchUi={(listener) => {
@@ -1261,7 +1273,11 @@ describe('AssistantPanel', () => {
     ).toBeTruthy();
 
     act(() => {
-      publishSketchUi?.({ editingAppearsActive: true, dialogPlane: null });
+      publishSketchUi?.({
+        editingAppearsActive: true,
+        uiState: 'OPEN',
+        dialogPlane: null,
+      });
     });
 
     expect(screen.getByText(/already editing a sketch/)).toBeTruthy();
@@ -1623,4 +1639,52 @@ it('discards a cancelled Rectangle report when diagnostics are turned off', asyn
     screen.queryByRole('button', { name: 'Copy Rectangle dropdown report' }),
   ).toBeNull();
   expect(screen.queryByText('Rectangle capture stopped.')).toBeNull();
+});
+
+it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown capture', async () => {
+  const { AssistantPanel } = await import('./AssistantPanel');
+  const { createGuidanceRunner } =
+    await import('../../services/guidanceRunner');
+  const lookup = vi.fn(() => ({ status: 'MISSING' as const }));
+  const runner = createGuidanceRunner({
+    getContext: () => 'UNKNOWN',
+    resolveTarget: lookup,
+    highlightTarget: () => false,
+    clearHighlight: () => undefined,
+    observe: () => ({ current: 'UNKNOWN', unsubscribe: () => undefined }),
+  });
+  render(
+    <AssistantPanel
+      page={confirmedPage}
+      initialSession={restoredSession('draw-rectangle')}
+      guidanceRunner={runner}
+      onRecognitionDiagnostics={() => '{}'}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
+  expect(
+    screen.queryByRole('button', { name: 'Copy Rectangle SHOW diagnosis' }),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Enable recognition diagnostics' }),
+  );
+  await act(async () =>
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy Rectangle SHOW diagnosis' }),
+    ),
+  );
+  const report = JSON.parse(
+    screen.getByLabelText<HTMLTextAreaElement>('Recognition diagnostics output')
+      .value,
+  );
+  expect(report).toMatchObject({
+    version: 'leqad-rectangle-show/1',
+    stage: 'CONTEXT',
+    reason: 'SKETCH_CONTEXT_UNESTABLISHED',
+    productionLookup: 'NOT_RUN',
+  });
+  expect(lookup).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+  expect(screen.queryByLabelText('Recognition diagnostics output')).toBeNull();
+  runner.dispose();
 });

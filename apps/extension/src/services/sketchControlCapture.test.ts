@@ -16,6 +16,83 @@ afterEach(() => {
 });
 
 describe('opt-in Sketch control capture', () => {
+  it('captures a user-indicated exit control without applying Sketch-command matching', async () => {
+    const { inspectSketchControl } = await import('./sketchControlCapture');
+    const wrapper = document.createElement('div');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const label = document.createElement('span');
+    label.textContent = 'Finish sketch';
+    wrapper.append(icon, label);
+    wrapper.getBoundingClientRect = () => new DOMRect(20, 30, 90, 24);
+    icon.getBoundingClientRect = () => new DOMRect(24, 34, 16, 16);
+    document.body.append(wrapper);
+    const report = inspectSketchControl(icon, 'ACTIVE_SKETCH_EXIT');
+    expect(report).toMatchObject({
+      version: 'leqad-sketch-control/2',
+      target: 'user-indicated-sketch-exit-control',
+      capturePurpose: 'ACTIVE_SKETCH_EXIT',
+      productionRecognition: 'NOT_RUN',
+      uniqueness: 'NOT_EVALUATED',
+    });
+    expect(report.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tag: 'div',
+          name: 'Finish sketch',
+          candidateSelectorMatched: null,
+          matchStrategy: null,
+          assessment: 'EXIT_IDENTITY_NOT_VERIFIED',
+        }),
+      ]),
+    );
+    expect(JSON.stringify(report)).not.toContain('LOCALLY_ELIGIBLE');
+  });
+
+  it('exports only bounded icon structure and fixed accessibility states for an exit candidate', async () => {
+    const { inspectSketchControl } = await import('./sketchControlCapture');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('aria-label', 'Exit sketch');
+    wrapper.setAttribute('aria-expanded', 'false');
+    wrapper.setAttribute('aria-pressed', 'private-value');
+    wrapper.setAttribute('aria-controls', 'private-document-panel');
+    wrapper.innerHTML =
+      '<svg><use href="#private-icon-id"></use><path d="private-path-data"></path></svg>';
+    document.body.append(wrapper);
+    const report = inspectSketchControl(wrapper, 'ACTIVE_SKETCH_EXIT');
+    expect(report.nodes[0]).toMatchObject({
+      name: 'Exit sketch',
+      ariaExpanded: 'FALSE',
+      ariaPressed: 'OTHER',
+      ariaControlsPresent: true,
+      iconStructure: { svg: 1, path: 1, use: 1, truncated: false },
+    });
+    expect(JSON.stringify(report)).not.toContain('private-');
+    wrapper.innerHTML = '<svg><path></path></svg>'.repeat(100);
+    const large = inspectSketchControl(wrapper, 'ACTIVE_SKETCH_EXIT');
+    expect(large.nodes[0]?.iconStructure.truncated).toBe(true);
+    expect(large.incomplete).toBe(true);
+    expect(JSON.stringify(large).length).toBeLessThanOrEqual(24000);
+  });
+
+  it('includes text and comments in the total icon traversal budget', async () => {
+    const { inspectSketchControl } = await import('./sketchControlCapture');
+    const wrapper = document.createElement('div');
+    for (let i = 0; i < 100; i++)
+      wrapper.append(document.createComment('private-marker'));
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    wrapper.append(icon);
+    document.body.append(wrapper);
+    const report = inspectSketchControl(wrapper, 'ACTIVE_SKETCH_EXIT');
+    expect(report.nodes[0]?.iconStructure).toEqual({
+      svg: 0,
+      path: 0,
+      use: 0,
+      truncated: true,
+    });
+    expect(report.incomplete).toBe(true);
+    expect(JSON.stringify(report)).not.toContain('private-marker');
+  });
+
   it('retains the clicked nested control after 100 unrelated buttons without running a document scan', async () => {
     const { inspectSketchControl } = await import('./sketchControlCapture');
     for (let i = 0; i < 100; i++) control('Private command ' + i);

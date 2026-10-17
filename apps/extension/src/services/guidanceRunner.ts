@@ -1,3 +1,12 @@
+import {
+  rectangleShowFailureMessage,
+  rectangleShowTargetReason,
+} from './rectangleShowDiagnostics';
+import type {
+  RectangleDropdownDiagnostic,
+  RectangleShowDiagnostic,
+  RectangleShowInspection,
+} from './rectangleShowDiagnostics';
 import { GUIDANCE_REGISTRY, validateGuidanceRequest } from './guidanceRegistry';
 import type {
   GuidanceActionDefinition,
@@ -25,6 +34,7 @@ export type GuidanceRunnerStatus =
   | 'CANCELLED';
 
 export interface GuidanceTargetResolution {
+  rectangleDiagnostic?: RectangleDropdownDiagnostic;
   status: 'FOUND' | 'MISSING' | 'AMBIGUOUS';
 }
 
@@ -34,6 +44,7 @@ export interface GuidanceObservationSubscription {
 }
 
 export interface GuidanceRunnerHost {
+  inspectRectangleShow?: () => RectangleShowInspection;
   getContext: () => GuidanceUiContext;
   resolveTarget: (targetId: GuidanceTargetId) => GuidanceTargetResolution;
   /** Area highlights require their own validated resolver and bounds adapter. */
@@ -50,6 +61,7 @@ export interface GuidanceRunnerHost {
 }
 
 export interface GuidanceRunnerState {
+  rectangleShowDiagnostic?: RectangleShowDiagnostic;
   request: GuidanceRequest | null;
   status: GuidanceRunnerStatus;
   contentId: GuidanceContentId | null;
@@ -97,8 +109,13 @@ function writtenFallback(
     status,
     contentId: action.hintContentId,
     activeTargetId: null,
-    message,
-    retryAvailable: true,
+    message:
+      request.actionId === 'rectangle-tool-group' && request.level === 'SHOW'
+        ? `${status === 'AMBIGUOUS' ? 'Multiple possible Rectangle dropdowns are present.' : 'A unique visible, enabled Rectangle dropdown and current Sketch context could not be established.'} Manually open the Rectangle dropdown arrow and choose Corner Rectangle. The group icon may show the last-used variant. Exact option highlighting is not available because the current menu relationship is unverified. Use SHOW again only after the interface changes.`
+        : message,
+    retryAvailable: !(
+      request.actionId === 'rectangle-tool-group' && request.level === 'SHOW'
+    ),
   };
 }
 
@@ -115,6 +132,7 @@ export function createGuidanceRunner(
 ): GuidanceRunner {
   const listeners = new Set<(state: GuidanceRunnerState) => void>();
   let state = initialState();
+  let rectangleShowDiagnostic: RectangleShowDiagnostic | null = null;
   let lastRequest: GuidanceRequest | null = null;
   let activeObservation: ActiveObservation | null = null;
   let highlightExpirationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -123,7 +141,19 @@ export function createGuidanceRunner(
   let cleaned = true;
 
   const publish = (next: GuidanceRunnerState) => {
-    state = next;
+    state = rectangleShowDiagnostic
+      ? {
+          ...next,
+          rectangleShowDiagnostic,
+          ...(['FALLBACK', 'MISSING', 'AMBIGUOUS'].includes(next.status)
+            ? {
+                message: rectangleShowFailureMessage(
+                  rectangleShowDiagnostic.reason,
+                ),
+              }
+            : {}),
+        }
+      : next;
     for (const listener of listeners) listener(state);
     return state;
   };
@@ -184,6 +214,49 @@ export function createGuidanceRunner(
   ): boolean => {
     if (generation !== runGeneration) return false;
     const resolution = host.resolveTarget(targetId);
+    if (rectangleShowDiagnostic) {
+      const target =
+        resolution.rectangleDiagnostic ??
+        rectangleShowDiagnostic.inspection?.target ??
+        null;
+      rectangleShowDiagnostic = {
+        ...rectangleShowDiagnostic,
+        productionLookup: 'RUN',
+        reason: rectangleShowTargetReason(target),
+        stage:
+          target?.sketchContext === 'UNESTABLISHED' ||
+          (target?.readOnlyIndicators ?? 0) > 0
+            ? 'CONTEXT'
+            : target?.eligibility.state === 'REJECTED' ||
+                target?.eligibility.state === 'AMBIGUOUS'
+              ? 'TARGET_ELIGIBILITY'
+              : 'GROUP_LOOKUP',
+        ...(resolution.rectangleDiagnostic
+          ? {
+              inspection: {
+                pageGate:
+                  rectangleShowDiagnostic.inspection?.pageGate ?? 'UNKNOWN',
+                target: resolution.rectangleDiagnostic,
+              },
+            }
+          : {}),
+      };
+      if (resolution.status === 'AMBIGUOUS')
+        rectangleShowDiagnostic = {
+          ...rectangleShowDiagnostic,
+          reason: 'AMBIGUOUS_GROUP',
+        };
+      if (resolution.status === 'FOUND')
+        rectangleShowDiagnostic = {
+          ...rectangleShowDiagnostic,
+          reason: 'FOUND',
+        };
+      else if (rectangleShowDiagnostic.reason === 'FOUND')
+        rectangleShowDiagnostic = {
+          ...rectangleShowDiagnostic,
+          reason: 'GROUP_LOOKUP_UNESTABLISHED',
+        };
+    }
     if (resolution.status !== 'FOUND') {
       clearTransientUi();
       const status =
@@ -201,6 +274,12 @@ export function createGuidanceRunner(
       return false;
     }
     if (!host.highlightTarget(targetId)) {
+      if (rectangleShowDiagnostic)
+        rectangleShowDiagnostic = {
+          ...rectangleShowDiagnostic,
+          stage: 'HIGHLIGHT',
+          reason: 'TARGET_CHANGED_BEFORE_HIGHLIGHT',
+        };
       clearTransientUi();
       publish(
         writtenFallback(
@@ -212,6 +291,12 @@ export function createGuidanceRunner(
       );
       return false;
     }
+    if (rectangleShowDiagnostic)
+      rectangleShowDiagnostic = {
+        ...rectangleShowDiagnostic,
+        stage: 'READY',
+        reason: 'FOUND',
+      };
     cleaned = false;
     armHighlightExpiration(runGeneration, targetId);
     publish({
@@ -447,6 +532,7 @@ export function createGuidanceRunner(
   const start = (rawRequest: unknown): GuidanceRunnerState => {
     if (disposed) return state;
     generation += 1;
+    rectangleShowDiagnostic = null;
     clearTransientUi(true);
     const request = validateGuidanceRequest(rawRequest);
     if (!request) {
@@ -477,6 +563,24 @@ export function createGuidanceRunner(
     }
 
     const context = host.getContext();
+    if (
+      request.actionId === 'rectangle-tool-group' &&
+      request.level === 'SHOW'
+    ) {
+      const inspection = host.inspectRectangleShow?.() ?? null;
+      rectangleShowDiagnostic = {
+        version: 'leqad-rectangle-show/1',
+        observationScope: 'SHOW_REQUEST_SNAPSHOT',
+        stage: 'CONTEXT',
+        reason:
+          inspection && inspection.pageGate !== 'ALLOWED'
+            ? 'PAGE_GATE_BLOCKED'
+            : 'SKETCH_CONTEXT_UNESTABLISHED',
+        context,
+        productionLookup: 'NOT_RUN',
+        inspection,
+      };
+    }
     if (request.actionId === 'sketch' && context === 'SKETCH_EDITING') {
       return publish({
         request,
@@ -488,7 +592,11 @@ export function createGuidanceRunner(
         retryAvailable: false,
       });
     }
-    if (context !== action.requiredContext) {
+    if (
+      context !== action.requiredContext ||
+      (rectangleShowDiagnostic?.inspection &&
+        rectangleShowDiagnostic.inspection.pageGate !== 'ALLOWED')
+    ) {
       return publish(
         writtenFallback(
           request,
@@ -510,6 +618,12 @@ export function createGuidanceRunner(
       );
       observation.unsubscribe();
       if (observation.current !== requirement.expected) {
+        if (rectangleShowDiagnostic)
+          rectangleShowDiagnostic = {
+            ...rectangleShowDiagnostic,
+            stage: 'SKETCH_OBSERVATION',
+            reason: 'SKETCH_OBSERVATION_UNESTABLISHED',
+          };
         return publish(
           writtenFallback(
             request,
@@ -565,7 +679,9 @@ export function createGuidanceRunner(
         request,
         action,
         action.targetId,
-        'The highlighted control is ready for you to use.',
+        request.actionId === 'rectangle-tool-group'
+          ? 'A temporary highlight was shown for the Rectangle dropdown control. It may clear when the interface changes. Open its arrow manually, then choose Corner Rectangle. The exact option is not highlighted; tool activation and geometry are not verified.'
+          : 'The highlighted control is ready for you to use.',
         generation,
       );
       return state;
@@ -616,6 +732,7 @@ export function createGuidanceRunner(
 
   const cancel = (): GuidanceRunnerState => {
     generation += 1;
+    rectangleShowDiagnostic = null;
     clearTransientUi(true);
     lastRequest = null;
     return publish({

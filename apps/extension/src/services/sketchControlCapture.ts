@@ -8,6 +8,9 @@ import {
 } from './semanticTargetDom';
 import { inspectSketchCommandMatch } from './semanticTargets';
 
+export type SketchControlCapturePurpose =
+  'SKETCH_COMMAND' | 'ACTIVE_SKETCH_EXIT';
+
 // Diagnostic vocabulary only. These labels do not register production targets.
 const labels = [
   'Sketch',
@@ -57,6 +60,7 @@ const limits = {
   contextDepth: 32,
   textNodes: 64,
   textChars: 128,
+  iconNodes: 64,
 } as const;
 
 function safeLabel(value: string | null) {
@@ -110,12 +114,49 @@ function ancestry(element: Element) {
   };
 }
 
+function boundedIconStructure(element: Element) {
+  const result = { svg: 0, path: 0, use: 0, truncated: false };
+  const walker = element.ownerDocument.createTreeWalker(
+    element,
+    NodeFilter.SHOW_ALL,
+  );
+  let current: Node | null = element;
+  let inspected = 0;
+  while (current && inspected < limits.iconNodes) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const tag = (current as Element).localName;
+      if (tag === 'svg' || tag === 'path' || tag === 'use') result[tag]++;
+    }
+    inspected++;
+    current = walker.nextNode();
+  }
+  result.truncated = current !== null;
+  return result;
+}
+
+function fixedAriaState(
+  element: Element,
+  attribute: 'aria-expanded' | 'aria-pressed',
+) {
+  const value = element.getAttribute(attribute);
+  return value === null
+    ? 'ABSENT'
+    : value === 'true'
+      ? 'TRUE'
+      : value === 'false'
+        ? 'FALSE'
+        : value === 'mixed'
+          ? 'MIXED'
+          : 'OTHER';
+}
+
 function summarize(
   element: Element,
   clicked: Element,
   relation: 'CLICKED' | 'ANCESTOR' | 'SIBLING',
   distance: number,
   siblingOffset: number,
+  purpose: SketchControlCapturePurpose,
 ) {
   const context = ancestry(element);
   const textComplete = textInspectionComplete(element);
@@ -140,25 +181,30 @@ function summarize(
   const html = element instanceof HTMLElement;
   // Production helpers may inspect ancestors/text; run only inside these bounds.
   const match =
-    html && nameComplete ? inspectSketchCommandMatch(element) : null;
+    purpose === 'SKETCH_COMMAND' && html && nameComplete
+      ? inspectSketchCommandMatch(element)
+      : null;
   const visibility =
     html && context.complete ? visibilityState(element) : 'UNKNOWN';
   const enabled = html && context.complete ? enabledState(element) : 'UNKNOWN';
-  const assessment = !html
-    ? 'NOT_HTML_CONTROL'
-    : !nameComplete || !context.complete
-      ? 'INSPECTION_INCOMPLETE'
-      : !match?.candidateSelectorMatched
-        ? 'EXCLUDED_BY_CANDIDATE_SELECTOR'
-        : !match.matchStrategy
-          ? 'NO_SUPPORTED_COMMAND_NAME'
-          : match.matchStrategy === 'WEAK_TEXT'
-            ? 'WEAK_TEXT_ONLY'
-            : visibility !== 'VISIBLE'
-              ? 'NOT_VISIBLE'
-              : enabled !== 'ENABLED'
-                ? 'DISABLED'
-                : 'LOCALLY_ELIGIBLE';
+  const assessment =
+    purpose === 'ACTIVE_SKETCH_EXIT'
+      ? 'EXIT_IDENTITY_NOT_VERIFIED'
+      : !html
+        ? 'NOT_HTML_CONTROL'
+        : !nameComplete || !context.complete
+          ? 'INSPECTION_INCOMPLETE'
+          : !match?.candidateSelectorMatched
+            ? 'EXCLUDED_BY_CANDIDATE_SELECTOR'
+            : !match.matchStrategy
+              ? 'NO_SUPPORTED_COMMAND_NAME'
+              : match.matchStrategy === 'WEAK_TEXT'
+                ? 'WEAK_TEXT_ONLY'
+                : visibility !== 'VISIBLE'
+                  ? 'NOT_VISIBLE'
+                  : enabled !== 'ENABLED'
+                    ? 'DISABLED'
+                    : 'LOCALLY_ELIGIBLE';
   const rect = element.getBoundingClientRect();
   const origin = clicked.getBoundingClientRect();
   const ratio = (value: number) =>
@@ -195,6 +241,11 @@ function summarize(
     tooltip: safeLabel(element.getAttribute('data-tooltip')),
     ariaLabelPresent: element.hasAttribute('aria-label'),
     ariaLabelledByPresent: element.hasAttribute('aria-labelledby'),
+    ariaDescribedByPresent: element.hasAttribute('aria-describedby'),
+    ariaControlsPresent: element.hasAttribute('aria-controls'),
+    ariaExpanded: fixedAriaState(element, 'aria-expanded'),
+    ariaPressed: fixedAriaState(element, 'aria-pressed'),
+    iconStructure: boundedIconStructure(element),
     ariaDisabled: element.getAttribute('aria-disabled') === 'true',
     nativeDisabled: element.matches(':disabled'),
     inertPresent: element.hasAttribute('inert'),
@@ -220,7 +271,10 @@ function summarize(
   };
 }
 
-export function inspectSketchControl(clicked: Element) {
+export function inspectSketchControl(
+  clicked: Element,
+  purpose: SketchControlCapturePurpose = 'SKETCH_COMMAND',
+) {
   const nodes: ReturnType<typeof summarize>[] = [];
   const path: Element[] = [];
   let current: Element | null = clicked;
@@ -237,6 +291,7 @@ export function inspectSketchControl(clicked: Element) {
         distance === 0 ? 'CLICKED' : 'ANCESTOR',
         distance,
         0,
+        purpose,
       ),
     ),
   );
@@ -254,12 +309,22 @@ export function inspectSketchControl(clicked: Element) {
         incomplete = true;
         continue;
       }
-      nodes.push(summarize(sibling, clicked, 'SIBLING', distance, offset));
+      nodes.push(
+        summarize(sibling, clicked, 'SIBLING', distance, offset, purpose),
+      );
     }
   }
   const report = {
-    version: 'leqad-sketch-control/1',
-    target: 'sketch-toolbar-control',
+    version:
+      purpose === 'ACTIVE_SKETCH_EXIT'
+        ? 'leqad-sketch-control/2'
+        : 'leqad-sketch-control/1',
+    target:
+      purpose === 'ACTIVE_SKETCH_EXIT'
+        ? 'user-indicated-sketch-exit-control'
+        : 'sketch-toolbar-control',
+    capturePurpose: purpose,
+    activeSketchEvidence: 'NOT_ESTABLISHED_BY_USER_INDICATION',
     captureSource: 'USER_INDICATED_CONTROL',
     productionRecognition: 'NOT_RUN',
     uniqueness: 'NOT_EVALUATED',
@@ -268,7 +333,9 @@ export function inspectSketchControl(clicked: Element) {
       incomplete ||
       nodes.some(
         (node) =>
-          !node.nameInspectionComplete || !node.ancestorInspectionComplete,
+          !node.nameInspectionComplete ||
+          !node.ancestorInspectionComplete ||
+          node.iconStructure.truncated,
       ),
     reportTruncated: false,
     limits,
@@ -298,6 +365,7 @@ export interface SketchControlCaptureTask {
 /** Passive, one-shot, opt-in click observation; contains no CAD action. */
 export function createSketchControlCapture(
   root: Document,
+  purpose: SketchControlCapturePurpose = 'SKETCH_COMMAND',
 ): SketchControlCaptureTask {
   const view = root.defaultView!;
   let active = true;
@@ -330,7 +398,10 @@ export function createSketchControlCapture(
       .composedPath()
       .find((item): item is Element => item instanceof Element);
     if (!first || isLeqadOwned(first)) return;
-    finish({ status: 'CAPTURED', report: inspectSketchControl(first) });
+    finish({
+      status: 'CAPTURED',
+      report: inspectSketchControl(first, purpose),
+    });
   };
   const timer = view.setTimeout(
     () => finish({ status: 'TIMED_OUT' }),
@@ -341,3 +412,6 @@ export function createSketchControlCapture(
   for (const event of navigationEvents) view.addEventListener(event, cancel);
   return { promise, cancel, isActive: () => active };
 }
+
+// Reuse the existing diagnostic entry point; this snapshot never starts capture listeners.
+export { inspectSketchDialogIdentity } from './sketchDialogIdentityCapture';

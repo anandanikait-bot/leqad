@@ -364,6 +364,12 @@ describe('findSemanticTarget', () => {
 
   it('reports why a matching hidden or disabled target was rejected', async () => {
     const hidden = visibleButton('Rectangle');
+    const toolbar = document.createElement('div');
+    toolbar.setAttribute('role', 'toolbar');
+    document.body.append(toolbar);
+    toolbar.append(hidden);
+    hidden.setAttribute('aria-haspopup', 'menu');
+    visibleButton('Finish sketch');
     hidden.hidden = true;
     const disabled = visibleButton('Dimension');
     disabled.disabled = true;
@@ -389,6 +395,14 @@ describe('findSemanticTarget', () => {
     'recognizes the first-lesson %s target',
     async (targetId, label) => {
       const target = visibleButton(label);
+      if (targetId === 'rectangle') {
+        const toolbar = document.createElement('div');
+        toolbar.setAttribute('role', 'toolbar');
+        document.body.append(toolbar);
+        toolbar.append(target);
+        target.setAttribute('aria-haspopup', 'menu');
+        visibleButton('Finish sketch');
+      }
       const { recognizeSemanticTarget } = await import('./semanticTargets');
 
       expect(recognizeSemanticTarget(document, targetId)).toMatchObject({
@@ -577,4 +591,422 @@ describe('createTargetHighlight', () => {
       window.matchMedia = originalMatchMedia;
     }
   });
+});
+
+// Task C evidence boundary: v3 observed SVG/div last-used name and a second
+// Corner span. Toolbar/menu roles, ownership, geometry and handlers below are
+// SIMULATIONS. The real report did not establish those relationships.
+describe('Rectangle dropdown identity (not the last-used command or an option)', () => {
+  function activeSketch() {
+    return visibleButton('Finish sketch');
+  }
+  function dropdown(name = 'Corner rectangle') {
+    const toolbar = document.createElement('div');
+    toolbar.setAttribute('role', 'toolbar');
+    const control = visibleButton(name);
+    control.setAttribute('aria-haspopup', 'menu');
+    control.setAttribute('aria-expanded', 'false');
+    toolbar.append(control);
+    document.body.append(toolbar);
+    return { toolbar, control };
+  }
+  it('does not highlight a standalone Corner command as the Rectangle dropdown', async () => {
+    activeSketch();
+    visibleButton('Corner rectangle');
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const highlighter = createSemanticHighlighter(document);
+    expect(highlighter.show('rectangle').status).not.toBe('FOUND');
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    highlighter.clear();
+  });
+  it('does not confuse a Corner menu item with a toolbar group', async () => {
+    activeSketch();
+    const option = visibleButton('Corner rectangle');
+    option.setAttribute('role', 'menuitem');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'rectangle').status).not.toBe(
+      'FOUND',
+    );
+  });
+  it.each(['Corner rectangle', 'Center point rectangle', 'Aligned Rectangle'])(
+    'recognizes a named popup group labelled with last-used %s, not a selected variant',
+    async (name) => {
+      activeSketch();
+      const { control } = dropdown(name);
+      const { recognizeSemanticTarget } = await import('./semanticTargets');
+      expect(recognizeSemanticTarget(document, 'rectangle')).toMatchObject({
+        status: 'FOUND',
+        element: control,
+      });
+      const option = visibleButton('Corner rectangle');
+      option.setAttribute('role', 'menuitem');
+      expect(recognizeSemanticTarget(document, 'rectangle')).toMatchObject({
+        status: 'FOUND',
+        element: control,
+        candidateCount: 1,
+      });
+    },
+  );
+  it.each([
+    'no-sketch',
+    'read-only',
+    'dialog',
+    'canvas',
+    'no-popup',
+    'wrong-name',
+  ])('abstains on %s context or missing dropdown evidence', async (kind) => {
+    if (kind !== 'no-sketch') activeSketch();
+    const { toolbar, control } = dropdown();
+    if (kind === 'read-only') {
+      const status = visibleButton('Read only');
+      status.setAttribute('role', 'status');
+    }
+    if (kind === 'dialog') {
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      document.body.append(dialog);
+      dialog.append(toolbar);
+    }
+    if (kind === 'canvas') {
+      const canvas = document.createElement('div');
+      canvas.setAttribute('role', 'img');
+      document.body.append(canvas);
+      canvas.append(toolbar);
+    }
+    if (kind === 'no-popup') control.removeAttribute('aria-haspopup');
+    if (kind === 'wrong-name') {
+      control.setAttribute('aria-label', 'Delete');
+      control.title = 'Corner rectangle';
+    }
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'rectangle').status).not.toBe(
+      'FOUND',
+    );
+  });
+  it('keeps the actual nonsemantic v3 shape unsupported instead of inventing an arrow', async () => {
+    activeSketch();
+    const group = document.createElement('div');
+    const box = document.createElement('div');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    box.append(svg);
+    const label = document.createElement('span');
+    label.textContent = 'Corner rectangle';
+    group.append(box, label);
+    document.body.append(group);
+    const option = document.createElement('span');
+    option.textContent = 'Corner rectangle';
+    document.body.append(option);
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(recognizeSemanticTarget(document, 'rectangle').status).not.toBe(
+      'FOUND',
+    );
+  });
+  it('clears its group outline on the real user click without swallowing it or verifying a step', async () => {
+    activeSketch();
+    const { control } = dropdown();
+    let clicks = 0;
+    control.addEventListener('click', () => clicks++);
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const highlighter = createSemanticHighlighter(document);
+    expect(highlighter.show('rectangle').status).toBe('FOUND');
+    control.click();
+    expect(clicks).toBe(1);
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    highlighter.clear();
+  });
+});
+
+// Strict semantic positive cases are simulations, not claims about real Onshape.
+describe('Rectangle group revalidation and bounds', () => {
+  function group() {
+    const finish = visibleButton('Finish sketch');
+    const toolbar = document.createElement('div');
+    toolbar.setAttribute('role', 'toolbar');
+    const control = visibleButton('Corner rectangle');
+    control.setAttribute('aria-haspopup', 'menu');
+    toolbar.append(control);
+    document.body.append(toolbar);
+    return { toolbar, control, finish };
+  }
+  it.each([
+    'hidden',
+    'disabled',
+    'inert',
+    'obscured',
+    'clipped',
+    'duplicate',
+    'deep',
+    'oversized-scan',
+  ])('does not outline %s targets', async (kind) => {
+    const { toolbar, control } = group();
+    if (kind === 'hidden') control.hidden = true;
+    if (kind === 'disabled') control.disabled = true;
+    if (kind === 'inert') toolbar.setAttribute('inert', '');
+    if (kind === 'obscured')
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => document.body,
+      });
+    if (kind === 'clipped') {
+      toolbar.style.overflow = 'hidden';
+      toolbar.getBoundingClientRect = () => new DOMRect(21, 31, 1, 1);
+    }
+    if (kind === 'duplicate') {
+      const other = visibleButton('Aligned Rectangle');
+      other.setAttribute('aria-haspopup', 'menu');
+      toolbar.append(other);
+    }
+    if (kind === 'deep') {
+      for (let i = 0; i < 20; i++) {
+        const wrapper = document.createElement('div');
+        control.parentElement!.append(wrapper);
+        wrapper.append(control);
+      }
+    }
+    if (kind === 'oversized-scan') {
+      for (let i = 0; i < 129; i++) {
+        const unrelated = document.createElement('button');
+        unrelated.setAttribute('aria-haspopup', 'menu');
+        toolbar.append(unrelated);
+      }
+    }
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const h = createSemanticHighlighter(document);
+    expect(h.show('rectangle-dropdown').status).not.toBe('FOUND');
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    h.clear();
+  });
+  it.each([0.8, 1, 1.25, 1.5])(
+    'uses measured control bounds at simulated scale %s and clears on replacement',
+    async (scale) => {
+      const { control } = group();
+      control.getBoundingClientRect = () =>
+        new DOMRect(20 * scale, 30 * scale, 80 * scale, 24 * scale);
+      const { createSemanticHighlighter } = await import('./semanticTargets');
+      const h = createSemanticHighlighter(document);
+      expect(h.show('rectangle-dropdown').status).toBe('FOUND');
+      const outline = document.querySelector<HTMLElement>(
+        '[data-leqad-highlight]',
+      )!;
+      expect(outline.style.width).toBe(`${80 * scale + 6}px`);
+      expect(outline.style.pointerEvents).toBe('none');
+      control.replaceWith(control.cloneNode(true));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(outline.isConnected).toBe(false);
+      h.clear();
+    },
+  );
+  it.each([
+    'pagehide',
+    'popstate',
+    'wxt:locationchange',
+    'blur',
+    'hidden',
+    'sketch-ended',
+  ])('cleans up on %s with no unsolicited control clicks', async (kind) => {
+    const { control, finish } = group();
+    let clicks = 0;
+    control.onclick = () => clicks++;
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const h = createSemanticHighlighter(document);
+    h.show('rectangle-dropdown');
+    if (kind === 'hidden') {
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+    } else if (kind === 'sketch-ended') {
+      finish.remove();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } else window.dispatchEvent(new Event(kind));
+    expect(clicks).toBe(0);
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    h.clear();
+  });
+  it('expires after five seconds and removes input hooks on repeated SHOW', async () => {
+    vi.useFakeTimers();
+    try {
+      const { control } = group();
+      const { createSemanticHighlighter } = await import('./semanticTargets');
+      const h = createSemanticHighlighter(document);
+      h.show('rectangle-dropdown');
+      h.show('rectangle-dropdown');
+      expect(document.querySelectorAll('[data-leqad-highlight]')).toHaveLength(
+        1,
+      );
+      vi.advanceTimersByTime(5000);
+      expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+      control.click();
+      h.clear();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+it.each([
+  'popup-removed',
+  'modal-context',
+  'native-dialog',
+  'duplicate-readonly',
+  'menuitem-role',
+  'detached-cleanup',
+])(
+  'revalidates Rectangle identity and immediately removes hooks for %s',
+  async (kind) => {
+    visibleButton('Finish sketch');
+    const toolbar = document.createElement('div');
+    toolbar.setAttribute('role', 'toolbar');
+    document.body.append(toolbar);
+    const control = visibleButton('Corner rectangle');
+    control.setAttribute('aria-haspopup', 'menu');
+    toolbar.append(control);
+    if (kind === 'duplicate-readonly') {
+      visibleButton('Read only');
+      visibleButton('Read only');
+    }
+    if (kind === 'menuitem-role') control.setAttribute('role', 'menuitem');
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const h = createSemanticHighlighter(document);
+    const result = h.show('rectangle-dropdown');
+    const removed = vi.spyOn(document, 'removeEventListener');
+    if (kind === 'popup-removed') control.removeAttribute('aria-haspopup');
+    if (kind === 'modal-context') toolbar.setAttribute('aria-modal', 'true');
+    if (kind === 'native-dialog') {
+      const dialog = document.createElement('dialog');
+      dialog.setAttribute('open', '');
+      document.body.append(dialog);
+      dialog.append(toolbar);
+    }
+    if (kind === 'detached-cleanup') control.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    if (kind === 'duplicate-readonly' || kind === 'menuitem-role')
+      expect(result.status).not.toBe('FOUND');
+    else
+      expect(removed.mock.calls.some(([type]) => type === 'click')).toBe(true);
+    h.clear();
+  },
+);
+
+it.each(['click', 'focus'])(
+  'clears group-only SHOW when the student moves to another CAD control by %s',
+  async (kind) => {
+    visibleButton('Finish sketch');
+    const toolbar = document.createElement('div');
+    toolbar.setAttribute('role', 'toolbar');
+    document.body.append(toolbar);
+    const control = visibleButton('Corner rectangle');
+    control.setAttribute('aria-haspopup', 'menu');
+    toolbar.append(control);
+    const other = visibleButton('Dimension');
+    const { createSemanticHighlighter } = await import('./semanticTargets');
+    const h = createSemanticHighlighter(document);
+    h.show('rectangle-dropdown');
+    if (kind === 'click') other.click();
+    else other.focus();
+    expect(document.querySelector('[data-leqad-highlight]')).toBeNull();
+    h.clear();
+  },
+);
+
+// Reason diagnostics reuse the real resolver. Roles/geometry here are simulations.
+describe('Rectangle SHOW rejection diagnostics', () => {
+  it('distinguishes missing Sketch evidence from missing toolbar semantics', async () => {
+    const group = document.createElement('div');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const span = document.createElement('span');
+    span.textContent = 'Corner rectangle';
+    group.append(svg, span);
+    document.body.append(group);
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    const result = recognizeSemanticTarget(document, 'rectangle-dropdown');
+    expect(result.rectangleDiagnostic).toMatchObject({
+      sketchContext: 'UNESTABLISHED',
+      lookup: { reason: 'NO_TOOLBAR_SEMANTICS', toolbars: 0 },
+      eligibility: { state: 'NOT_EVALUATED' },
+    });
+    expect(result.status).not.toBe('FOUND');
+  });
+  it('reports group lookup failure independently when Sketch context is observed', async () => {
+    visibleButton('Finish sketch');
+    const { recognizeSemanticTarget } = await import('./semanticTargets');
+    expect(
+      recognizeSemanticTarget(document, 'rectangle-dropdown')
+        .rectangleDiagnostic,
+    ).toMatchObject({
+      sketchContext: 'OBSERVED',
+      lookup: { reason: 'NO_TOOLBAR_SEMANTICS' },
+      eligibility: { state: 'NOT_EVALUATED' },
+    });
+  });
+  it.each(['missing-popup', 'hidden', 'disabled', 'duplicate', 'limit'])(
+    'reports %s without conflating it with Sketch context',
+    async (kind) => {
+      visibleButton('Finish sketch');
+      const toolbar = document.createElement('div');
+      toolbar.setAttribute('role', 'toolbar');
+      document.body.append(toolbar);
+      const control = visibleButton('Corner rectangle');
+      toolbar.append(control);
+      control.setAttribute('aria-haspopup', 'menu');
+      if (kind === 'missing-popup') control.removeAttribute('aria-haspopup');
+      if (kind === 'hidden') control.hidden = true;
+      if (kind === 'disabled') control.disabled = true;
+      if (kind === 'duplicate') {
+        const other = control.cloneNode(true) as HTMLElement;
+        other.getBoundingClientRect = () => new DOMRect(120, 30, 80, 24);
+        toolbar.append(other);
+      }
+      if (kind === 'limit')
+        for (let i = 0; i < 129; i++) {
+          const other = document.createElement('button');
+          other.setAttribute('aria-haspopup', 'menu');
+          toolbar.append(other);
+        }
+      const { recognizeSemanticTarget } = await import('./semanticTargets');
+      const d = recognizeSemanticTarget(
+        document,
+        'rectangle-dropdown',
+      ).rectangleDiagnostic!;
+      expect(d).toBeDefined();
+      expect(d.sketchContext).toBe('OBSERVED');
+      if (kind === 'missing-popup')
+        expect(d.lookup.reason).toBe('NO_POPUP_CONTROLS');
+      if (kind === 'hidden')
+        expect(d.eligibility.rejections).toContain('HIDDEN');
+      if (kind === 'disabled')
+        expect(d.eligibility.rejections).toContain('DISABLED');
+      if (kind === 'duplicate') expect(d.eligibility.state).toBe('AMBIGUOUS');
+      if (kind === 'limit') expect(d.lookup.state).toBe('INCOMPLETE');
+    },
+  );
+});
+
+it('retains both invalid-context and ancestry-limit reasons across separate candidates', async () => {
+  visibleButton('Finish sketch');
+  const toolbar = document.createElement('div');
+  toolbar.setAttribute('role', 'toolbar');
+  document.body.append(toolbar);
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  toolbar.append(dialog);
+  const first = visibleButton('Corner rectangle');
+  first.setAttribute('aria-haspopup', 'menu');
+  dialog.append(first);
+  let parent = toolbar;
+  for (let i = 0; i < 20; i++) {
+    const child = document.createElement('div');
+    parent.append(child);
+    parent = child;
+  }
+  const second = visibleButton('Center point rectangle');
+  second.setAttribute('aria-haspopup', 'menu');
+  parent.append(second);
+  const { recognizeSemanticTarget } = await import('./semanticTargets');
+  const d = recognizeSemanticTarget(
+    document,
+    'rectangle-dropdown',
+  ).rectangleDiagnostic!;
+  expect(d.eligibility.rejections).toEqual(
+    expect.arrayContaining(['INVALID_CONTEXT', 'ANCESTOR_LIMIT']),
+  );
 });

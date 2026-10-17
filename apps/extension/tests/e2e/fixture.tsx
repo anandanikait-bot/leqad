@@ -1,4 +1,9 @@
-import { createSketchControlCapture } from '../../src/services/sketchControlCapture';
+import { inspectRectangleDropdownRecognition } from '../../src/services/semanticTargets';
+import {
+  createSketchControlCapture,
+  inspectSketchDialogIdentity,
+} from '../../src/services/sketchControlCapture';
+import { captureSketchEditorSnapshot } from '../../src/services/sketchEditorComparisonCapture';
 import { createRoot } from 'react-dom/client';
 import { AssistantPanel } from '../../src/components/panel/AssistantPanel';
 import { evaluateFoundationsStepProgress } from '../../src/services/foundationsEvidence';
@@ -126,6 +131,10 @@ rectangleControl?.addEventListener('click', () => {
 
 const guidanceRunner = createGuidanceRunner(
   {
+    inspectRectangleShow: () => ({
+      pageGate: 'ALLOWED',
+      target: inspectRectangleDropdownRecognition(document),
+    }),
     getContext: () =>
       observeSketchGuidanceUi(document).editingAppearsActive
         ? 'SKETCH_EDITING'
@@ -145,10 +154,25 @@ const guidanceRunner = createGuidanceRunner(
         definition.semanticTarget,
       );
       return recognition.status === 'FOUND'
-        ? { status: 'FOUND' }
+        ? {
+            status: 'FOUND',
+            ...(recognition.rectangleDiagnostic
+              ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+              : {}),
+          }
         : recognition.status === 'AMBIGUOUS'
-          ? { status: 'AMBIGUOUS' }
-          : { status: 'MISSING' };
+          ? {
+              status: 'AMBIGUOUS',
+              ...(recognition.rectangleDiagnostic
+                ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+                : {}),
+            }
+          : {
+              status: 'MISSING',
+              ...(recognition.rectangleDiagnostic
+                ? { rectangleDiagnostic: recognition.rectangleDiagnostic }
+                : {}),
+            };
     },
     highlightTarget: (targetId) => {
       clearGuidanceHighlight();
@@ -175,9 +199,7 @@ const guidanceRunner = createGuidanceRunner(
     observe: (_observationId, onState) => {
       const readState = (): GuidanceObservedState =>
         _observationId === 'SKETCH_UI_ACTIVE'
-          ? observeSketchGuidanceUi(document).editingAppearsActive
-            ? 'OPEN'
-            : 'CLOSED'
+          ? observeSketchGuidanceUi(document).uiState
           : _observationId !== 'RECTANGLE_MENU_OPEN'
             ? 'UNKNOWN'
             : simulatedItemSelected
@@ -199,7 +221,9 @@ const guidanceRunner = createGuidanceRunner(
       };
     },
   },
-  simulatedGuidanceRegistry,
+  new URLSearchParams(location.search).has('production-guidance')
+    ? GUIDANCE_REGISTRY
+    : simulatedGuidanceRegistry,
 );
 
 window.addEventListener(
@@ -270,7 +294,15 @@ async function renderFixturePanel() {
       guidanceRunner={guidanceRunner}
       onClearTarget={clearGuidanceHighlight}
       onObserveSketchUi={() => observeSketchGuidanceUi(document)}
-      onCaptureSketchControl={() => createSketchControlCapture(document)}
+      onCaptureSketchDialogIdentity={() =>
+        inspectSketchDialogIdentity(document)
+      }
+      onCaptureSketchControl={(purpose) =>
+        createSketchControlCapture(document, purpose)
+      }
+      onCaptureSketchEditorState={(state) =>
+        captureSketchEditorSnapshot(document, state)
+      }
       onCaptureTopRow={() => createTopRowCapture(document)}
       onCaptureRectangleDropdown={() =>
         createRectangleDropdownCapture(
