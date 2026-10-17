@@ -166,4 +166,60 @@ describe('Rectangle command metadata diagnostic', () => {
     await act(async () => view.unmount());
     expect(cancel).toHaveBeenCalledTimes(1);
   });
+  it('retains timed-out State B evidence for local review and allows a retry', async () => {
+    const capture = (
+      state: Parameters<typeof captureRectangleCommandMetadata>[1],
+      generation: number,
+    ) => captureRectangleCommandMetadata(document, state, generation);
+    const timedOut = capture('RECTANGLE_MENU_OPEN', 2);
+    timedOut.interaction = {
+      origin: 'OTHER',
+      menuAssociation: 'UNOWNED',
+      outcome: 'TIMED_OUT',
+      observationLimitReached: false,
+    };
+    render(
+      <RectangleCommandMetadataDiagnostic
+        onCapture={capture}
+        onCaptureMenuOpen={() => ({
+          promise: Promise.resolve({ status: 'TIMED_OUT', snapshot: timedOut }),
+          cancel: vi.fn(),
+          isActive: () => false,
+        })}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Record metadata State A — Sketch editing',
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Arm metadata State B — then open Rectangle dropdown',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/State B timed out/)).toBeTruthy(),
+    );
+    expect(
+      (
+        screen.getByRole('button', {
+          name: 'Arm metadata State B — then open Rectangle dropdown',
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Copy command metadata report' }),
+    );
+    const report = JSON.parse(
+      screen.getByLabelText<HTMLTextAreaElement>(
+        'Rectangle command metadata diagnostic output',
+      ).value,
+    );
+    expect(report.snapshots[1].interaction).toMatchObject({
+      outcome: 'TIMED_OUT',
+      origin: 'OTHER',
+      menuAssociation: 'UNOWNED',
+    });
+  });
 });

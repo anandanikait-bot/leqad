@@ -2,6 +2,10 @@
 
 Status: **owner capture required; production recognition unchanged**
 
+The owner supplied the first four-state observation summary. See
+[the focused v2 validation follow-up](rectangle-metadata-validation.md) for the
+resulting fixes, current limits, and one final owner retest.
+
 Baseline: PR #10, tested remote commit
 `499bbbca7e4bceb5fffc5340abaf325622ac96f7`. The local baseline commit has
 the same tree.
