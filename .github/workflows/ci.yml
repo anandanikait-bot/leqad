@@ -21,6 +21,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec eslint experiments/native-search-fallback
+      - run: pnpm exec tsc --ignoreConfig --noEmit --target es2022 --module nodenext --moduleResolution nodenext --types node --skipLibCheck experiments/native-search-fallback/playwright.config.ts experiments/native-search-fallback/fallback.spec.ts
+      - run: node --test experiments/native-search-fallback/fallback.test.mjs
       - run: pnpm reference:validate
       - run: pnpm reference:test
       - run: pnpm lint
@@ -30,6 +33,7 @@ jobs:
       - run: pnpm build
       - run: pnpm build:edge
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test --config experiments/native-search-fallback/playwright.config.ts
       - run: pnpm test:e2e
       - run: pnpm package:browsers
       - uses: actions/upload-artifact@v4
