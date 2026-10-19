@@ -233,14 +233,14 @@ export function clampPanelPosition(
 
 function fallbackPanelSize(collapsed: boolean): PanelSize {
   return {
-    width: collapsed ? 280 : 360,
+    width: collapsed ? 280 : 365,
     height: collapsed ? 56 : Math.min(620, window.innerHeight - 16),
   };
 }
 
 function getInitialPosition(preferences?: PanelPreferences): Position {
   const position = preferences?.position ?? {
-    left: Math.max(16, window.innerWidth - 376),
+    left: Math.max(16, window.innerWidth - 381),
     top: Math.max(16, window.innerHeight - 500),
   };
   return clampPanelPosition(
@@ -1412,6 +1412,13 @@ export function AssistantPanel({
     stepState.status === 'COMPLETED' &&
     currentStepIndex < FOUNDATIONS_FIRST_SKETCH.steps.length - 1;
 
+  const completedStepCount = FOUNDATIONS_FIRST_SKETCH.steps.filter(
+    ({ id }) => stepStates[id]?.status === 'COMPLETED',
+  ).length;
+  const lessonProgressPercent = Math.round(
+    (completedStepCount / FOUNDATIONS_FIRST_SKETCH.steps.length) * 100,
+  );
+
   return (
     <div data-leqad-root>
       <section
@@ -1542,16 +1549,34 @@ export function AssistantPanel({
                   <p className="leqad-intro">
                     {FOUNDATIONS_FIRST_SKETCH.description}
                   </p>
-                  <p className="leqad-step-count">
-                    Step {currentStepIndex + 1} of{' '}
-                    {FOUNDATIONS_FIRST_SKETCH.steps.length} ·{' '}
-                    {outcomeLabel(stepState.outcome)}
-                  </p>
+                  <div className="leqad-progress-summary">
+                    <p className="leqad-step-count">
+                      Step {currentStepIndex + 1} of{' '}
+                      {FOUNDATIONS_FIRST_SKETCH.steps.length} ·{' '}
+                      {outcomeLabel(stepState.outcome)}
+                    </p>
+                    <strong className="leqad-progress-percentage">
+                      {lessonProgressPercent}%
+                    </strong>
+                  </div>
+                  <div
+                    className="leqad-progress-track"
+                    role="progressbar"
+                    aria-label="Lesson completion"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={lessonProgressPercent}
+                  >
+                    <div
+                      className="leqad-progress-fill"
+                      style={{ width: `${lessonProgressPercent}%` }}
+                    />
+                  </div>
 
                   <div className="leqad-step-card">
                     <p className="leqad-eyebrow">GOAL</p>
                     <p className="leqad-goal">{step.goal}</p>
-                    <p className="leqad-eyebrow">NEXT ACTION</p>
+                    <p className="leqad-eyebrow">Up next</p>
                     {step.id === 'start-sketch' && sketchModeReported ? (
                       <p className="leqad-guidance" aria-live="polite">
                         You reported that Sketch mode is active. Next, mark this
@@ -1575,6 +1600,7 @@ export function AssistantPanel({
                     ) : (
                       <p>{step.action}</p>
                     )}
+                    <h3 className="leqad-help-heading">How can I help?</h3>
                     <div className="leqad-help-row">
                       {step.semanticTarget === 'top-plane' && (
                         <button
@@ -1785,7 +1811,7 @@ export function AssistantPanel({
                             stepState.status === 'PAUSED'
                           }
                         >
-                          I've finished this step
+                          Mark done
                         </button>
                       )}
                       {canContinueUnverified && (
@@ -1796,7 +1822,7 @@ export function AssistantPanel({
                             completeWithoutEvidence('CONTINUE_UNVERIFIED')
                           }
                         >
-                          I've finished this step
+                          Mark done
                         </button>
                       )}
                       <button
