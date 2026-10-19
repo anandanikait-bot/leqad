@@ -1,4 +1,5 @@
 # Leqad V1 approved UI: Codex handoff
+
 **Base:** PR #14 (branch `test/reduce-manual-onshape-testing`), not main. This visual PR depends on unmerged PRs #8–#14.
 **Brand:** Dull Violet Black `#0D1C43`, Hay's Russet `#793327`, Warm Ivory `#F5EFE7`, card `#FFFAF4`.
 **Approved panel:** 365px default, 10px outer radius, 16px padding and section spacing, 15px instruction card, navy header and ivory body, friendlier minimalist copy.

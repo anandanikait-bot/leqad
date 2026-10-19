@@ -94,7 +94,7 @@ function completeCurrentStep(): void {
     return;
   }
   const selfReport = screen.queryByRole('button', {
-    name: "Mark done",
+    name: 'Mark done',
   });
   if (selfReport) {
     fireEvent.click(selfReport);
@@ -103,7 +103,7 @@ function completeCurrentStep(): void {
   const check = screen.queryByRole('button', { name: 'Check progress' });
   if (check && !check.hasAttribute('disabled')) fireEvent.click(check);
   const continueButton = screen.queryByRole('button', {
-    name: "Mark done",
+    name: 'Mark done',
   });
   if (continueButton) fireEvent.click(continueButton);
 }
@@ -296,9 +296,7 @@ describe('AssistantPanel', () => {
         }}
       />,
     );
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(
       (await screen.findByRole('status', { name: 'Progress saving' }))
         .textContent,
@@ -416,9 +414,7 @@ describe('AssistantPanel', () => {
     expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
     expect(onSessionChange).not.toHaveBeenCalled();
     expect(onCheckStep).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     const session = onSessionChange.mock.lastCall?.[0];
     expect(session.steps['start-sketch']).toMatchObject({
       outcome: 'SELF_REPORTED',
@@ -778,9 +774,7 @@ describe('AssistantPanel', () => {
     expect(
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited observation');
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
     expect(
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
@@ -1126,9 +1120,7 @@ describe('AssistantPanel', () => {
       expect(
         screen.queryByRole('button', { name: 'Check progress' }),
       ).toBeNull();
-      fireEvent.click(
-        screen.getByRole('button', { name: "Mark done" }),
-      );
+      fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
       const session = onSessionChange.mock.lastCall?.[0];
       expect(session.steps[stepId]).toMatchObject({
@@ -1156,13 +1148,9 @@ describe('AssistantPanel', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-    expect(
-      screen.queryByRole('button', { name: "Mark done" }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark done' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 4 of 8 · Marked done')).toBeTruthy();
   });
 
@@ -1200,13 +1188,9 @@ describe('AssistantPanel', () => {
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited observation');
     expect(screen.queryByRole('button', { name: 'Check progress' })).toBeNull();
-    expect(
-      screen.getByRole('button', { name: "Mark done" }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark done' })).toBeTruthy();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
   });
@@ -1386,9 +1370,7 @@ describe('AssistantPanel', () => {
       }
     }
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 8 of 8 · Marked done')).toBeTruthy();
   });
 
@@ -1544,9 +1526,7 @@ describe('AssistantPanel', () => {
     expect(screen.getByText(/What Leqad knows:/)).toBeTruthy();
     expect(screen.getByText(/What remains unknown:/)).toBeTruthy();
     expect(screen.getByText(/Try next:/)).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: "Mark done" }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark done' })).toBeTruthy();
   });
 
   it('records continued unknown progress as self-reported rather than verified', async () => {
@@ -1560,9 +1540,7 @@ describe('AssistantPanel', () => {
     advanceToStep(2);
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
     expect(
@@ -1600,9 +1578,7 @@ describe('AssistantPanel', () => {
     advanceToStep(5);
 
     expect(screen.queryByRole('button', { name: 'Check progress' })).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: "Mark done" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 5 of 8 · Marked done')).toBeTruthy();
     expect(screen.queryByText('Step 5 of 8 · UI verified')).toBeNull();
   });

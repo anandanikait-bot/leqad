@@ -28,10 +28,7 @@ test('contextual Top row and all four commands highlight without verifying a cli
     if (step === 3) await page.locator('#fixture-sketch').click();
     const check = page.getByRole('button', { name: 'Check progress' });
     if (await check.isVisible()) await check.click();
-    else
-      await page
-        .getByRole('button', { name: "Mark done" })
-        .click();
+    else await page.getByRole('button', { name: 'Mark done' }).click();
     await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Next' }).click();
   }
@@ -143,7 +140,7 @@ test('repeated Show me clears on pause, collapse, completion, restart, and unmou
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Expand Leqad panel' }).click();
   await page.getByRole('button', { name: 'Show me' }).click();
-  await page.getByRole('button', { name: "Mark done" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Back' }).click();
@@ -324,7 +321,7 @@ test('already sketching with unknown permission stays unverified and exports opt
   await expect(page.getByLabel('Recognition diagnostics output')).toHaveCount(
     0,
   );
-  await page.getByRole('button', { name: "Mark done" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await expect(page.getByText('Step 2 of 8 · Marked done')).toBeVisible();
   await expect(
     page.getByRole('status', { name: 'Lesson progress' }),
@@ -606,7 +603,7 @@ test('unimplemented checks offer direct self-reported continuation in the browse
     await expect(
       page.getByRole('button', { name: 'Check progress' }),
     ).toHaveCount(0);
-    await page.getByRole('button', { name: "Mark done" }).click();
+    await page.getByRole('button', { name: 'Mark done' }).click();
     await expect(
       page.getByText(`Step ${step} of 8 · Marked done`),
     ).toBeVisible();
@@ -678,7 +675,7 @@ test('the browser panel reaches all eight lesson steps without inventing verific
       const check = page.getByRole('button', { name: 'Check progress' });
       if (await check.isVisible()) await check.click();
       const continueUnverified = page.getByRole('button', {
-        name: "Mark done",
+        name: 'Mark done',
       });
       if (await continueUnverified.isVisible()) {
         await continueUnverified.click();
@@ -687,7 +684,7 @@ test('the browser panel reaches all eight lesson steps without inventing verific
     await page.getByRole('button', { name: 'Next' }).click();
   }
 
-  await page.getByRole('button', { name: "Mark done" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await expect(page.getByText('Step 8 of 8 · Marked done')).toBeVisible();
   await expect(page.getByText(/has not verified your CAD work/)).toBeVisible();
 });
