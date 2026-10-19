@@ -1,0 +1,67 @@
+# Approved V1 lesson UI validation
+
+Scope: issue #16 and draft PR #15, on `design/approved-v1-lesson-ui`, stacked on PR #14. Do not merge without owner visual approval and resolution of the earlier PR stack.
+
+## Implementation
+
+- The shared lesson panel uses the approved 365px width, 10px corners, 16px section spacing, and 15px instruction-card padding. Named Next action and Lesson help regions separate instructions from optional assistance.
+- The navy, ivory, off-white and russet colors follow the approved design. Inactive navigation text uses a measured 4.71:1 contrast against ivory. The panel retains its light palette under both browser color schemes.
+- The existing completed-step count drives the percentage, fill and ARIA value. Accessible text states how many steps are completed and that CAD work may remain unverified.
+- HINT, SHOW and GUIDE use 44px controls with mutually exclusive selected states. Completion labels preserve existing modes: Got it for acknowledgement, Check progress for supported UI checks, Mark done for self-report or unverified continuation.
+- The existing callbacks, recognition services, verification rules, lesson transitions and guidance safety conditions are unchanged. Projects and Ask remain previews.
+
+## Exact logo: blocked on source file
+
+The owner supplied an inline image in the conversation. The displayed image has no downloadable source-file reference or mounted binary in this execution workspace. The original `leqad_isometric_learning_mark.png` cannot yet be copied or hashed faithfully.
+
+The L placeholder remains. No replacement was generated, no master was reconstructed from a screenshot, and no earlier artwork or SVG was substituted. The original file or a downloadable original-file link is required to complete integration. Preserve its bytes as the immutable master, then prepare the permitted faithful header crop/downscale for owner review. Extension icon derivatives still require owner approval and 16/24/32px inspection.
+
+Screenshots below are UI review candidates with the placeholder, not a claim of finished logo integration.
+
+## Regression evidence
+
+`AssistantPanel.test.tsx` adds 11 cases covering:
+
+- 0%, 50% and 100% rehydration from 0/4/8 completed steps, including a visible Step 4 with 0% completion.
+- Reset to 0% and rehydration of the reset session.
+- Separate instructions and help, with no CAD calls on render.
+- Mutually exclusive assistance selection without lesson completion.
+- Acknowledgement, supported UI verification, unavailable verification, and self-report labels.
+
+`v1-ui.spec.ts` adds nine browser cases covering the effective zoom/color-scheme matrix, sequential percentage updates, reload/reset, navigation contrast, pointer dragging and a narrow viewport. Existing calibration, Rectangle SHOW, reliability and Sketch-capture browser tests now use the approved Mark done label. Their behavioral assertions are retained.
+
+The three progress-description checks and region check failed before their UI additions and pass afterward. The contrast test failed at 4.378:1 before the color correction and passes at 4.71:1 afterward. Existing completed-step arithmetic and completion-mode behavior already passed the added regression cases.
+
+## Fixture screenshots
+
+All screenshots show controlled simulation data, not authenticated Onshape. The Rectangle controls and guidance transitions are fixtures. The Step 4 screenshot shows 38% because three steps have been completed. The Step 5 screenshot shows 50% because four steps have been completed.
+
+- [Panel, Step 4 at 38%](../images/v1-ui/leqad-v1-panel.png)
+- [Step 5 at 50%](../images/v1-ui/leqad-v1-progress-50.png)
+- [100% effective zoom](../images/v1-ui/leqad-v1-fixture-100.png)
+- [125% effective zoom](../images/v1-ui/leqad-v1-fixture-125.png)
+- [150% effective zoom](../images/v1-ui/leqad-v1-fixture-150.png)
+
+The zoom tests use a smaller CSS viewport with matching device scale to model desktop zoom. They check panel bounds, typography, scroll access, and control sizes in Chromium. They do not establish actual browser zoom behavior inside Onshape. Chrome and Edge package builds likewise do not establish Edge runtime acceptance.
+
+## Local validation results
+
+- `pnpm format:check`, `pnpm lint`, and `pnpm typecheck`: passed.
+- `pnpm test`: 601 passed across 33 files.
+- `pnpm reference:test`: 45 passed across four files.
+- `pnpm reference:validate`: passed, zero approved capture hashes, NO LIVE EVIDENCE.
+- `pnpm test:e2e`: 58 passed, one existing local managed-Chromium extension-installation skip (59 total). Both Chrome and Edge production builds passed.
+- `pnpm package:browsers`: both Chrome and Edge ZIPs built.
+- Independent read-only review found no blocking or minor regression. The reviewer did not rerun the suite.
+
+Hosted CI results and the exact tested artifact are recorded in PR #15 to keep the validation report from pointing to an earlier commit's package.
+
+## Owner acceptance still required
+
+1. Supply the downloadable original logo PNG. Review the faithful small header derivative before extension-icon use.
+2. Review the fixture screenshots for visual approval.
+3. Install the built Chrome extension in an authorized regular Chrome profile and check loading, dragging, collapse, scrolling and readability at actual 100%, 125%, and 150% browser zoom.
+4. Check existing Top/Sketch/Rectangle highlights and HINT/SHOW/GUIDE fallbacks, self-reported progress and persistence. Confirm that no UI styling obscures the intended CAD control.
+5. Check Edge runtime separately if it is part of release acceptance.
+
+Authenticated Onshape automation has not been performed. Provider permission remains pending; offline CI cannot establish live acceptance.

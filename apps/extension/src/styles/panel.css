@@ -5,6 +5,9 @@
   --leqad-navy: #0d1c43;
   --leqad-russet: #793327;
   --leqad-ivory: #f5efe7;
+  --leqad-card: #fffaf4;
+  --leqad-muted: #606b7e;
+  color-scheme: light;
   pointer-events: none;
   font-family:
     Inter,
@@ -93,7 +96,7 @@
   align-items: center;
   gap: 10px;
   min-height: 56px;
-  padding: 14px;
+  padding: 14px 16px;
   color: var(--leqad-ivory);
   background: var(--leqad-navy);
   cursor: grab;
@@ -172,17 +175,16 @@
 
 .leqad-nav {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px 0;
-  border-bottom: 1px solid rgba(13, 28, 67, 0.14);
+  gap: 10px;
+  padding: 14px 16px 0;
 }
 
 .leqad-nav__item {
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 7px 7px 0 0;
+  border-radius: 999px;
   background: transparent;
+  color: var(--leqad-muted) !important;
   cursor: pointer;
   font-size: 13px !important;
 }
@@ -192,7 +194,8 @@
 }
 
 .leqad-nav__item.is-active {
-  border-bottom-color: var(--leqad-russet);
+  background: #e8ded2;
+  color: var(--leqad-navy) !important;
   font-weight: 700;
 }
 
@@ -250,20 +253,19 @@
 }
 
 .leqad-step-count {
-  margin: 0 0 8px;
+  margin: 0;
   color: #454d61;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
 }
 
 .leqad-step-card {
-  padding: 13px;
-  background: #fffaf3;
-  border: 1px solid rgba(13, 28, 67, 0.13);
-  border-radius: 11px;
+  padding: 15px;
+  background: var(--leqad-card);
+  border-radius: 10px;
 }
 
-.leqad-step-card > p:not(.leqad-eyebrow) {
+.leqad-next-action > p:not(.leqad-eyebrow) {
   margin: 0 0 10px;
 }
 
@@ -285,7 +287,55 @@
 }
 
 .leqad-guidance-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 8px;
   margin-top: 0;
+}
+
+.leqad-guidance-levels .leqad-button {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 14px !important;
+  font-weight: 600;
+  background: var(--leqad-card);
+  color: var(--leqad-navy) !important;
+}
+
+.leqad-guidance-levels .leqad-button.is-selected {
+  border-color: var(--leqad-navy);
+  background: var(--leqad-navy);
+  color: #fff !important;
+  box-shadow: none;
+}
+
+.leqad-help {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(13, 28, 67, 0.14);
+}
+
+.leqad-help-heading {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.leqad-help-row {
+  gap: 8px;
+}
+
+.leqad-step-footer {
+  margin-top: 16px;
+}
+
+.leqad-step-footer > .leqad-button--primary {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 14px !important;
+  font-weight: 600;
 }
 
 .leqad-step-navigation {
@@ -456,34 +506,6 @@
   margin: 9px 0 0;
 }
 
-/* V1 approved shared visual baseline: design-only, no CAD logic changes. */
-:host {
-  --leqad-card: #fffaf4;
-  --leqad-muted: #657083;
-}
-.leqad-nav {
-  gap: 10px;
-  padding: 14px 16px 0;
-  border-bottom: none;
-}
-.leqad-nav__item {
-  padding: 9px 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--leqad-muted) !important;
-}
-.leqad-nav__item.is-active {
-  background: #e8ded2;
-  color: var(--leqad-navy) !important;
-}
-.leqad-lesson {
-  padding: 16px;
-}
-.leqad-step-count {
-  margin: 0;
-  font-size: 13px;
-}
 .leqad-progress-summary {
   display: flex;
   align-items: center;
@@ -491,12 +513,13 @@
   gap: 12px;
   margin: 12px 0 8px;
 }
+
 .leqad-progress-percentage {
   font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--leqad-navy);
 }
+
 .leqad-progress-track {
   height: 6px;
   margin: 0 0 16px;
@@ -504,57 +527,13 @@
   border-radius: 999px;
   background: #ded7cd;
 }
+
 .leqad-progress-fill {
   height: 100%;
   border-radius: inherit;
   background: var(--leqad-russet);
 }
-.leqad-step-card {
-  padding: 15px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--leqad-card);
-}
-.leqad-help-heading {
-  margin: 16px 0 8px;
-  color: var(--leqad-navy);
-  font-size: 16px;
-  font-weight: 650;
-}
-.leqad-help-row {
-  gap: 8px;
-}
-.leqad-guidance-levels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  width: 100%;
-  gap: 8px;
-}
-.leqad-guidance-levels .leqad-button {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 14px !important;
-  font-weight: 650;
-  background: var(--leqad-card);
-  color: var(--leqad-navy) !important;
-}
-.leqad-guidance-levels .leqad-button.is-selected {
-  border-color: var(--leqad-navy);
-  background: var(--leqad-navy);
-  color: #fff !important;
-  box-shadow: none;
-}
-.leqad-step-footer {
-  margin-top: 16px;
-}
-.leqad-step-footer > .leqad-button--primary {
-  min-height: 44px;
-  padding: 10px 16px;
-  font-size: 14px !important;
-  font-weight: 650;
-}
+
 .leqad-hint,
 .leqad-guidance,
 .leqad-guidance-unavailable,

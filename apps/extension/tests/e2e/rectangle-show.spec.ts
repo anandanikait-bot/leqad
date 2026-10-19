@@ -7,7 +7,7 @@ async function rectangleStep(page: Page) {
   for (let step = 1; step < 4; step++) {
     await page
       .getByRole('button', {
-        name: step === 1 ? 'Got it' : "I've finished this step",
+        name: step === 1 ? 'Got it' : 'Mark done',
         exact: true,
       })
       .click();
@@ -156,7 +156,7 @@ test('SHOW diagnosis distinguishes the actual stopped context gate, lookup and h
   for (let step = 1; step < 4; step++) {
     await page
       .getByRole('button', {
-        name: step === 1 ? 'Got it' : "I've finished this step",
+        name: step === 1 ? 'Got it' : 'Mark done',
         exact: true,
       })
       .click();

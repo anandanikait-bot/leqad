@@ -19,7 +19,7 @@ async function startSketchStep(page: Page) {
   await page.goto('/fixture.html?unknown-permission');
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   await makeSketchUnrecognizable(page);
 }
@@ -73,7 +73,7 @@ test('simulated calibration survives reload, highlights the saved rectangle, and
     page.getByText(/You reported that Sketch mode is active/),
   ).toBeVisible();
   await expect(page.getByText('Step 3 of 8 · Visited')).toBeVisible();
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await expect(page.getByText('Step 3 of 8 · Marked done')).toBeVisible();
   await page.getByRole('button', { name: 'Next' }).click();
   await page.reload();
