@@ -1,3 +1,4 @@
+import approvedHeaderMark from '../../assets/brand/leqad-header-mark.png?inline';
 import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
 import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import type { RectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
@@ -1439,9 +1440,14 @@ export function AssistantPanel({
           onKeyDown={moveWithKeyboard}
         >
           <div className="leqad-wordmark" aria-label="Leqad">
-            <span className="leqad-wordmark__mark" aria-hidden="true">
-              L
-            </span>
+            <img
+              className="leqad-wordmark__mark"
+              src={approvedHeaderMark}
+              width={33}
+              height={33}
+              alt=""
+              draggable={false}
+            />
             <span>Leqad</span>
           </div>
           <div className="leqad-panel__header-meta">

@@ -7,6 +7,7 @@ import {
   within,
 } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
@@ -156,6 +157,33 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it('preserves the exact owner-approved PNG master bytes', () => {
+    const master = readFileSync(
+      resolve(
+        'apps/extension/src/assets/brand/leqad_isometric_learning_mark.png',
+      ),
+    );
+    expect(createHash('sha256').update(master).digest('hex')).toBe(
+      '03f744dcc135567bb4f5f91c7a58ce3fe35783b6815942686586db29dc1ab01c',
+    );
+    expect(master.readUInt32BE(16)).toBe(1254);
+    expect(master.readUInt32BE(20)).toBe(1254);
+  });
+
+  it('uses the approved header mark instead of the L placeholder', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(<AssistantPanel page={confirmedPage} />);
+    const brand = screen.getByLabelText('Leqad');
+    const mark = brand.querySelector('img');
+    expect(mark).not.toBeNull();
+    expect(mark?.getAttribute('width')).toBe('33');
+    expect(mark?.getAttribute('height')).toBe('33');
+    expect(mark?.getAttribute('alt')).toBe('');
+    expect(
+      brand.querySelector('.leqad-wordmark__mark')?.textContent,
+    ).not.toContain('L');
+  });
+
   it.each([0, 4, 8])(
     'rehydrates %i completed steps without deriving progress from the visible step',
     async (completed) => {

@@ -10,18 +10,21 @@ Scope: issue #16 and draft PR #15, on `design/approved-v1-lesson-ui`, stacked on
 - HINT, SHOW and GUIDE use 44px controls with mutually exclusive selected states. Completion labels preserve existing modes: Got it for acknowledgement, Check progress for supported UI checks, Mark done for self-report or unverified continuation.
 - The existing callbacks, recognition services, verification rules, lesson transitions and guidance safety conditions are unchanged. Projects and Ask remain previews.
 
-## Exact logo: blocked on source file
+## Exact logo source and header derivative
 
-The owner supplied an inline image in the conversation. The displayed image has no downloadable source-file reference or mounted binary in this execution workspace. The original `leqad_isometric_learning_mark.png` cannot yet be copied or hashed faithfully.
+The owner supplied `Leqad_Final_Approved_Logo_Original.zip`, containing one valid RGB PNG, 1254 × 1254 pixels. The master is copied unchanged to `apps/extension/src/assets/brand/leqad_isometric_learning_mark.png`.
 
-The L placeholder remains. No replacement was generated, no master was reconstructed from a screenshot, and no earlier artwork or SVG was substituted. The original file or a downloadable original-file link is required to complete integration. Preserve its bytes as the immutable master, then prepare the permitted faithful header crop/downscale for owner review. Extension icon derivatives still require owner approval and 16/24/32px inspection.
+Master SHA-256: `03f744dcc135567bb4f5f91c7a58ce3fe35783b6815942686586db29dc1ab01c`.
 
-Screenshots below are UI review candidates with the placeholder, not a claim of finished logo integration.
+The header replaces the L placeholder with a faithful 132 × 132 cube crop rendered at 33 CSS pixels. Its original background and colors are preserved. The image is bundled as a PNG data URL so it does not depend on host-page paths or external image requests. The full master remains intact in the repository, including its original raster wordmark. See [asset provenance](../../apps/extension/src/assets/brand/README.md) for crop bounds, hashes and reproducible generation.
+
+[16/24/32/33px derivative preview](../images/v1-ui/leqad-logo-size-review.png) is for owner review. No manifest icon was changed or approved by this work. The derivative's small-size legibility and visual acceptance remain owner decisions.
 
 ## Regression evidence
 
-`AssistantPanel.test.tsx` adds 11 cases covering:
+`AssistantPanel.test.tsx` adds 13 cases covering:
 
+- Exact master-byte integrity and header-mark replacement.
 - 0%, 50% and 100% rehydration from 0/4/8 completed steps, including a visible Step 4 with 0% completion.
 - Reset to 0% and rehydration of the reset session.
 - Separate instructions and help, with no CAD calls on render.
@@ -47,18 +50,18 @@ The zoom tests use a smaller CSS viewport with matching device scale to model de
 ## Local validation results
 
 - `pnpm format:check`, `pnpm lint`, and `pnpm typecheck`: passed.
-- `pnpm test`: 601 passed across 33 files.
+- `pnpm test`: 603 passed across 33 files.
 - `pnpm reference:test`: 45 passed across four files.
 - `pnpm reference:validate`: passed, zero approved capture hashes, NO LIVE EVIDENCE.
 - `pnpm test:e2e`: 58 passed, one existing local managed-Chromium extension-installation skip (59 total). Both Chrome and Edge production builds passed.
 - `pnpm package:browsers`: both Chrome and Edge ZIPs built.
-- Independent read-only review found no blocking or minor regression. The reviewer did not rerun the suite.
+- Independent read-only review of the initial UI implementation found no blocking or minor regression. The logo follow-up is covered by master-byte integrity, image-loading and existing browser regressions.
 
 Hosted CI results and the exact tested artifact are recorded in PR #15 to keep the validation report from pointing to an earlier commit's package.
 
 ## Owner acceptance still required
 
-1. Supply the downloadable original logo PNG. Review the faithful small header derivative before extension-icon use.
+1. Review the faithful small header derivative and its 16/24/32/33px preview before extension-icon use.
 2. Review the fixture screenshots for visual approval.
 3. Install the built Chrome extension in an authorized regular Chrome profile and check loading, dragging, collapse, scrolling and readability at actual 100%, 125%, and 150% browser zoom.
 4. Check existing Top/Sketch/Rectangle highlights and HINT/SHOW/GUIDE fallbacks, self-reported progress and persistence. Confirm that no UI styling obscures the intended CAD control.
