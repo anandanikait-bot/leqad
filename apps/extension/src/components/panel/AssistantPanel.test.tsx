@@ -170,7 +170,7 @@ describe('AssistantPanel', () => {
     expect(master.readUInt32BE(20)).toBe(1254);
   });
 
-  it('uses deterministic owner-selected Version B SVG vectors', () => {
+  it('preserves superseded Version B SVG vectors for historical reference', () => {
     const root = 'apps/extension/src/assets/brand/';
     const icon = readFileSync(resolve(root, 'leqad-b-icon.svg'), 'utf8');
     const header = readFileSync(resolve(root, 'leqad-b-header.svg'), 'utf8');

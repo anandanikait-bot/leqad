@@ -1,3 +1,9 @@
 pnpm-lock.yaml
 docs/product/TutorCAD_Product_and_System_Design.md
 docs/product/leqad-master-implementation-spec.md
+
+# Immutable owner SVG and palette-only derivatives
+apps/extension/src/assets/brand/Leqad_Original_Left_Faithful.svg
+apps/extension/src/assets/brand/leqad-primary.svg
+apps/extension/src/assets/brand/leqad-black.svg
+apps/extension/src/assets/brand/leqad-grey.svg

@@ -1,4 +1,4 @@
-import approvedHeaderMark from '../../assets/brand/leqad-b-header.svg?inline';
+import approvedHeaderMark from '../../assets/brand/leqad-primary.svg?inline';
 import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
 import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
 import type { RectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';

@@ -35,7 +35,7 @@ for (const zoom of [1, 1.25, 1.5]) {
         const mark = header.locator('img.leqad-wordmark__mark');
         await expect(mark).toHaveAttribute('src', /^data:image\/svg\+xml/);
         await expect(mark).toHaveJSProperty('complete', true);
-        await expect(mark).toHaveJSProperty('naturalWidth', 256);
+        await expect(mark).toHaveJSProperty('naturalWidth', 278);
         await expect(mark).toHaveCSS('width', '33px');
         await expect(mark).toHaveCSS('height', '33px');
         const dimensions = await panel.boundingBox();
