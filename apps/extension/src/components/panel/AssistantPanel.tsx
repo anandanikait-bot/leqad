@@ -872,7 +872,7 @@ export function AssistantPanel({
       const nextCue =
         intent.cue !== 'CLEAR_TARGET' && intent.cue !== 'DIRECT_INSTRUCTION'
           ? ''
-          : `Observation: your pointer is near a recognized ${step.goal.toLocaleLowerCase()} control. Suggestion: use the written lesson action if you need a next step. This does not confirm a CAD action.`;
+          : 'Observation: your pointer is near a recognized lesson control. Suggestion: consult the written instruction for the intended tool or variant. This does not confirm a CAD action.';
       setCursorCue((value) => (value === nextCue ? value : nextCue));
     };
 

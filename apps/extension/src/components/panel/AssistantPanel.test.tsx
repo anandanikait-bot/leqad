@@ -2144,7 +2144,12 @@ it('proactive cues require a recognized target and remain dismissed across remou
     fireEvent.pointerMove(document, { clientX: 24, clientY: 42 });
     now = 700;
     fireEvent.pointerMove(document, { clientX: 30, clientY: 42 });
-    expect(screen.getByText(/Observation: your pointer/)).toBeTruthy();
+    expect(screen.getByText(/Observation: your pointer/).textContent).toContain(
+      'recognized lesson control',
+    );
+    expect(
+      screen.getByText(/Observation: your pointer/).textContent,
+    ).not.toContain('select the Top plane control');
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
       '13',
     );
