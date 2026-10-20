@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 
 // Node-side controlled-fixture review only. Never import this into the content
-// script. Production Header A remains unchanged until explicit owner approval.
+// script. This archived raster preview is superseded by the approved SVG identity.
 export async function applyOriginalWordmarkPreview(page: Page): Promise<void> {
   const png = readFileSync(
     new URL(

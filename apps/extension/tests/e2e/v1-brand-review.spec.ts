@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { applyOriginalWordmarkPreview } from '../fixtures/headerReview';
 
-// Fixture-only visual review. Option B is not installed in production and must
-// not become the default until the owner approves it. No live Onshape evidence.
+// Historical raster-lettering comparison only; both options are superseded.
+// Current production SVG/settings coverage is in v1-ui and settings.spec.ts.
 async function capture(page: Page, testInfo: TestInfo, name: string) {
   const path = testInfo.outputPath(`${name}.png`);
   await page.locator('[data-leqad-panel]').screenshot({ path });
@@ -25,7 +25,7 @@ async function rectangleStep(page: Page) {
 }
 
 for (const zoom of [1, 1.25, 1.5]) {
-  test(`header A stays default and original-wordmark B is a temporary preview at ${zoom * 100}%`, async ({
+  test(`archived raster-wordmark comparison stays temporary at ${zoom * 100}%`, async ({
     browser,
   }, testInfo) => {
     const context = await browser.newContext({
@@ -41,6 +41,16 @@ for (const zoom of [1, 1.25, 1.5]) {
       const header = page.getByRole('group', { name: 'Move Leqad panel' });
       const label = page.locator('.leqad-wordmark > span');
       await expect(label).toHaveText('Leqad');
+      // Reproduce the original comparison layout, before the V1.1 gear existed.
+      // DejaVu Sans reproduces the CI wrapping regression if this isolation is removed.
+      await header.evaluate((element) => {
+        element.style.fontFamily = 'DejaVu Sans, sans-serif';
+      });
+      await page
+        .getByRole('button', { name: 'Open Settings' })
+        .evaluate((element) => {
+          element.setAttribute('hidden', '');
+        });
       const before = (await header.boundingBox())!;
       await capture(page, testInfo, `header-a-${zoom * 100}`);
       await applyOriginalWordmarkPreview(page);
@@ -70,6 +80,9 @@ for (const zoom of [1, 1.25, 1.5]) {
         ),
       ).toBe(true);
       await page.reload();
+      await expect(
+        page.getByRole('button', { name: 'Open Settings' }),
+      ).toBeVisible();
       await expect(page.locator('.leqad-wordmark > span')).toHaveText('Leqad');
       await expect(page.locator('[data-leqad-wordmark-review]')).toHaveCount(0);
     } finally {

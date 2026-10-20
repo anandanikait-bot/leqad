@@ -40,6 +40,8 @@ Focused tests cover backward compatibility, independent invalid-value fallbacks,
 
 Exact complete-suite counts, commit SHA, hosted CI and package link are recorded in PR #15.
 
+The first hosted run exposed three archived raster A/B preview failures: with DejaVu Sans and the new gear, the wider historical wordmark wrapped status text and grew the header from 61px to 70.890625px. A local font-controlled reproduction confirmed the cause. Those historical tests now isolate their original pre-Settings layout and verify reload restores the gear. Current production header and Settings tests still include the gear; no production layout or brand geometry was changed to satisfy the archived comparison.
+
 ## Owner acceptance
 
 1. Install the CI Chrome package in a regular authorized Chrome profile.
