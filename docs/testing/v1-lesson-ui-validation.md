@@ -16,7 +16,7 @@ The owner supplied `Leqad_Final_Approved_Logo_Original.zip`, containing one vali
 
 Master SHA-256: `03f744dcc135567bb4f5f91c7a58ce3fe35783b6815942686586db29dc1ab01c`.
 
-The header replaces the L placeholder with a faithful 132 × 132 cube crop rendered at 33 CSS pixels. Its original background and colors are preserved. The image is bundled as a PNG data URL so it does not depend on host-page paths or external image requests. The full master remains intact in the repository, including its original raster wordmark. See [asset provenance](../../apps/extension/src/assets/brand/README.md) for crop bounds, hashes and reproducible generation.
+Production Header A replaces the L placeholder with a faithful 132 × 132 cube crop rendered at 33 CSS pixels. Its original background and colors are preserved. The image is bundled as a PNG data URL so it does not depend on host-page paths or external image requests. The full master remains intact in the repository, including its original raster wordmark. See [asset provenance](../../apps/extension/src/assets/brand/README.md) for crop bounds, hashes and reproducible generation.
 
 [16/24/32/33px derivative preview](../images/v1-ui/leqad-logo-size-review.png) is for owner review. No manifest icon was changed or approved by this work. The derivative's small-size legibility and visual acceptance remain owner decisions.
 
@@ -53,15 +53,66 @@ The zoom tests use a smaller CSS viewport with matching device scale to model de
 - `pnpm test`: 603 passed across 33 files.
 - `pnpm reference:test`: 45 passed across four files.
 - `pnpm reference:validate`: passed, zero approved capture hashes, NO LIVE EVIDENCE.
-- `pnpm test:e2e`: 58 passed, one existing local managed-Chromium extension-installation skip (59 total). Both Chrome and Edge production builds passed.
+- `pnpm test:e2e`: 65 passed, one existing local managed-Chromium extension-installation skip (66 total). Both Chrome and Edge production builds passed.
 - `pnpm package:browsers`: both Chrome and Edge ZIPs built.
 - Independent read-only review of the initial UI implementation found no blocking or minor regression. The logo follow-up is covered by master-byte integrity, image-loading and existing browser regressions.
 
 Hosted CI results and the exact tested artifact are recorded in PR #15 to keep the validation report from pointing to an earlier commit's package.
 
+## Final owner review: original lettering
+
+The original PNG remains byte-identical to the owner's master hash. Production
+Header A is unchanged: cube crop plus separately rendered Leqad text. Option B
+uses a direct crop of the original lettering at 80 × 26 CSS pixels alongside the
+33px cube. Original colors and ivory background are preserved. The wordmark crop
+is not part of the production import graph; no source artwork is redrawn.
+
+Option B is a fixture-only proposal. It has not received owner approval. At
+100/125/150% effective zoom, the fixture tests verify image loading, equal header
+height, no header overflow, collapse at 280px, and restoration of A on reload.
+The normal header is 61 CSS pixels high for both options in these fixtures.
+
+Seven additional `v1-brand-review.spec.ts` cases cover the three A/B zoom views,
+three assistance selections with safe fallback, and collapsed/narrow production
+layout. Tests retain 38% completion after HINT/SHOW/GUIDE, selected/unselected
+colors, and 44px control bounds. SHOW in this fixture demonstrates the manual
+Onshape Search fallback; GUIDE remains unavailable for the unvalidated Rectangle
+workflow. Neither assistance selection completes a step.
+
+Required screenshot set (controlled fixtures, no private CAD content):
+
+| View                                 | Screenshot                                                         |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| Header A versus B                    | [Side-by-side review](../images/v1-ui/leqad-header-comparison.png) |
+| A: current production header         | [Header A](../images/v1-ui/leqad-header-option-a.png)              |
+| B: original lettering, not approved  | [Header B](../images/v1-ui/leqad-header-option-b.png)              |
+| Full Step 4 at 38%                   | [Step 4](../images/v1-ui/leqad-v1-step4-review.png)                |
+| Four completed steps at 50%          | [Progress 50%](../images/v1-ui/leqad-v1-progress50-review.png)     |
+| HINT selected                        | [HINT](../images/v1-ui/leqad-v1-selected-hint.png)                 |
+| SHOW selected, manual fallback       | [SHOW](../images/v1-ui/leqad-v1-selected-show.png)                 |
+| GUIDE selected, unavailable workflow | [GUIDE](../images/v1-ui/leqad-v1-selected-guide.png)               |
+| Collapsed production header          | [Collapsed](../images/v1-ui/leqad-v1-collapsed.png)                |
+| 320px viewport / 304px panel         | [Narrow](../images/v1-ui/leqad-v1-narrow.png)                      |
+
+The screenshot set uses 2× device scale. The existing 100/125/150% effective zoom
+screenshots remain linked above. The comparison does not change locked UI rules,
+CAD recognition/targeting, Rectangle SHOW, Search fallback, verification,
+HINT/SHOW/GUIDE safety, diagnostics, persistence, or user-controlled CAD actions.
+
+Regenerated local Chrome/Edge ZIPs retain SHA-256
+`993d7a464f7363e5acd9bba3aabb9d3d94ab325c37385414eff3f3918026663b`,
+matching the previously computed local packages at `cc008a6`. This verifies that
+the review-only assets/tests did not change the extension package. Hosted CI and
+its freshly uploaded artifact are tracked separately in PR #15.
+
+The branch is ready for owner visual acceptance. Header choice, icon approval,
+actual Onshape/Edge runtime acceptance, provider automation permission and the
+existing stacked-PR merge order remain external gates. It is not approved for
+merge or represented as live Onshape compatible.
+
 ## Owner acceptance still required
 
-1. Review the faithful small header derivative and its 16/24/32/33px preview before extension-icon use.
+1. Choose Header A or B from the comparison. Review the faithful small header derivative and its 16/24/32/33px preview before extension-icon use.
 2. Review the fixture screenshots for visual approval.
 3. Install the built Chrome extension in an authorized regular Chrome profile and check loading, dragging, collapse, scrolling and readability at actual 100%, 125%, and 150% browser zoom.
 4. Check existing Top/Sketch/Rectangle highlights and HINT/SHOW/GUIDE fallbacks, self-reported progress and persistence. Confirm that no UI styling obscures the intended CAD control.
