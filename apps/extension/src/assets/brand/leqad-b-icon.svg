@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Leqad geometric B logo">
+  <title>Leqad — geometric aperture</title>
+  <g fill="#0E2943">
+  <path d="M 16 16 H 232 L 180 68 H 68 V 180 L 16 232 Z"/>
+  <path d="M 240 24 V 240 H 24 L 76 188 H 188 V 76 Z"/>
+</g>
+<path fill="#B74B21" d="M 88 88 H 168 V 168 H 88 Z"/>
+</svg>

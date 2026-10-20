@@ -157,7 +157,7 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
-  it('preserves the exact owner-approved PNG master bytes', () => {
+  it('retains the archived former PNG logo unchanged for historical reference', () => {
     const master = readFileSync(
       resolve(
         'apps/extension/src/assets/brand/leqad_isometric_learning_mark.png',
@@ -168,6 +168,25 @@ describe('AssistantPanel', () => {
     );
     expect(master.readUInt32BE(16)).toBe(1254);
     expect(master.readUInt32BE(20)).toBe(1254);
+  });
+
+  it('uses deterministic owner-selected Version B SVG vectors', () => {
+    const root = 'apps/extension/src/assets/brand/';
+    const icon = readFileSync(resolve(root, 'leqad-b-icon.svg'), 'utf8');
+    const header = readFileSync(resolve(root, 'leqad-b-header.svg'), 'utf8');
+    const lockup = readFileSync(resolve(root, 'leqad-b-logo.svg'), 'utf8');
+    expect(createHash('sha256').update(icon).digest('hex')).toBe(
+      'ce38c19d55b9330d999e6b5def6a05e222d214aa6e6f382fc08b97ae1162d66a',
+    );
+    expect(createHash('sha256').update(header).digest('hex')).toBe(
+      '504099373f4f8042979519ed9af62865d308a94b005c8a536829eee33be18bc9',
+    );
+    expect(createHash('sha256').update(lockup).digest('hex')).toBe(
+      '512b2386e17d03a5b5166de148f93757e88fde3d643d79deafc45fe56f7b1702',
+    );
+    expect(header).not.toMatch(/<image\b/);
+    expect(lockup).not.toMatch(/<text\b/);
+    expect(icon).toContain('M 88 88 H 168 V 168 H 88 Z');
   });
 
   it('uses the approved header mark instead of the L placeholder', async () => {

@@ -12,3 +12,8 @@ declare module '*.png?inline' {
   const image: string;
   export default image;
 }
+
+declare module '*.svg?inline' {
+  const image: string;
+  export default image;
+}

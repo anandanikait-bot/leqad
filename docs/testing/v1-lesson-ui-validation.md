@@ -119,3 +119,6 @@ merge or represented as live Onshape compatible.
 5. Check Edge runtime separately if it is part of release acceptance.
 
 Authenticated Onshape automation has not been performed. Provider permission remains pending; offline CI cannot establish live acceptance.
+
+## Branding update after this validation
+This report predates the owner's new geometric Version B logo choice. Previous screenshot links and original PNG hash pertain to the superseded raster identity; they do **not** validate the new active header. New artwork is SVG-only and must be reviewed separately at 33px. The previously reported CI counts belong to older commits, not the Version B change. See the active brand README.

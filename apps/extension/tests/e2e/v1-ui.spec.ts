@@ -33,9 +33,9 @@ for (const zoom of [1, 1.25, 1.5]) {
         const panel = page.locator('[data-leqad-panel]');
         const header = page.getByRole('group', { name: 'Move Leqad panel' });
         const mark = header.locator('img.leqad-wordmark__mark');
-        await expect(mark).toHaveAttribute('src', /^data:image\/png;base64,/);
+        await expect(mark).toHaveAttribute('src', /^data:image\/svg\+xml/);
         await expect(mark).toHaveJSProperty('complete', true);
-        await expect(mark).toHaveJSProperty('naturalWidth', 132);
+        await expect(mark).toHaveJSProperty('naturalWidth', 256);
         await expect(mark).toHaveCSS('width', '33px');
         await expect(mark).toHaveCSS('height', '33px');
         const dimensions = await panel.boundingBox();

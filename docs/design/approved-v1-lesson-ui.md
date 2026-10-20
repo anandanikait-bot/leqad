@@ -17,3 +17,6 @@ Option B is applied only to the controlled fixture, not imported by production,
 and is removed on reload. It has not been approved. See the asset README for its
 source crop and the validation report for the A/B screenshots. Do not switch the
 production header or manifest icons until the owner approves that choice.
+
+## Active SVG-only logo supersession (2026-10-20)
+The owner now selects geometric Version B (navy interlocking square, diagonal negative-space openings and centered orange square) in preference to the earlier cube-and-arrow logo. Full brand identity is constructed from SVG straight-line paths with custom angular text outlines. See `apps/extension/src/assets/brand/README.md`. Historical header A/B comparisons and previous PNG asset approval are superseded. Existing 365px lesson panel, CAD recognition and verification behavior must not change. PR stays draft until updated CI, owner visual inspection and manual Onshape acceptance.
