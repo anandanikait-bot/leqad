@@ -1,3 +1,12 @@
+import blackHeaderMark from '../../assets/brand/leqad-black.svg?inline';
+import { PanelSettings } from './PanelSettings';
+import { useAppearance } from './useAppearance';
+import { usePreferencePersistence } from './usePreferencePersistence';
+import {
+  normalizeAppearance,
+  normalizeAssistanceMode,
+} from '../../services/progressStore';
+import type { Appearance, AssistanceMode } from '../../services/progressStore';
 import approvedHeaderMark from '../../assets/brand/leqad-primary.svg?inline';
 import type { SketchDialogIdentityReport } from '../../services/sketchDialogIdentityCapture';
 import { serializeRectangleShowDiagnostic } from '../../services/rectangleShowDiagnostics';
@@ -11,7 +20,7 @@ import type {
   EditorStateClaim,
   SketchEditorSnapshot,
 } from '../../services/sketchEditorComparisonCapture';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -136,7 +145,9 @@ interface AssistantPanelProps {
     completionSignal: string,
   ) => VerificationDecision;
   onSessionChange?: (session: LessonSession) => void | Promise<void>;
-  onPanelPreferencesChange?: (preferences: PanelPreferences) => void;
+  onPanelPreferencesChange?: (
+    preferences: PanelPreferences,
+  ) => void | Promise<void>;
   onLearningHistoryChange?: (history: LearningHistory) => void;
 }
 
@@ -422,6 +433,22 @@ export function AssistantPanel({
   onLearningHistoryChange,
 }: AssistantPanelProps) {
   const initialLesson = useRef(getInitialLessonState(initialSession));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+  const [appearance, setAppearance] = useState<Appearance>(() =>
+    normalizeAppearance(initialPanelPreferences?.appearance),
+  );
+  const [assistanceMode, setAssistanceMode] = useState<AssistanceMode>(() =>
+    normalizeAssistanceMode(initialPanelPreferences?.assistanceMode),
+  );
+  const [dismissedCursorCues, setDismissedCursorCues] = useState<string[]>(
+    () => initialPanelPreferences?.dismissedCursorCues ?? [],
+  );
+  const resolvedAppearance = useAppearance(appearance);
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    settingsButton.current?.focus();
+  };
   const [mode, setMode] = useState<PanelMode>('Learn');
   const [collapsed, setCollapsed] = useState(
     initialPanelPreferences?.collapsed ?? false,
@@ -681,25 +708,46 @@ export function AssistantPanel({
     stepState?.status,
   ]);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(
-      () =>
-        onPanelPreferencesChange?.({
-          collapsed,
-          position,
-          onboardingComplete,
-          helpLevel,
-        }),
-      250,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [
-    collapsed,
-    helpLevel,
-    onboardingComplete,
-    position,
+  const preferences = useMemo<PanelPreferences>(
+    () => ({
+      collapsed,
+      position,
+      onboardingComplete,
+      helpLevel,
+      appearance,
+      assistanceMode,
+      dismissedCursorCues,
+    }),
+    [
+      collapsed,
+      position,
+      onboardingComplete,
+      helpLevel,
+      appearance,
+      assistanceMode,
+      dismissedCursorCues,
+    ],
+  );
+  const preferenceSave = usePreferencePersistence(
+    preferences,
     onPanelPreferencesChange,
-  ]);
+  );
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setDiagnosticsEnabled(false);
+    setCalibrationOpen(false);
+    onClearTarget?.();
+    guidanceRunner?.cancel();
+    captureGeneration.current++;
+    captureTaskRef.current?.cancel();
+    captureTaskRef.current = null;
+    setCapturePending(false);
+    rectangleCaptureGeneration.current++;
+    rectangleCaptureTaskRef.current?.cancel('USER_STOP');
+    rectangleCaptureTaskRef.current = null;
+    setRectangleCapturePending(false);
+  }, [settingsOpen, onClearTarget, guidanceRunner]);
 
   const clampToViewport = (candidate: Position): Position => {
     const rect = panelRef.current?.getBoundingClientRect();
@@ -724,7 +772,7 @@ export function AssistantPanel({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [collapsed, mode]);
+  }, [collapsed, mode, settingsOpen]);
 
   useEffect(() => {
     const onResize = () => {
@@ -775,6 +823,9 @@ export function AssistantPanel({
 
   useEffect(() => {
     if (
+      assistanceMode !== 'proactive' ||
+      settingsOpen ||
+      (step && dismissedCursorCues.includes(step.id)) ||
       !step?.semanticTarget ||
       !stepState ||
       mode !== 'Learn' ||
@@ -821,13 +872,22 @@ export function AssistantPanel({
       const nextCue =
         intent.cue !== 'CLEAR_TARGET' && intent.cue !== 'DIRECT_INSTRUCTION'
           ? ''
-          : `Local cue: you are near the ${step.goal.toLocaleLowerCase()} control.`;
+          : `Observation: your pointer is near a recognized ${step.goal.toLocaleLowerCase()} control. Suggestion: use the written lesson action if you need a next step. This does not confirm a CAD action.`;
       setCursorCue((value) => (value === nextCue ? value : nextCue));
     };
 
     document.addEventListener('pointermove', onPointerMove, { passive: true });
     return () => document.removeEventListener('pointermove', onPointerMove);
-  }, [collapsed, currentStepIndex, mode, step, stepState]);
+  }, [
+    collapsed,
+    currentStepIndex,
+    mode,
+    step,
+    stepState,
+    assistanceMode,
+    dismissedCursorCues,
+    settingsOpen,
+  ]);
 
   if (!step || !stepState) return null;
   const operationGuidanceAvailable = Boolean(
@@ -1379,6 +1439,7 @@ export function AssistantPanel({
   };
 
   const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
     const amount = event.shiftKey ? 32 : 16;
     const delta = {
       ArrowUp: { left: 0, top: -amount },
@@ -1427,6 +1488,7 @@ export function AssistantPanel({
         className={`leqad-panel${collapsed ? ' leqad-panel--collapsed' : ''}`}
         style={panelStyle}
         data-leqad-panel
+        data-theme={resolvedAppearance}
       >
         <header
           className="leqad-panel__header"
@@ -1442,7 +1504,11 @@ export function AssistantPanel({
           <div className="leqad-wordmark" aria-label="Leqad">
             <img
               className="leqad-wordmark__mark"
-              src={approvedHeaderMark}
+              src={
+                resolvedAppearance === 'dark'
+                  ? blackHeaderMark
+                  : approvedHeaderMark
+              }
               width={33}
               height={33}
               alt=""
@@ -1461,6 +1527,33 @@ export function AssistantPanel({
             </span>
           </div>
           <button
+            ref={settingsButton}
+            className="leqad-icon-button"
+            type="button"
+            aria-label="Open Settings"
+            aria-expanded={settingsOpen && !collapsed}
+            onClick={() => {
+              if (settingsOpen && !collapsed) closeSettings();
+              else {
+                setSettingsOpen(true);
+                setCollapsed(false);
+              }
+            }}
+          >
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path d="m9 3-1 3-3 1-2 3 2 2-1 3 3 2 3-1 2 3 3-1 1-3 3-1 2-3-2-2 1-3-3-2-3 1-2-3Z" />
+              <circle cx="12" cy="11" r="3" />
+            </svg>
+          </button>
+          <button
             className="leqad-icon-button"
             type="button"
             aria-label={
@@ -1474,6 +1567,23 @@ export function AssistantPanel({
 
         {!collapsed && (
           <>
+            {preferenceSave.failed && (
+              <div
+                className="leqad-guidance"
+                role="status"
+                aria-label="Settings saving"
+              >
+                Settings could not be saved. Keep this page open and retry
+                before reloading.
+                <button
+                  type="button"
+                  className="leqad-button leqad-button--secondary"
+                  onClick={preferenceSave.retry}
+                >
+                  Retry saving settings
+                </button>
+              </div>
+            )}
             {saveFailed && (
               <div
                 className="leqad-guidance"
@@ -1501,7 +1611,11 @@ export function AssistantPanel({
                   : 'Leqad has not verified the Part Studio type or editing permission. Visual guidance may still work, but lesson completion needs separate evidence.'}
               </p>
             )}
-            <nav className="leqad-nav" aria-label="Leqad modes">
+            <nav
+              className="leqad-nav"
+              aria-label="Leqad modes"
+              hidden={settingsOpen}
+            >
               {(['Learn', 'Projects', 'Ask'] as const).map((item) => (
                 <button
                   type="button"
@@ -1515,7 +1629,19 @@ export function AssistantPanel({
               ))}
             </nav>
 
-            <main className="leqad-panel__body">
+            {settingsOpen && (
+              <main className="leqad-panel__body">
+                <PanelSettings
+                  appearance={appearance}
+                  assistanceMode={assistanceMode}
+                  previousView={mode}
+                  onAppearance={setAppearance}
+                  onAssistanceMode={setAssistanceMode}
+                  onClose={closeSettings}
+                />
+              </main>
+            )}
+            <main className="leqad-panel__body" hidden={settingsOpen}>
               {!onboardingComplete && (
                 <section
                   className="leqad-onboarding"
@@ -1777,9 +1903,22 @@ export function AssistantPanel({
                         />
                       )}
                       {cursorCue && (
-                        <p className="leqad-cursor-cue" aria-live="polite">
+                        <div className="leqad-cursor-cue" aria-live="polite">
                           {cursorCue}
-                        </p>
+                          <button
+                            type="button"
+                            className="leqad-button leqad-button--text"
+                            onClick={() => {
+                              setDismissedCursorCues((prior) => [
+                                ...prior,
+                                step.id,
+                              ]);
+                              setCursorCue('');
+                            }}
+                          >
+                            Dismiss suggestion
+                          </button>
+                        </div>
                       )}
                     </section>
                     {canContinueUnverified && (

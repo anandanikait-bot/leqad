@@ -1,3 +1,5 @@
+> Historical validation report. Active branding and settings are documented in [V1.1 appearance and assistance](v1-appearance-assistance.md). Older screenshots and counts describe their recorded commits only.
+
 # Approved V1 lesson UI validation
 
 Scope: issue #16 and draft PR #15, on `design/approved-v1-lesson-ui`, stacked on PR #14. Do not merge without owner visual approval and resolution of the earlier PR stack.
@@ -112,7 +114,7 @@ merge or represented as live Onshape compatible.
 
 ## Owner acceptance still required
 
-1. Choose Header A or B from the comparison. Review the faithful small header derivative and its 16/24/32/33px preview before extension-icon use.
+1. Review the current original-square SVG header and V1.1 Light/Dark settings screenshots; historical A/B comparisons are superseded.
 2. Review the fixture screenshots for visual approval.
 3. Install the built Chrome extension in an authorized regular Chrome profile and check loading, dragging, collapse, scrolling and readability at actual 100%, 125%, and 150% browser zoom.
 4. Check existing Top/Sketch/Rectangle highlights and HINT/SHOW/GUIDE fallbacks, self-reported progress and persistence. Confirm that no UI styling obscures the intended CAD control.
@@ -120,11 +122,9 @@ merge or represented as live Onshape compatible.
 
 Authenticated Onshape automation has not been performed. Provider permission remains pending; offline CI cannot establish live acceptance.
 
-## Branding update after this validation
+## Branding supersession
 
-This report predates the owner's new geometric Version B logo choice.
-Previous screenshot links and original PNG hash pertain to the superseded
-raster identity; they do **not** validate the new active header. New artwork
-is SVG-only and must be reviewed separately at 33px. The previously
-reported CI counts belong to older commits, not the Version B change.
-See the active brand README.
+Both the raster cube-arrow mark and geometric Version B are superseded by
+the approved original-square SVG. The primary and black palette variants
+are active in Light and Dark mode respectively. See the active brand README
+and the V1.1 report; this historical report does not validate current runtime behavior.

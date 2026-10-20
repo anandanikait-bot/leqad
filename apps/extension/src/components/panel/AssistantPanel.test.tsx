@@ -1852,6 +1852,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -1875,6 +1880,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -1902,6 +1912,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const view = render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -2079,4 +2094,87 @@ it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown captu
   fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
   expect(screen.queryByLabelText('Recognition diagnostics output')).toBeNull();
   runner.dispose();
+});
+
+it('on-demand mode does not inspect targets or suggest actions from pointer movement', async () => {
+  const targets = await import('../../services/semanticTargets');
+  const find = vi.spyOn(targets, 'findSemanticTarget');
+  const { AssistantPanel } = await import('./AssistantPanel');
+  render(<AssistantPanel page={confirmedPage} />);
+  advanceToStep(2);
+  fireEvent.pointerMove(document, { clientX: 50, clientY: 50 });
+  expect(find).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+  ).toBeNull();
+});
+
+it('proactive cues require a recognized target and remain dismissed across remounts', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal('PointerEvent', MouseEvent);
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const targets = await import('../../services/semanticTargets');
+    const find = vi.spyOn(targets, 'findSemanticTarget').mockReturnValue(null);
+    vi.spyOn(targets, 'isUsableSemanticTarget').mockReturnValue(true);
+    const save = vi.fn();
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const view = render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
+        onPanelPreferencesChange={save}
+      />,
+    );
+    advanceToStep(2);
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+    // Simulated recognizer boundary: tests assistance policy, not live recognition.
+    const target = document.createElement('button');
+    target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    find.mockReturnValue(target);
+    now = 600;
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 42 });
+    now = 700;
+    fireEvent.pointerMove(document, { clientX: 30, clientY: 42 });
+    expect(screen.getByText(/Observation: your pointer/)).toBeTruthy();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '13',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss suggestion' }));
+    now = 900;
+    fireEvent.pointerMove(document, { clientX: 35, clientY: 42 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const preferences = save.mock.lastCall?.[0];
+    expect(preferences.dismissedCursorCues).toContain('select-reference-plane');
+    view.unmount();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialPanelPreferences={preferences}
+      />,
+    );
+    advanceToStep(2);
+    now = 1500;
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 42 });
+    now = 1600;
+    fireEvent.pointerMove(document, { clientX: 30, clientY: 42 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });

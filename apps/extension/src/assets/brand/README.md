@@ -8,7 +8,7 @@
 | `leqad-black.svg`   | `#191919`   | `#F5EFE7`         | `#A49A8E` |
 | `leqad-grey.svg`    | `#55514D`   | `#F5EFE7`         | `#A49A8E` |
 
-The primary is also the canonical icon; a duplicate icon master is unnecessary. Its existing ivory field works on the navy header, so no reversed variant is needed. The extension imports `leqad-primary.svg?inline` at 33 × 33 CSS pixels through the established bundling mechanism. The existing “Leqad” header text is unchanged.
+The primary is also the canonical icon; a duplicate icon master is unnecessary. Its existing ivory field works on the navy header, so no reversed variant is needed. The extension imports `leqad-primary.svg?inline` for Light and `leqad-black.svg?inline` for Dark at 33 × 33 CSS pixels through the established bundling mechanism. System follows the device appearance. The black variant retains its ivory field; no SVG bytes are modified by theming. Manifest icons remain primary-derived. The existing “Leqad” header text is unchanged.
 
 ## Reproduction and distribution
 
