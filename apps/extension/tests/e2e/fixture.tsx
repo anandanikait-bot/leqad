@@ -265,6 +265,15 @@ async function renderFixturePanel() {
     },
   );
   const initialSketchCalibration = await fixtureStore.loadSketchCalibration();
+  const initialPanelPreferences = localStorage.getItem(
+    'leqad:panel-preferences:v2',
+  )
+    ? await fixtureStore.loadPanelPreferences()
+    : {
+        collapsed: false,
+        position: { left: 760, top: 40 },
+        onboardingComplete: true,
+      };
   reactRoot.render(
     <AssistantPanel
       page={{
@@ -284,11 +293,8 @@ async function renderFixturePanel() {
         capabilitySource: 'UI',
         capabilityObservedAt: new Date().toISOString(),
       }}
-      initialPanelPreferences={{
-        collapsed: false,
-        position: { left: 760, top: 40 },
-        onboardingComplete: true,
-      }}
+      initialPanelPreferences={initialPanelPreferences}
+      onPanelPreferencesChange={fixtureStore.savePanelPreferences}
       onShowTarget={highlighter.show}
       initialSession={initialSession}
       initialSketchCalibration={initialSketchCalibration}

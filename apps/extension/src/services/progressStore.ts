@@ -1,6 +1,7 @@
 import { ModelIdentitySchema, type ModelIdentity } from '@leqad/contracts';
 import {
   createUnknownLessonModelState,
+  FOUNDATIONS_FIRST_SKETCH,
   reconcileSession,
 } from '@leqad/lesson-engine';
 import type {
@@ -20,11 +21,33 @@ export interface ExtensionStorageArea {
   set(items: Record<string, unknown>): Promise<void>;
 }
 
+export type Appearance = 'light' | 'dark' | 'system';
+export type AssistanceMode = 'on-demand' | 'proactive';
+
+export function normalizeAppearance(value: unknown): Appearance {
+  return value === 'dark' || value === 'system' ? value : 'light';
+}
+
+export function normalizeAssistanceMode(value: unknown): AssistanceMode {
+  return value === 'proactive' ? value : 'on-demand';
+}
+
+function normalizeDismissedCues(value: unknown): string[] {
+  return Array.isArray(value)
+    ? FOUNDATIONS_FIRST_SKETCH.steps
+        .map(({ id }) => id)
+        .filter((id) => value.includes(id))
+    : [];
+}
+
 export interface PanelPreferences {
   collapsed: boolean;
   position: { left: number; top: number } | null;
   onboardingComplete?: boolean;
   helpLevel?: GuidanceLevel;
+  appearance?: Appearance;
+  assistanceMode?: AssistanceMode;
+  dismissedCursorCues?: string[];
 }
 
 export interface LearningHistory {
@@ -207,6 +230,15 @@ function isPanelPreferencesShape(value: unknown): value is Record<
 function isPanelPreferences(value: unknown): value is PanelPreferences {
   return (
     isPanelPreferencesShape(value) &&
+    (value.appearance === undefined ||
+      value.appearance === normalizeAppearance(value.appearance)) &&
+    (value.assistanceMode === undefined ||
+      value.assistanceMode === normalizeAssistanceMode(value.assistanceMode)) &&
+    (value.dismissedCursorCues === undefined ||
+      (isStringArray(value.dismissedCursorCues) &&
+        value.dismissedCursorCues.every((id) =>
+          normalizeDismissedCues(value.dismissedCursorCues).includes(id),
+        ))) &&
     (value.helpLevel === undefined ||
       (typeof value.helpLevel === 'string' &&
         GUIDANCE_LEVELS.includes(value.helpLevel as GuidanceLevel)))
@@ -221,6 +253,9 @@ function normalizePanelPreferences(
   },
 ): PanelPreferences {
   return {
+    appearance: normalizeAppearance(value.appearance),
+    assistanceMode: normalizeAssistanceMode(value.assistanceMode),
+    dismissedCursorCues: normalizeDismissedCues(value.dismissedCursorCues),
     collapsed: value.collapsed,
     position: value.position,
     onboardingComplete: value.onboardingComplete ?? false,
@@ -392,10 +427,9 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
     if (!isPanelPreferences(preferences)) {
       throw new TypeError('Cannot persist invalid panel preferences.');
     }
-    const snapshot = structuredClone({
-      ...preferences,
-      helpLevel: preferences.helpLevel ?? 'HINT',
-    });
+    const snapshot = structuredClone(
+      normalizePanelPreferences({ ...preferences }),
+    );
     await enqueueWrite(PREFERENCES_KEY, (writeSequence) => ({
       schemaVersion: STORAGE_SCHEMA_VERSION,
       savedAt: new Date().toISOString(),
@@ -529,6 +563,9 @@ export function createLessonProgressStore(storage: ExtensionStorageArea) {
         position: null,
         onboardingComplete: false,
         helpLevel: 'HINT',
+        appearance: 'light',
+        assistanceMode: 'on-demand',
+        dismissedCursorCues: [],
       };
     },
   };

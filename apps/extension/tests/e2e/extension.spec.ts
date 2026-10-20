@@ -96,6 +96,10 @@ test('the built MV3 extension mounts its React panel in the Onshape page Shadow 
     await expect(
       page.getByRole('status', { name: 'Connection status' }),
     ).toHaveText('Limited observation');
+    const mark = page.locator('leqad-assistant img.leqad-wordmark__mark');
+    await expect(mark).toHaveAttribute('src', /^data:image\/svg\+xml/);
+    await expect(mark).toHaveJSProperty('complete', true);
+    await expect(mark).toHaveJSProperty('naturalWidth', 278);
     await page.getByRole('button', { name: 'Got it' }).click();
     await page.getByRole('button', { name: 'Next' }).click();
     await page.getByRole('button', { name: 'Show me' }).click();

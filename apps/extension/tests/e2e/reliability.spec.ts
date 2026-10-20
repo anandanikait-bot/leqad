@@ -6,7 +6,7 @@ async function reachStep(page: Page, step: number) {
   for (let current = 1; current < step; current++) {
     await page
       .getByRole('button', {
-        name: current === 1 ? 'Got it' : "I've finished this step",
+        name: current === 1 ? 'Got it' : 'Mark done',
       })
       .click();
     await page.getByRole('button', { name: 'Next' }).click();
@@ -44,7 +44,7 @@ test('Corner Rectangle teaching survives simulated SHOW failure and self-reporte
     page.getByText(/The group icon can show the last-used Rectangle variant/),
   ).toBeVisible();
   await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await page.reload();
   await expect(page.getByText('Step 4 of 8 · Marked done')).toBeVisible();
   await expect(instruction).toBeVisible();
@@ -153,7 +153,7 @@ test('simulated storage failure offers retry and preserves self-reported progres
       { once: true },
     );
   });
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   const savingStatus = page.getByRole('status', { name: 'Progress saving' });
   await expect(savingStatus).toContainText('could not be saved');
   await expect(page.getByText('Step 4 of 8 · Marked done')).toBeVisible();

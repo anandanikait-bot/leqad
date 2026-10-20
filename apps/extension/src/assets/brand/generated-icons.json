@@ -1,0 +1,10 @@
+{
+  "sourceSha256": "1d96263cd3f9c4e1446080e37156a45f69e78cfeaab6d6cf8765f9789c4a0eee",
+  "renderer": "Chromium 154.0.8037.57",
+  "icons": {
+    "16": "257778460b7211dc9e9401b7e8fcd7a8dcd7f4c2ec4da45c2e0bfe122a4a244b",
+    "32": "180358fd15a102b31ad0b56993d204713cf967be819755bfb988f4d93fba779c",
+    "48": "116ec9e6d2820e1afe2ddbc4193faef6d9fdd969c987972a599bc356ac56e1bc",
+    "128": "7377fa8d76c7b9b2f06bc529e66b914ddb9314eb0ab7b9892b9e3dff38d241a3"
+  }
+}

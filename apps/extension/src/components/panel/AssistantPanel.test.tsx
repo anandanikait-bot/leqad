@@ -4,11 +4,14 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VerificationDecision } from '@leqad/contracts';
+import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 import type { LessonSession } from '@leqad/lesson-engine';
 import type { OnshapePageContext } from '../../services/onshapePage';
 import type { SketchGuidanceObservation } from '../../services/sketchGuidance';
@@ -94,7 +97,7 @@ function completeCurrentStep(): void {
     return;
   }
   const selfReport = screen.queryByRole('button', {
-    name: "I've finished this step",
+    name: 'Mark done',
   });
   if (selfReport) {
     fireEvent.click(selfReport);
@@ -103,7 +106,7 @@ function completeCurrentStep(): void {
   const check = screen.queryByRole('button', { name: 'Check progress' });
   if (check && !check.hasAttribute('disabled')) fireEvent.click(check);
   const continueButton = screen.queryByRole('button', {
-    name: "I've finished this step",
+    name: 'Mark done',
   });
   if (continueButton) fireEvent.click(continueButton);
 }
@@ -154,6 +157,202 @@ afterEach(() => {
 });
 
 describe('AssistantPanel', () => {
+  it('retains the archived former PNG logo unchanged for historical reference', () => {
+    const master = readFileSync(
+      resolve(
+        'apps/extension/src/assets/brand/leqad_isometric_learning_mark.png',
+      ),
+    );
+    expect(createHash('sha256').update(master).digest('hex')).toBe(
+      '03f744dcc135567bb4f5f91c7a58ce3fe35783b6815942686586db29dc1ab01c',
+    );
+    expect(master.readUInt32BE(16)).toBe(1254);
+    expect(master.readUInt32BE(20)).toBe(1254);
+  });
+
+  it('preserves superseded Version B SVG vectors for historical reference', () => {
+    const root = 'apps/extension/src/assets/brand/';
+    const icon = readFileSync(resolve(root, 'leqad-b-icon.svg'), 'utf8');
+    const header = readFileSync(resolve(root, 'leqad-b-header.svg'), 'utf8');
+    const lockup = readFileSync(resolve(root, 'leqad-b-logo.svg'), 'utf8');
+    expect(createHash('sha256').update(icon).digest('hex')).toBe(
+      'ce38c19d55b9330d999e6b5def6a05e222d214aa6e6f382fc08b97ae1162d66a',
+    );
+    expect(createHash('sha256').update(header).digest('hex')).toBe(
+      '504099373f4f8042979519ed9af62865d308a94b005c8a536829eee33be18bc9',
+    );
+    expect(createHash('sha256').update(lockup).digest('hex')).toBe(
+      '512b2386e17d03a5b5166de148f93757e88fde3d643d79deafc45fe56f7b1702',
+    );
+    expect(header).not.toMatch(/<image\b/);
+    expect(lockup).not.toMatch(/<text\b/);
+    expect(icon).toContain('M 88 88 H 168 V 168 H 88 Z');
+  });
+
+  it('uses the approved header mark instead of the L placeholder', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    render(<AssistantPanel page={confirmedPage} />);
+    const brand = screen.getByLabelText('Leqad');
+    const mark = brand.querySelector('img');
+    expect(mark).not.toBeNull();
+    expect(mark?.getAttribute('width')).toBe('33');
+    expect(mark?.getAttribute('height')).toBe('33');
+    expect(mark?.getAttribute('alt')).toBe('');
+    expect(
+      brand.querySelector('.leqad-wordmark__mark')?.textContent,
+    ).not.toContain('L');
+  });
+
+  it.each([0, 4, 8])(
+    'rehydrates %i completed steps without deriving progress from the visible step',
+    async (completed) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      const session = restoredSession('draw-rectangle');
+      for (const step of FOUNDATIONS_FIRST_SKETCH.steps.slice(0, completed)) {
+        session.steps[step.id] = {
+          status: 'COMPLETED',
+          hintLevel: 0,
+          verification: 'UNKNOWN',
+          resumeState: null,
+          outcome: 'SELF_REPORTED',
+        };
+      }
+      render(<AssistantPanel page={confirmedPage} initialSession={session} />);
+      const progress = screen.getByRole('progressbar', {
+        name: 'Lesson completion',
+      });
+      const percentage = (completed / 8) * 100;
+      expect(progress.getAttribute('aria-valuenow')).toBe(String(percentage));
+      expect(progress.getAttribute('aria-valuemin')).toBe('0');
+      expect(progress.getAttribute('aria-valuemax')).toBe('100');
+      expect(progress.getAttribute('aria-valuetext')).toContain(
+        `${completed} of 8 steps completed`,
+      );
+      expect(screen.getByText(`${percentage}%`)).toBeTruthy();
+      expect(
+        screen.getByRole('status', { name: 'Lesson progress' }).textContent,
+      ).not.toContain('Model verified');
+    },
+  );
+
+  it('resets real progress to zero and rehydrates the reset session', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onSessionChange = vi.fn();
+    const { unmount } = render(
+      <AssistantPanel page={confirmedPage} onSessionChange={onSessionChange} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '13',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Restart lesson' }));
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    const resetSession = onSessionChange.mock.lastCall?.[0] as LessonSession;
+    unmount();
+    render(
+      <AssistantPanel page={confirmedPage} initialSession={resetSession} />,
+    );
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(screen.getByText('Step 1 of 8 · Visited')).toBeTruthy();
+  });
+
+  it('separates current instructions from optional help without invoking CAD actions', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onShowTarget = vi.fn();
+    const onCheckStep = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        onShowTarget={onShowTarget}
+        onCheckStep={onCheckStep}
+      />,
+    );
+    const action = screen.getByRole('region', { name: 'Next action' });
+    const help = screen.getByRole('region', { name: 'Lesson help' });
+    expect(
+      within(action).getByText(/Open the Rectangle dropdown with its arrow/),
+    ).toBeTruthy();
+    expect(
+      within(help).getByRole('heading', { name: 'How can I help?' }),
+    ).toBeTruthy();
+    expect(within(action).queryByRole('button', { name: 'SHOW' })).toBeNull();
+    expect(onShowTarget).not.toHaveBeenCalled();
+    expect(onCheckStep).not.toHaveBeenCalled();
+  });
+
+  it('keeps assistance selected states mutually exclusive without completing a step', async () => {
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const onSessionChange = vi.fn();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialSession={restoredSession('draw-rectangle')}
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          helpLevel: 'HINT',
+        }}
+        onSessionChange={onSessionChange}
+      />,
+    );
+    for (const level of ['HINT', 'SHOW', 'GUIDE']) {
+      fireEvent.click(screen.getByRole('button', { name: level }));
+      for (const candidate of ['HINT', 'SHOW', 'GUIDE']) {
+        const button = screen.getByRole('button', { name: candidate });
+        expect(button.getAttribute('aria-pressed')).toBe(
+          String(candidate === level),
+        );
+        expect(button.classList.contains('is-selected')).toBe(
+          candidate === level,
+        );
+      }
+      expect(
+        screen.getByRole('progressbar').getAttribute('aria-valuenow'),
+      ).toBe('0');
+    }
+    expect(onSessionChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['intro', true, 'Got it'],
+    ['select-reference-plane', true, 'Check progress'],
+    ['draw-rectangle', true, 'Mark done'],
+    ['reflect', true, 'Mark done'],
+    ['select-reference-plane', false, 'Mark done'],
+  ] as const)(
+    'preserves completion-mode labels for %s (editable: %s)',
+    async (stepId, editable, label) => {
+      const { AssistantPanel } = await import('./AssistantPanel');
+      const actualId =
+        stepId === 'intro'
+          ? FOUNDATIONS_FIRST_SKETCH.steps[0]!.id
+          : stepId === 'reflect'
+            ? FOUNDATIONS_FIRST_SKETCH.steps[7]!.id
+            : stepId;
+      render(
+        <AssistantPanel
+          page={{
+            ...confirmedPage,
+            editability: editable ? 'editable' : 'unknown',
+          }}
+          initialSession={restoredSession(actualId)}
+          onCheckStep={() => uiDecision('UNKNOWN')}
+        />,
+      );
+      expect(screen.getByRole('button', { name: label })).toBeTruthy();
+      for (const other of ['Got it', 'Check progress', 'Mark done'].filter(
+        (name) => name !== label,
+      )) {
+        expect(screen.queryByRole('button', { name: other })).toBeNull();
+      }
+    },
+  );
+
   it.each([
     { context: 'UNKNOWN', status: 'FALLBACK' },
     { context: 'SKETCH_EDITING', status: 'MISSING' },
@@ -296,9 +495,7 @@ describe('AssistantPanel', () => {
         }}
       />,
     );
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(
       (await screen.findByRole('status', { name: 'Progress saving' }))
         .textContent,
@@ -416,9 +613,7 @@ describe('AssistantPanel', () => {
     expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
     expect(onSessionChange).not.toHaveBeenCalled();
     expect(onCheckStep).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     const session = onSessionChange.mock.lastCall?.[0];
     expect(session.steps['start-sketch']).toMatchObject({
       outcome: 'SELF_REPORTED',
@@ -778,9 +973,7 @@ describe('AssistantPanel', () => {
     expect(
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited observation');
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
     expect(
       screen.getByRole('status', { name: 'Lesson progress' }).textContent,
@@ -1126,9 +1319,7 @@ describe('AssistantPanel', () => {
       expect(
         screen.queryByRole('button', { name: 'Check progress' }),
       ).toBeNull();
-      fireEvent.click(
-        screen.getByRole('button', { name: "I've finished this step" }),
-      );
+      fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
       const session = onSessionChange.mock.lastCall?.[0];
       expect(session.steps[stepId]).toMatchObject({
@@ -1156,13 +1347,9 @@ describe('AssistantPanel', () => {
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
-    expect(
-      screen.queryByRole('button', { name: "I've finished this step" }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mark done' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 4 of 8 · Marked done')).toBeTruthy();
   });
 
@@ -1200,13 +1387,9 @@ describe('AssistantPanel', () => {
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited observation');
     expect(screen.queryByRole('button', { name: 'Check progress' })).toBeNull();
-    expect(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark done' })).toBeTruthy();
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
   });
@@ -1386,9 +1569,7 @@ describe('AssistantPanel', () => {
       }
     }
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 8 of 8 · Marked done')).toBeTruthy();
   });
 
@@ -1544,9 +1725,7 @@ describe('AssistantPanel', () => {
     expect(screen.getByText(/What Leqad knows:/)).toBeTruthy();
     expect(screen.getByText(/What remains unknown:/)).toBeTruthy();
     expect(screen.getByText(/Try next:/)).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mark done' })).toBeTruthy();
   });
 
   it('records continued unknown progress as self-reported rather than verified', async () => {
@@ -1560,9 +1739,7 @@ describe('AssistantPanel', () => {
     advanceToStep(2);
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
 
     expect(screen.getByText('Step 2 of 8 · Marked done')).toBeTruthy();
     expect(
@@ -1600,9 +1777,7 @@ describe('AssistantPanel', () => {
     advanceToStep(5);
 
     expect(screen.queryByRole('button', { name: 'Check progress' })).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', { name: "I've finished this step" }),
-    );
+    fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(screen.getByText('Step 5 of 8 · Marked done')).toBeTruthy();
     expect(screen.queryByText('Step 5 of 8 · UI verified')).toBeNull();
   });
@@ -1677,6 +1852,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -1700,6 +1880,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -1727,6 +1912,11 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     const view = render(
       <AssistantPanel
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
         page={confirmedPage}
         onCheckStep={() => uiDecision('UNKNOWN')}
       />,
@@ -1904,4 +2094,92 @@ it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown captu
   fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
   expect(screen.queryByLabelText('Recognition diagnostics output')).toBeNull();
   runner.dispose();
+});
+
+it('on-demand mode does not inspect targets or suggest actions from pointer movement', async () => {
+  const targets = await import('../../services/semanticTargets');
+  const find = vi.spyOn(targets, 'findSemanticTarget');
+  const { AssistantPanel } = await import('./AssistantPanel');
+  render(<AssistantPanel page={confirmedPage} />);
+  advanceToStep(2);
+  fireEvent.pointerMove(document, { clientX: 50, clientY: 50 });
+  expect(find).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+  ).toBeNull();
+});
+
+it('proactive cues require a recognized target and remain dismissed across remounts', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal('PointerEvent', MouseEvent);
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const targets = await import('../../services/semanticTargets');
+    const find = vi.spyOn(targets, 'findSemanticTarget').mockReturnValue(null);
+    vi.spyOn(targets, 'isUsableSemanticTarget').mockReturnValue(true);
+    const save = vi.fn();
+    const { AssistantPanel } = await import('./AssistantPanel');
+    const view = render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialPanelPreferences={{
+          collapsed: false,
+          position: null,
+          assistanceMode: 'proactive',
+        }}
+        onPanelPreferencesChange={save}
+      />,
+    );
+    advanceToStep(2);
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 35 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+    // Simulated recognizer boundary: tests assistance policy, not live recognition.
+    const target = document.createElement('button');
+    target.getBoundingClientRect = () => new DOMRect(20, 30, 80, 24);
+    find.mockReturnValue(target);
+    now = 600;
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 42 });
+    now = 700;
+    fireEvent.pointerMove(document, { clientX: 30, clientY: 42 });
+    expect(screen.getByText(/Observation: your pointer/).textContent).toContain(
+      'recognized lesson control',
+    );
+    expect(
+      screen.getByText(/Observation: your pointer/).textContent,
+    ).not.toContain('select the Top plane control');
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '13',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss suggestion' }));
+    now = 900;
+    fireEvent.pointerMove(document, { clientX: 35, clientY: 42 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const preferences = save.mock.lastCall?.[0];
+    expect(preferences.dismissedCursorCues).toContain('select-reference-plane');
+    view.unmount();
+    render(
+      <AssistantPanel
+        page={confirmedPage}
+        initialPanelPreferences={preferences}
+      />,
+    );
+    advanceToStep(2);
+    now = 1500;
+    fireEvent.pointerMove(document, { clientX: 24, clientY: 42 });
+    now = 1600;
+    fireEvent.pointerMove(document, { clientX: 30, clientY: 42 });
+    expect(
+      screen.queryByRole('button', { name: 'Dismiss suggestion' }),
+    ).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });
