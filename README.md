@@ -19,3 +19,8 @@ pnpm test:e2e
 ```
 
 `pnpm dev` runs WXT's Chrome extension development workflow. For a production build, run `pnpm build`; WXT writes the unpacked extension to `apps/extension/.output/chrome-mv3`. Load that directory as an unpacked extension in Chrome or Edge and open a supported Onshape document. Live Onshape behavior still needs validation with a real account and browser session.
+
+
+## Official branding
+
+The baseline Leqad logo is the approved circular symbol and thick horizontal wordmark with **Hay's Russet `#793327`**. See [official identity](docs/branding/official-logo.md). All new website/extension/desktop logo placements must reuse the exported variants rather than drawing an alternative mark.

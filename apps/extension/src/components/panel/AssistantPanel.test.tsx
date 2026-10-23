@@ -15,6 +15,8 @@ describe('AssistantPanel', () => {
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited access');
     expect(screen.queryByText('Connected')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Leqad logo' }).getAttribute('src'))
+      .toMatch(/leqad-official-horizontal-dark-v1\.svg|data:image\/svg\+xml/);
   });
 
   it('lets a keyboard-accessible navigation control change the panel mode', async () => {
@@ -50,7 +52,7 @@ describe('AssistantPanel', () => {
 
     const normalizedCss = css.toLowerCase();
 
-    expect(normalizedCss).toContain('#0d1c43');
+    expect(normalizedCss).toContain('#0e2943');
     expect(normalizedCss).toContain('#793327');
     expect(normalizedCss).toContain('#f5efe7');
   });
