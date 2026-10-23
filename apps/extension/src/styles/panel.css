@@ -2,7 +2,7 @@
 
 :host {
   all: initial;
-  --leqad-navy: #0d1c43;
+  --leqad-navy: #0e2943;
   --leqad-russet: #793327;
   --leqad-ivory: #f5efe7;
   pointer-events: none;
@@ -33,9 +33,9 @@
   pointer-events: auto;
   color: var(--leqad-navy);
   background: var(--leqad-ivory);
-  border: 1px solid rgba(13, 28, 67, 0.18);
+  border: 1px solid rgba(14, 41, 67, 0.18);
   border-radius: 14px;
-  box-shadow: 0 12px 36px rgba(13, 28, 67, 0.2);
+  box-shadow: 0 12px 36px rgba(14, 41, 67, 0.2);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -128,7 +128,7 @@
   padding: 8px 14px;
   color: var(--leqad-navy);
   background: #fffaf3;
-  border-bottom: 1px solid rgba(13, 28, 67, 0.12);
+  border-bottom: 1px solid rgba(14, 41, 67, 0.12);
   font-size: 12px;
 }
 
@@ -136,7 +136,7 @@
   display: flex;
   gap: 4px;
   padding: 8px 12px 0;
-  border-bottom: 1px solid rgba(13, 28, 67, 0.14);
+  border-bottom: 1px solid rgba(14, 41, 67, 0.14);
 }
 
 .leqad-nav__item {
@@ -150,7 +150,7 @@
 }
 
 .leqad-nav__item:hover {
-  background: rgba(13, 28, 67, 0.06);
+  background: rgba(14, 41, 67, 0.06);
 }
 
 .leqad-nav__item.is-active {
@@ -194,7 +194,7 @@
 .leqad-step-card {
   padding: 13px;
   background: #fffaf3;
-  border: 1px solid rgba(13, 28, 67, 0.13);
+  border: 1px solid rgba(14, 41, 67, 0.13);
   border-radius: 11px;
 }
 
@@ -244,7 +244,7 @@
 .leqad-button--secondary {
   color: var(--leqad-navy) !important;
   background: #fffaf3;
-  border-color: rgba(13, 28, 67, 0.25);
+  border-color: rgba(14, 41, 67, 0.25);
 }
 
 .leqad-button--secondary:hover {
@@ -285,7 +285,7 @@
 .leqad-progress {
   margin: 10px 0 0 !important;
   padding-top: 9px;
-  border-top: 1px solid rgba(13, 28, 67, 0.14);
+  border-top: 1px solid rgba(14, 41, 67, 0.14);
   color: #293652;
   font-size: 11px;
 }
