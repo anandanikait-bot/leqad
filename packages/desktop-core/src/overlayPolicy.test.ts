@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   decideDesktopOverlay,
   type OverlayInput,
+  type OverlayDecision,
 } from './overlayPolicy';
+
+function hideReason(decision: OverlayDecision): string | null {
+  return decision.visible ? null : decision.reason;
+}
 
 function fixture(): OverlayInput {
   return {
@@ -98,18 +103,18 @@ describe('desktop overlay visibility policy (simulated evidence only)', () => {
 
   it('rejects stale and future-dated observations and wrong captured windows', () => {
     const base = fixture();
-    expect(decideDesktopOverlay(withInput(base, { nowMs: 1_751 })).reason).toBe('observation-stale');
-    expect(decideDesktopOverlay(withInput(base, { nowMs: 999 })).reason).toBe('observation-stale');
-    expect(decideDesktopOverlay(withInput(base, {
+    expect(hideReason(decideDesktopOverlay(withInput(base, { nowMs: 1_751 }))).toBe('observation-stale');
+    expect(hideReason(decideDesktopOverlay(withInput(base, { nowMs: 999 }))).toBe('observation-stale');
+    expect(hideReason(decideDesktopOverlay(withInput(base, {
       observation: { ...base.observation!, sourceWindowId: 'OTHER_WINDOW' },
-    })).reason).toBe('capture-window-mismatch');
+    }))).toBe('capture-window-mismatch');
   });
 
   it('never highlights ambiguous, missing or below-threshold targets', () => {
     const base = fixture();
-    expect(decideDesktopOverlay(withInput(base, {
+    expect(hideReason(decideDesktopOverlay(withInput(base, {
       observation: { ...base.observation!, unique: false },
-    })).reason).toBe('target-ambiguous-or-low-confidence');
+    }))).toBe('target-ambiguous-or-low-confidence');
     expect(decideDesktopOverlay(withInput(base, {
       observation: { ...base.observation!, confidence: 0.5 },
     })).visible).toBe(false);
