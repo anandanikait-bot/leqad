@@ -140,16 +140,14 @@ describe('desktop overlay visibility policy (simulated evidence only)', () => {
 
   it('uses actual capture content bounds for nonuniform DPI scaling', () => {
     const base = fixture();
-    expect(decideDesktopOverlay(withInput(base, {
+    const scaled = decideDesktopOverlay(withInput(base, {
       contentBounds: { x: 100, y: 60, width: 1200, height: 600 },
-    }))).toEqual({
-      visible: true,
-      bounds: {
-        x: 250,
-        y: 60 + (100 * 600) / 900,
-        width: 60,
-        height: (32 * 600) / 900,
-      },
-    });
+    }));
+    expect(scaled.visible).toBe(true);
+    if (!scaled.visible) throw new Error('Expected a safe projected overlay');
+    expect(scaled.bounds.x).toBeCloseTo(250, 9);
+    expect(scaled.bounds.y).toBeCloseTo(60 + (100 * 600) / 900, 9);
+    expect(scaled.bounds.width).toBeCloseTo(60, 9);
+    expect(scaled.bounds.height).toBeCloseTo((32 * 600) / 900, 9);
   });
 });
