@@ -52,7 +52,7 @@ describe('AssistantPanel', () => {
 
     const normalizedCss = css.toLowerCase();
 
-    expect(normalizedCss).toContain('#0d1c43');
+    expect(normalizedCss).toContain('#0e2943');
     expect(normalizedCss).toContain('#793327');
     expect(normalizedCss).toContain('#f5efe7');
   });
