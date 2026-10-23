@@ -19,3 +19,7 @@ pnpm test:e2e
 ```
 
 `pnpm dev` runs WXT's Chrome extension development workflow. For a production build, run `pnpm build`; WXT writes the unpacked extension to `apps/extension/.output/chrome-mv3`. Load that directory as an unpacked extension in Chrome or Edge and open a supported Onshape document. Live Onshape behavior still needs validation with a real account and browser session.
+
+## Experimental desktop companion — Phase 1B
+
+Cross-CAD desktop guidance is being prototyped in a separate, non-shipping track. Read [Phase 1B architecture](docs/product/phase-1b-desktop-companion.md) and the [no-redownload test-loop plan](docs/testing/desktop-alpha-testing.md). The new pure overlay-policy tests run with `pnpm test`; **there is not yet a runnable desktop app or `pnpm dev:desktop` command**. The original extension and live Onshape acceptance scope remain separate.
