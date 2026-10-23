@@ -20,6 +20,7 @@ import {
   isUsableSemanticTarget,
 } from '../../services/semanticTargets';
 import type { SemanticTargetId } from '../../services/semanticTargets';
+import officialLeqadLogo from '../../assets/brand/leqad-official-horizontal-dark-v1.svg?url';
 
 interface AssistantPanelProps {
   page?: OnshapePageContext;
@@ -351,11 +352,15 @@ export function AssistantPanel({
           onPointerCancel={endDrag}
           onKeyDown={moveWithKeyboard}
         >
-          <div className="leqad-wordmark" aria-label="Leqad">
-            <span className="leqad-wordmark__mark" aria-hidden="true">
-              L
-            </span>
-            <span>Leqad</span>
+          <div className="leqad-wordmark">
+            <img
+              src={officialLeqadLogo}
+              alt="Leqad logo"
+              className="leqad-wordmark__image"
+              width="1625"
+              height="470"
+              draggable={false}
+            />
           </div>
           <div className="leqad-panel__header-meta">
             <span className="leqad-mode-label">{mode}</span>

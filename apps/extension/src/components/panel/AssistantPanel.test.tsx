@@ -15,6 +15,8 @@ describe('AssistantPanel', () => {
       screen.getByRole('status', { name: 'Connection status' }).textContent,
     ).toBe('Limited access');
     expect(screen.queryByText('Connected')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Leqad logo' }).getAttribute('src'))
+      .toContain('leqad-official-horizontal-dark-v1.svg');
   });
 
   it('lets a keyboard-accessible navigation control change the panel mode', async () => {
