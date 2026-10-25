@@ -273,7 +273,7 @@ These are durable requirements across every phase:
 | Learning profiles and educator tools | 5 or later | Planned with privacy review |
 | Fusion / SOLIDWORKS / FreeCAD / other CAD adapters | Future | Planned individually; no compatibility claim |
 
-Update implementation status in the living `ROADMAP.md`, `docs/implementation-progress.md`, and dated test reports on the active development branch. **Never silently change a feature from planned to implemented or live-verified.**
+Update implementation status in `docs/implementation-progress.md`, dated test reports, and any branch-specific operational roadmap that actually exists; do not assume a `ROADMAP.md` is present on every branch. **Never silently change a feature from planned to implemented or live-verified.**
 
 ## 9. Brand direction (provisional, protected)
 
@@ -314,7 +314,7 @@ Before changing code:
 7. Update documentation with exact commit, test evidence, live PASS/FAIL/BLOCKED cases and next action.
 8. Do not overwrite the original historical specifications.
 
-**Current instruction:** Finish Phase 1 reliability and real Onshape acceptance first. The October 15 AI interaction design is intentionally deferred to Phase 1.5; verified CAD feedback and AI concept design remain later work.
+**Current instruction:** Keep extension Phase 1/1.5 real Onshape acceptance honest while separately building and validating the Windows desktop Phase 1B host. Do not treat local Ask examples as AI; the historical October 15 AI interaction design is now a **Phase 2A** proposal. Verified CAD-model feedback belongs to **Phase 2B**, with concept design later.
 
 ## 12. Source-of-truth and related documents
 
@@ -326,11 +326,20 @@ This file is the **canonical living reference for product mission, vision, featu
 - [Development branch roadmap](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/ROADMAP.md) — operational implementation status.
 - [Phase 1 acceptance checklist](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/testing/results/phase1-live-acceptance.md) — real CAD validation evidence, with potentially historical results.
 - [Adaptive visual guidance design](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/superpowers/specs/2026-10-14-adaptive-guidance-design.md).
-- [First intelligent interaction design](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md) — proposed Phase 1.5 experiment.
+- [Phase 1B desktop companion](phase-1b-desktop-companion.md) — Windows-first desktop feasibility and live-safety gates.
+- [Phase 1.5 teaching UI PR #15](https://github.com/anandanikait-bot/leqad/pull/15) — extension-based UX/local Ask prototype pending owner live acceptance.
+- [First intelligent interaction design](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md) — historical “Phase 1.5” name; canonical **Phase 2A** AI scope.
 
 ### Change control
 
 When updating the vision, record the decision, reason, date and affected phases. High-level direction can evolve; do not silently remove original goals such as **teacher–verifier feedback**, **concept selection and dimensions**, **student independence**, **robotics/printability**, or **future multi-CAD support**.
+
+### October 25, 2026 — naming and delivery reconciliation
+
+- **Phase 1B** designates the standalone Windows desktop companion, whose safety policy exists but whose host/overlay has not been implemented or live-accepted.
+- **Phase 1.5** designates the extension-based teaching UX with local Ask examples; it is not a real AI feature or a desktop deliverable.
+- The historical first-AI-interaction proposal formerly labeled Phase 1.5 is now **Phase 2A**; model-truth verification is **Phase 2B**. Subsequent major phases retain their earlier numbering.
+- The browser extension remains a limited fallback until desktop feasibility and real-CAD safety gates pass. The desktop remains the intended product.
 
 ### October 15, 2026 — consolidated decisions
 
@@ -338,7 +347,7 @@ When updating the vision, record the decision, reason, date and affected phases.
 - Preserved the collaborative **AI teacher + independent CAD verifier** architecture.
 - Preserved generated design options, student choice/correction, and dimension gathering as a later Custom Part Studio workflow.
 - Explicitly set future **multi-CAD** support as a core architectural goal while delivering Onshape first.
-- Inserted a limited **Phase 1.5** AI teacher/consented screenshot prototype without bypassing unfinished Phase 1 live validation.
+- At that time, proposed a limited **Phase 1.5** AI teacher/consented screenshot prototype. This is a historical October 15 label; the October 25 decision reclassifies that proposal as **Phase 2A**, distinct from the implemented non-AI Phase 1.5 teaching UX.
 - Retained the original cube/path branding as a preferred concept, subject to refinement and originality review.
 - Required phase-by-phase feature tracking and owner approval, with no simulated test treated as live acceptance.
 
