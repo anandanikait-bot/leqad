@@ -94,9 +94,9 @@ function openHelp(
   section:
     'Detailed guidance' | 'Hint' | 'Why it matters' = 'Detailed guidance',
 ) {
-  const toggle = screen.getByRole('button', { name: 'Help', exact: true });
+  const toggle = screen.getByRole('button', { name: 'Help' });
   if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle);
-  fireEvent.click(screen.getByRole('button', { name: section, exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: section }));
 }
 
 function completeCurrentStep(): void {
@@ -286,9 +286,7 @@ describe('AssistantPanel', () => {
     expect(
       within(action).getByText(/Open the Rectangle dropdown with its arrow/),
     ).toBeTruthy();
-    expect(
-      within(help).getByRole('button', { name: 'Help', exact: true }),
-    ).toBeTruthy();
+    expect(within(help).getByRole('button', { name: 'Help' })).toBeTruthy();
     openHelp();
     expect(within(action).queryByRole('button', { name: 'SHOW' })).toBeNull();
     expect(onShowTarget).not.toHaveBeenCalled();

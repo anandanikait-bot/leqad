@@ -658,3 +658,166 @@
   color: var(--leqad-navy);
   background: var(--leqad-input-bg);
 }
+
+/* Phase 1.5: one help surface, with the current task kept in view. */
+.leqad-panel {
+  max-height: calc(100dvh - 16px);
+  box-shadow: none;
+}
+.leqad-panel__header,
+.leqad-nav,
+.leqad-readonly-note {
+  flex-shrink: 0;
+}
+.leqad-help-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+.leqad-help-expanded {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.leqad-help-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.leqad-help-sections .leqad-button {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.leqad-help-sections [aria-pressed='true'] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  color: var(--leqad-russet);
+}
+.leqad-help-content {
+  max-height: min(240px, 30dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  margin: 4px -4px 0;
+}
+.leqad-help-content p {
+  margin: 8px 0;
+}
+.leqad-step-footer .leqad-button--primary:disabled {
+  background: var(--leqad-secondary-bg);
+  color: var(--leqad-description);
+}
+.leqad-step-count:focus {
+  outline: 2px solid var(--leqad-focus);
+  outline-offset: 2px;
+}
+.leqad-help {
+  border-top: 1px solid var(--leqad-border);
+}
+.leqad-step-card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+.leqad-lesson {
+  padding: 12px 16px;
+}
+.leqad-lesson h2 {
+  font-size: 19px;
+}
+.leqad-next-action p {
+  margin: 4px 0;
+}
+.leqad-next-action {
+  margin-top: 8px;
+}
+.leqad-progress-summary {
+  margin-top: 8px;
+}
+.leqad-progress {
+  font-size: 12px;
+}
+.leqad-step-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.leqad-step-navigation .leqad-button {
+  flex: 1 1 auto;
+}
+.leqad-panel__body[data-learning-workspace='true'] {
+  display: flex;
+  flex-direction: column;
+}
+.leqad-panel__body[data-learning-workspace='true'][hidden] {
+  display: none;
+}
+@media (min-height: 801px) and (min-width: 341px) {
+  .leqad-panel__body[data-learning-workspace='true'] {
+    overflow: hidden;
+  }
+  .leqad-panel__body[data-learning-workspace='true'] .leqad-lesson {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .leqad-panel__body[data-learning-workspace='true'] .leqad-step-card {
+    display: contents;
+  }
+  .leqad-panel__body[data-learning-workspace='true'] .leqad-help {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex-shrink: 1;
+  }
+  .leqad-panel__body[data-learning-workspace='true']
+    .leqad-lesson
+    > :not(.leqad-help) {
+    flex-shrink: 0;
+  }
+}
+@media (max-height: 800px), (max-width: 340px) {
+  .leqad-help-content {
+    max-height: none;
+    overflow: visible;
+  }
+  .leqad-panel__body[data-learning-workspace='true'] {
+    display: block;
+    overflow: auto;
+  }
+}
+.leqad-help {
+  margin-top: 8px;
+  padding-top: 4px;
+}
+.leqad-help-toggle {
+  min-height: 32px;
+}
+.leqad-help-sections .leqad-button {
+  min-height: 30px;
+}
+.leqad-step-card .leqad-goal {
+  margin-bottom: 6px !important;
+}
+.leqad-step-footer {
+  margin-top: 8px;
+}
+.leqad-next-action > p:not(.leqad-eyebrow) {
+  margin-bottom: 6px;
+}
+.leqad-panel[data-help-compact='true']
+  .leqad-panel__body[data-learning-workspace='true'] {
+  display: block;
+  overflow: auto;
+}
+.leqad-panel[data-help-compact='true']
+  .leqad-panel__body[data-learning-workspace='true']
+  .leqad-lesson {
+  display: block;
+}
+.leqad-panel[data-help-compact='true'] .leqad-help-content {
+  max-height: none;
+  overflow: visible;
+}

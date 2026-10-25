@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -65,11 +66,12 @@ for (const zoom of [1, 1.25, 1.5]) {
         ).toContainText('Corner Rectangle');
         await expect(
           page.getByRole('region', { name: 'Lesson help' }),
-        ).toContainText('How can I help?');
+        ).toContainText('Help');
         await expect(page.locator('.leqad-step-card')).toHaveCSS(
           'padding',
-          '15px',
+          '0px',
         );
+        await openLessonHelp(page);
         for (const level of ['HINT', 'SHOW', 'GUIDE']) {
           const button = page.getByRole('button', { name: level, exact: true });
           expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(

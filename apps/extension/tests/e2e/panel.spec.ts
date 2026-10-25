@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test } from '@playwright/test';
 
 test('contextual Top row and all four commands highlight without verifying a click', async ({
@@ -15,6 +16,7 @@ test('contextual Top row and all four commands highlight without verifying a cli
   ];
   for (let index = 0; index < controls.length; index++) {
     const step = index + 2;
+    await openLessonHelp(page, 'Detailed guidance');
     await page
       .getByRole('button', { name: index === 0 ? 'Show me' : 'SHOW' })
       .click();
@@ -85,6 +87,7 @@ test('non-ARIA feature-list simulation highlights only the row and re-resolves a
 
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   const row = page.locator('#fixture-nonaria-top-row');
   const targetBounds = await row.boundingBox();
@@ -109,6 +112,7 @@ test('non-ARIA feature-list simulation highlights only the row and re-resolves a
     oldRow.parentElement.replaceChild(replacement, oldRow);
   });
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   const replacementBounds = await page
     .locator('#fixture-nonaria-top-row')
@@ -129,26 +133,31 @@ test('repeated Show me clears on pause, collapse, completion, restart, and unmou
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   for (let count = 0; count < 3; count++)
-    await page.getByRole('button', { name: 'Show me' }).click();
+    await openLessonHelp(page, 'Detailed guidance');
+  await page.getByRole('button', { name: 'Show me' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show me' })).toBeDisabled();
   await page.getByRole('button', { name: 'Resume' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await page.getByRole('button', { name: 'Collapse Leqad panel' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Expand Leqad panel' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await page.getByRole('button', { name: 'Mark done' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Back' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await page.getByRole('button', { name: 'Restart lesson' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await page.evaluate(() => window.dispatchEvent(new Event('fixture:unmount')));
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
@@ -179,6 +188,8 @@ test('simulated Rectangle GUIDE highlights the trigger, then the user-opened men
       /simulated guidance menu only.*not authenticated Onshape evidence/i,
     ),
   ).toBeVisible();
+
+  await openLessonHelp(page, 'Detailed guidance');
 
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await expect(
@@ -224,6 +235,7 @@ test('simulated Rectangle GUIDE observes keyboard-opened and already-open menus'
 }) => {
   await page.goto('/fixture.html');
   await advanceToSimulatedRectangleStep(page);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await page.locator('#fixture-rectangle').focus();
   await page.keyboard.press('Enter');
@@ -244,6 +256,7 @@ test('simulated Rectangle GUIDE observes keyboard-opened and already-open menus'
   const itemBounds = await page
     .locator('[data-guidance-simulation-item="true"]')
     .boundingBox();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'GUIDE' }).click();
   const currentOverlay = await page
     .locator('[data-leqad-highlight]')
@@ -258,12 +271,17 @@ test('simulated GUIDE cleans its highlight when assistance changes, pauses, coll
   await page.goto('/fixture.html');
   await advanceToSimulatedRectangleStep(page);
 
+  await openLessonHelp(page, 'Detailed guidance');
+
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
+  await openLessonHelp(page, 'Hint');
   await page.getByRole('button', { name: 'I’m stuck' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
-  await expect(page.getByText(/Hint 1 of 5/)).toBeVisible();
+  await expect(page.getByText(/Hint 2 of 5/)).toBeVisible();
   await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+
+  await openLessonHelp(page, 'Detailed guidance');
 
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
@@ -271,11 +289,15 @@ test('simulated GUIDE cleans its highlight when assistance changes, pauses, coll
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Resume' }).click();
 
+  await openLessonHelp(page, 'Detailed guidance');
+
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Collapse Leqad panel' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Expand Leqad panel' }).click();
+
+  await openLessonHelp(page, 'Detailed guidance');
 
   await page.getByRole('button', { name: 'GUIDE' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
@@ -295,6 +317,7 @@ test('already sketching with unknown permission stays unverified and exports opt
   await expect(
     page.getByText(/Sketch dialog displays Top plane/),
   ).toBeVisible();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await expect(page.getByText('Step 2 of 8 · Visited')).toBeVisible();
@@ -629,6 +652,7 @@ test('the browser panel highlights a fixture control and confirms Top-plane sket
 
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'Show me' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toBeVisible();
 

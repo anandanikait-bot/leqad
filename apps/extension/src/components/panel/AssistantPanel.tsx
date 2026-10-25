@@ -469,6 +469,7 @@ export function AssistantPanel({
   );
   const stepHeading = useRef<HTMLParagraphElement>(null);
   const focusStepAfterNavigation = useRef(false);
+  const [compactHelp, setCompactHelp] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<HelpSection>('hint');
   const [showRecovery, setShowRecovery] = useState(false);
@@ -587,6 +588,33 @@ export function AssistantPanel({
     page?.workspaceId,
     page?.elementId,
   ]);
+
+  // CSS handles small viewports. Long context can also exhaust help space:
+  // latch fallback until the next viewport/help lifecycle, avoiding resize loops.
+  useEffect(() => {
+    setCompactHelp(false);
+    if (!helpOpen || collapsed) return;
+    const content = panelRef.current?.querySelector<HTMLElement>(
+      '.leqad-help-content',
+    );
+    if (!content || typeof ResizeObserver === 'undefined') return;
+    const inspect = () => {
+      if (
+        content.clientHeight > 0 &&
+        content.clientHeight < 96 &&
+        content.scrollHeight > content.clientHeight + 1
+      )
+        setCompactHelp(true);
+    };
+    const observer = new ResizeObserver(inspect);
+    observer.observe(content);
+    const reset = () => setCompactHelp(false);
+    window.addEventListener('resize', reset);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', reset);
+    };
+  }, [helpOpen, helpSection, collapsed, step?.id]);
 
   useEffect(() => {
     setSketchModeReported(false);
@@ -1512,6 +1540,7 @@ export function AssistantPanel({
         ref={panelRef}
         className={`leqad-panel${collapsed ? ' leqad-panel--collapsed' : ''}`}
         style={panelStyle}
+        data-help-compact={compactHelp}
         data-leqad-panel
         data-theme={resolvedAppearance}
       >

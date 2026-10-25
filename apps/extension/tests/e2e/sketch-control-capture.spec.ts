@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test } from '@playwright/test';
 
 // Simulated toolbar only; not authenticated Onshape evidence.
@@ -19,6 +20,7 @@ test('Sketch capture retains clicked evidence past unrelated controls, preserves
     button.setAttribute('aria-label', 'private-command');
     button.setAttribute('title', 'Sketch');
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(
     page.getByRole('group', { name: 'Sketch highlight calibration' }),

@@ -7,21 +7,25 @@ it('opens a short hint without running SHOW or verification; sections are exclus
     check = vi.fn();
   render(<AssistantPanel onShowTarget={show} onCheckStep={check} />);
   expect(screen.queryByText(/Hint 1 of 5/)).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
   expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
   expect(show).not.toHaveBeenCalled();
   expect(check).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Why it matters' }));
   expect(screen.queryByText(/Hint 1 of 5/)).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Hint', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Hint' }));
   expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
   expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
 });
 it('closes help on collapse, step changes and document changes', () => {
   const page = {
     supported: true,
+    versionId: null,
+    microversionId: null,
+    capabilitySource: null,
+    capabilityObservedAt: null,
     documentId: 'a',
     workspaceId: 'w',
     elementId: 'e',
@@ -30,22 +34,18 @@ it('closes help on collapse, step changes and document changes', () => {
     modelType: 'workspace',
   } as const;
   const view = render(<AssistantPanel page={page} />);
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
   fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Next', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   expect(
-    screen
-      .getByRole('button', { name: 'Help', exact: true })
-      .getAttribute('aria-expanded'),
+    screen.getByRole('button', { name: 'Help' }).getAttribute('aria-expanded'),
   ).toBe('false');
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
   view.rerender(<AssistantPanel page={{ ...page, documentId: 'b' }} />);
   expect(
-    screen
-      .getByRole('button', { name: 'Help', exact: true })
-      .getAttribute('aria-expanded'),
+    screen.getByRole('button', { name: 'Help' }).getAttribute('aria-expanded'),
   ).toBe('false');
-  fireEvent.click(screen.getByRole('button', { name: 'Help', exact: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
   fireEvent.click(screen.getByRole('button', { name: 'Collapse Leqad panel' }));
   fireEvent.click(screen.getByRole('button', { name: 'Expand Leqad panel' }));
   expect(screen.queryByRole('region', { name: 'Help content' })).toBeNull();
@@ -53,9 +53,9 @@ it('closes help on collapse, step changes and document changes', () => {
 it('emphasizes Next only after acknowledgement without upgrading evidence', () => {
   render(<AssistantPanel />);
   fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
-  expect(
-    screen.getByRole('button', { name: 'Next', exact: true }).className,
-  ).toContain('leqad-button--primary');
+  expect(screen.getByRole('button', { name: 'Next' }).className).toContain(
+    'leqad-button--primary',
+  );
   expect(
     screen.getByRole('status', { name: 'Lesson progress' }).textContent,
   ).toContain('does not claim CAD verification');

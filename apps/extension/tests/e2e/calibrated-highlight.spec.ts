@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test, type Page } from '@playwright/test';
 
 // These controls and positions are simulations, not authenticated Onshape evidence.
@@ -25,6 +26,7 @@ async function startSketchStep(page: Page) {
 }
 
 async function saveCalibration(page: Page) {
+  await openLessonHelp(page, 'Detailed guidance');
   await page
     .getByRole('button', { name: 'Calibrate Sketch highlight' })
     .click();
@@ -49,6 +51,7 @@ test('simulated calibration survives reload, highlights the saved rectangle, and
   await page.reload();
   await expect(page.getByText('Step 3 of 8 · Visited')).toBeVisible();
   await makeSketchUnrecognizable(page);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW' }).click();
   await expect(
     page.getByText(
@@ -66,6 +69,7 @@ test('simulated calibration survives reload, highlights the saved rectangle, and
     'data-clicked',
     'true',
   );
+  await openLessonHelp(page, 'Detailed guidance');
   await page
     .getByRole('button', { name: "I'm already in Sketch mode" })
     .click();
@@ -93,26 +97,31 @@ test('simulated semantic targets take precedence; resize, cancel, reset, and unm
   await page
     .locator('#fixture-sketch')
     .evaluate((button) => button.setAttribute('aria-label', 'Sketch'));
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
   await expect(page.locator('[data-leqad-calibrated]')).toHaveCount(0);
   await makeSketchUnrecognizable(page);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
   await expect(page.locator('[data-leqad-calibrated]')).toHaveCount(1);
   const viewport = page.viewportSize()!;
   await page.setViewportSize({ ...viewport, width: viewport.width + 400 });
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW' }).click();
   await expect(
     page.getByText(/no longer matches the viewport or zoom/),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page
     .getByRole('button', { name: 'Calibrate Sketch highlight' })
     .click();
   await page.getByRole('button', { name: 'Reset calibration' }).click();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW' }).click();
   await expect(
     page.getByText(/No saved Sketch calibration is available/),
