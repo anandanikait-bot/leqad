@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test } from '@playwright/test';
 import type { Page, TestInfo } from '@playwright/test';
 import { applyOriginalWordmarkPreview } from '../fixtures/headerReview';
@@ -96,7 +97,9 @@ for (const level of ['HINT', 'SHOW', 'GUIDE'] as const) {
     page,
   }, testInfo) => {
     await rectangleStep(page);
+    await openLessonHelp(page);
     await page.getByRole('button', { name: level, exact: true }).click();
+    await openLessonHelp(page);
     for (const candidate of ['HINT', 'SHOW', 'GUIDE']) {
       const button = page.getByRole('button', { name: candidate, exact: true });
       await expect(button).toHaveAttribute(
@@ -105,7 +108,7 @@ for (const level of ['HINT', 'SHOW', 'GUIDE'] as const) {
       );
       await expect(button).toHaveCSS(
         'background-color',
-        candidate === level ? 'rgb(13, 28, 67)' : 'rgb(255, 250, 244)',
+        candidate === level ? 'rgb(14, 41, 67)' : 'rgb(255, 250, 244)',
       );
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }

@@ -131,6 +131,7 @@ test('simulated SHOW and GUIDE switch to keyboard HINT without retaining highlig
   await expect(outline).toHaveCount(1);
   await hint.focus();
   await hint.press('Enter');
+  await openLessonHelp(page, 'Hint');
   await expect(outline).toHaveCount(0);
   await expect(page.getByText(/Hint 1 of 5/)).toBeVisible();
   await openLessonHelp(page, 'Detailed guidance');

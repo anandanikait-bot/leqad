@@ -311,6 +311,7 @@ describe('AssistantPanel', () => {
     openHelp();
     for (const level of ['HINT', 'SHOW', 'GUIDE']) {
       fireEvent.click(screen.getByRole('button', { name: level }));
+      openHelp();
       for (const candidate of ['HINT', 'SHOW', 'GUIDE']) {
         const button = screen.getByRole('button', { name: candidate });
         expect(button.getAttribute('aria-pressed')).toBe(
@@ -1594,7 +1595,7 @@ describe('AssistantPanel', () => {
       'utf8',
     ).toLowerCase();
 
-    expect(css).toContain('#0d1c43');
+    expect(css).toContain('#0e2943');
     expect(css).toContain('#793327');
     expect(css).toContain('#f5efe7');
   });

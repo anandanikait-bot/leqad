@@ -132,9 +132,11 @@ test('repeated Show me clears on pause, collapse, completion, restart, and unmou
   await page.goto('/fixture.html?unknown-permission=1');
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
-  for (let count = 0; count < 3; count++)
+  for (let count = 0; count < 3; count++) {
     await openLessonHelp(page, 'Detailed guidance');
-  await page.getByRole('button', { name: 'Show me' }).click();
+    await page.getByRole('button', { name: 'Show me' }).click();
+    await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
+  }
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause' }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);

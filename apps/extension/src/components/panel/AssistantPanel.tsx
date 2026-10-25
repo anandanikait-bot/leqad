@@ -468,6 +468,7 @@ export function AssistantPanel({
   const [stepStates, setStepStates] = useState(
     initialLesson.current.stepStates,
   );
+  const focusHelpAfterRequest = useRef(false);
   const stepHeading = useRef<HTMLParagraphElement>(null);
   const focusStepAfterNavigation = useRef(false);
   const [compactHelp, setCompactHelp] = useState(false);
@@ -590,32 +591,58 @@ export function AssistantPanel({
     page?.elementId,
   ]);
 
+  useEffect(() => {
+    if (focusHelpAfterRequest.current) {
+      panelRef.current
+        ?.querySelector<HTMLElement>('.leqad-help-content')
+        ?.focus();
+      focusHelpAfterRequest.current = false;
+    }
+  }, [helpSection]);
+
   // CSS handles small viewports. Long context can also exhaust help space:
   // latch fallback until the next viewport/help lifecycle, avoiding resize loops.
   useEffect(() => {
     setCompactHelp(false);
-    if (!helpOpen || collapsed) return;
-    const content = panelRef.current?.querySelector<HTMLElement>(
-      '.leqad-help-content',
+    if (collapsed || typeof ResizeObserver === 'undefined') return;
+    const panel = panelRef.current;
+    const body = panel?.querySelector<HTMLElement>(
+      '.leqad-panel__body[data-learning-workspace="true"]',
     );
-    if (!content || typeof ResizeObserver === 'undefined') return;
+    if (!panel || !body || settingsOpen) return;
+    const content = panel.querySelector<HTMLElement>('.leqad-help-content');
     const inspect = () => {
-      if (
-        content.clientHeight > 0 &&
+      const bodyClipped =
+        getComputedStyle(body).overflowY === 'hidden' &&
+        body.scrollHeight > body.clientHeight + 1;
+      const helpClipped =
+        content &&
+        getComputedStyle(content).overflowY === 'auto' &&
         content.clientHeight < 96 &&
-        content.scrollHeight > content.clientHeight + 1
-      )
-        setCompactHelp(true);
+        content.scrollHeight > content.clientHeight + 1;
+      if (bodyClipped || helpClipped) setCompactHelp(true);
     };
     const observer = new ResizeObserver(inspect);
-    observer.observe(content);
+    observer.observe(body);
+    for (const region of panel.querySelectorAll(
+      '.leqad-next-action, .leqad-step-navigation, .leqad-help-content',
+    ))
+      observer.observe(region);
     const reset = () => setCompactHelp(false);
     window.addEventListener('resize', reset);
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', reset);
     };
-  }, [helpOpen, helpSection, collapsed, step?.id]);
+  }, [
+    helpOpen,
+    helpSection,
+    collapsed,
+    step?.id,
+    settingsOpen,
+    onboardingComplete,
+    mode,
+  ]);
 
   useEffect(() => {
     setSketchModeReported(false);
@@ -1103,7 +1130,11 @@ export function AssistantPanel({
     if (!step.semanticTarget || stepState.status === 'PAUSED') return;
     setHelpLevel(level);
     setGuidanceMessage('');
-    if (level === 'HINT') setHintRequested(true);
+    if (level === 'HINT') {
+      setHintRequested(true);
+      setHelpSection('hint');
+      focusHelpAfterRequest.current = true;
+    }
     const actionId = guidanceActionForSemanticTarget(step.semanticTarget);
     if (step.id === 'start-sketch') {
       const currentSketchUi = onObserveSketchUi?.();
@@ -1852,6 +1883,7 @@ export function AssistantPanel({
                         ),
                         guidance: (
                           <>
+                            {!step.semanticTarget && <p>{step.action}</p>}
                             <div className="leqad-help-row">
                               {step.semanticTarget === 'top-plane' && (
                                 <button
@@ -1960,13 +1992,16 @@ export function AssistantPanel({
                             {step.explanation}
                           </p>
                         ),
-                        uncertainty: (
-                          <p>
-                            {describeProgress(stepState)} {step.action} Check
-                            the result in Onshape before marking this step done.
-                            Highlighting does not verify CAD geometry.
-                          </p>
-                        ),
+                        uncertainty:
+                          step.completionMode !== 'ACKNOWLEDGEMENT' &&
+                          (canContinueUnverified ||
+                            stepState.status === 'UNKNOWN') ? (
+                            <p>
+                              {describeProgress(stepState)} {step.action} Check
+                              the result in Onshape before marking this step
+                              done. Highlighting does not verify CAD geometry.
+                            </p>
+                          ) : null,
                       }}
                     />
                     {guidanceMessage && (

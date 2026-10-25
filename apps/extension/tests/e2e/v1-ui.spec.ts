@@ -47,7 +47,7 @@ for (const zoom of [1, 1.25, 1.5]) {
         );
         await expect(panel).toHaveCSS('border-radius', '10px');
         await expect(panel).toHaveCSS('background-color', 'rgb(245, 239, 231)');
-        await expect(header).toHaveCSS('background-color', 'rgb(13, 28, 67)');
+        await expect(header).toHaveCSS('background-color', 'rgb(14, 41, 67)');
         await expect(page.getByRole('progressbar')).toHaveAttribute(
           'aria-valuenow',
           '0',
@@ -81,7 +81,7 @@ for (const zoom of [1, 1.25, 1.5]) {
         }
         await expect(
           page.getByRole('button', { name: 'HINT', exact: true }),
-        ).toHaveCSS('background-color', 'rgb(13, 28, 67)');
+        ).toHaveCSS('background-color', 'rgb(14, 41, 67)');
         await expect(
           page.getByRole('button', { name: 'SHOW', exact: true }),
         ).toHaveCSS('background-color', 'rgb(255, 250, 244)');

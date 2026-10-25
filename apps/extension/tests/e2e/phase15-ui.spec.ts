@@ -76,3 +76,51 @@ test('long guidance cannot collapse to a thin strip and passive updates retain f
   await page.setViewportSize({ width: 320, height: 360 });
   await expect(content).toHaveCSS('overflow-y', 'visible');
 });
+test('approved palette, font stacks, local Ask and keyboard return remain explicit', async ({
+  page,
+}) => {
+  await page.goto('/fixture.html');
+  const panel = page.locator('[data-leqad-panel]');
+  await expect(panel).toHaveCSS('font-family', /Manrope/);
+  await expect(page.getByRole('group', { name: 'Move Leqad panel' })).toHaveCSS(
+    'background-color',
+    'rgb(14, 41, 67)',
+  );
+  await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(
+    page.getByText('Local prototype — no AI connected'),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Why does this step matter?' })
+    .click();
+  await expect(page.getByText('Local example', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Learn', exact: true }).click();
+  await expect(page.getByText('Step 1 of 8 · Visited')).toBeVisible();
+});
+test('200% text enlargement keeps closed help and navigation reachable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/fixture.html');
+  await page.locator('[data-leqad-panel]').evaluate((panel) => {
+    const nodes = [panel, ...panel.querySelectorAll<HTMLElement>('*')];
+    const sizes = nodes.map(
+      (node) => parseFloat(getComputedStyle(node).fontSize) * 2,
+    );
+    nodes.forEach((node, index) =>
+      (node as HTMLElement).style.setProperty(
+        'font-size',
+        `${sizes[index]}px`,
+        'important',
+      ),
+    );
+  });
+  const body = page.locator('.leqad-panel__body').first();
+  await expect(body).toHaveCSS('overflow-y', 'auto');
+  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText('Step 2 of 8 · Visited')).toBeAttached();
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await page.getByRole('button', { name: 'Help', exact: true }).click();
+  await expect(body).toHaveCSS('overflow-y', 'auto');
+});

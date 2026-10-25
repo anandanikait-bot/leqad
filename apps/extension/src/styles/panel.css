@@ -2,7 +2,7 @@
 
 :host {
   all: initial;
-  --leqad-navy: #0d1c43;
+  --leqad-navy: #0e2943;
   --leqad-russet: #793327;
   --leqad-ivory: #f5efe7;
   --leqad-card: #fffaf4;
@@ -10,7 +10,7 @@
   color-scheme: light;
   pointer-events: none;
   font-family:
-    Inter,
+    Manrope,
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -27,26 +27,26 @@
 
 /* Scoped to Leqad: neither OS mode nor user preference styles Onshape. */
 .leqad-panel {
-  --leqad-navy: #0d1c43;
+  --leqad-navy: #0e2943;
   --leqad-russet: #793327;
   --leqad-ivory: #f5efe7;
   --leqad-card: #fffaf4;
   --leqad-muted: #606b7e;
-  --leqad-header-bg: #0d1c43;
+  --leqad-header-bg: #0e2943;
   --leqad-header-text: #f5efe7;
-  --leqad-primary-bg: #0d1c43;
+  --leqad-primary-bg: #0e2943;
   --leqad-primary-text: #f5efe7;
   --leqad-selected-text: #fff;
   --leqad-primary-hover: #1d315c;
   --leqad-focus: #793327;
-  --leqad-border: rgba(13, 28, 67, 0.18);
-  --leqad-border-soft: rgba(13, 28, 67, 0.12);
-  --leqad-divider: rgba(13, 28, 67, 0.14);
-  --leqad-border-onboarding: rgba(13, 28, 67, 0.16);
-  --leqad-shadow-color: rgba(13, 28, 67, 0.2);
-  --leqad-control-border: rgba(13, 28, 67, 0.25);
-  --leqad-input-border: rgba(13, 28, 67, 0.3);
-  --leqad-hover: rgba(13, 28, 67, 0.06);
+  --leqad-border: rgba(14, 41, 67, 0.18);
+  --leqad-border-soft: rgba(14, 41, 67, 0.12);
+  --leqad-divider: rgba(14, 41, 67, 0.14);
+  --leqad-border-onboarding: rgba(14, 41, 67, 0.16);
+  --leqad-shadow-color: rgba(14, 41, 67, 0.2);
+  --leqad-control-border: rgba(14, 41, 67, 0.25);
+  --leqad-input-border: rgba(14, 41, 67, 0.3);
+  --leqad-hover: rgba(14, 41, 67, 0.06);
   --leqad-calibration-bg: rgba(255, 255, 255, 0.45);
   --leqad-secondary-bg: #fffaf3;
   --leqad-description: #38425b;
@@ -842,4 +842,10 @@
   font-size: 12px;
   color: var(--leqad-description);
   overflow-wrap: anywhere;
+}
+
+.leqad-wordmark,
+.leqad-lesson h2,
+.leqad-ask h2 {
+  font-family: 'Space Grotesk', Manrope, ui-sans-serif, system-ui, sans-serif;
 }

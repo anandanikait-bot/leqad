@@ -85,3 +85,23 @@ it('keeps local Ask examples separate from lesson state and guidance actions', (
   expect(screen.getByText('Step 1 of 8 · Visited')).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Help content' })).toBeNull();
 });
+it('detailed guidance retains written instruction on an informational step', () => {
+  render(<AssistantPanel />);
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Detailed guidance' }));
+  expect(
+    screen.getByRole('region', { name: 'Help content' }).textContent,
+  ).toContain('Review how a sketch');
+  expect(screen.queryByRole('button', { name: 'Unable to verify' })).toBeNull();
+});
+it('HINT requests reveal the hint rather than leaving an invisible result', () => {
+  render(<AssistantPanel />);
+  fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Detailed guidance' }));
+  fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+  expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
+});

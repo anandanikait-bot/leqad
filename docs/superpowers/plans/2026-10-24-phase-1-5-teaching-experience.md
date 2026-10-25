@@ -1,6 +1,6 @@
 # Phase 1.5 Teaching Experience Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task after owner approval. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task after owner approval. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Polish the existing lesson panel with bounded inline help, honest evidence feedback, and a local-example-only Ask prototype.
 
@@ -59,11 +59,11 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 **Consumes:** Approved spec and baseline code at `286ccb311a93ae3583d02e894b210cf1768251e3`; documentation commit `b2e03e9` does not change application behavior.
 **Produces:** A repeatable case matrix and before artifacts used by Task 6.
 
-- [ ] Check current branch, remote PR head/comments and outstanding relevant issues once. If application changes landed after the audited baseline, reconcile affected files before proceeding. Use an isolated execution worktree per repository workflow; do not modify the unfinished website tree.
-- [ ] Inspect `v1-ui.spec.ts`, `settings.spec.ts`, `panel.spec.ts`, `reliability.spec.ts`, `fixture.tsx`, and `AssistantPanel.test.tsx` for existing initialization, storage and state controls. Reuse them rather than creating another application harness.
-- [ ] Run `pnpm exec vitest run --config vitest.config.ts apps/extension/src/components/panel/AssistantPanel.test.tsx apps/extension/src/components/panel/PanelSettings.test.tsx` and record the baseline result. Record pre-existing failures separately.
-- [ ] Capture before cases with the current fixture: desktop 1440×900; narrow viewport 320×720; expanded hint/explanation; collapsed panel; unable-to-verify; short viewport 1024×480. Use the same step/data/theme for paired after captures. Existing pre-redesign help is the before counterpart of expanded help.
-- [ ] Document exact fixture setup, viewport, theme, state, commit and capture command in the README. Exclude private page data and generated browser profiles. Commit only baseline review artifacts: `docs: record Phase 1.5 interface baseline`.
+- [x] Check current branch, remote PR head/comments and outstanding relevant issues once. If application changes landed after the audited baseline, reconcile affected files before proceeding. Use an isolated execution worktree per repository workflow; do not modify the unfinished website tree.
+- [x] Inspect `v1-ui.spec.ts`, `settings.spec.ts`, `panel.spec.ts`, `reliability.spec.ts`, `fixture.tsx`, and `AssistantPanel.test.tsx` for existing initialization, storage and state controls. Reuse them rather than creating another application harness.
+- [x] Run `pnpm exec vitest run --config vitest.config.ts apps/extension/src/components/panel/AssistantPanel.test.tsx apps/extension/src/components/panel/PanelSettings.test.tsx` and record the baseline result. Record pre-existing failures separately.
+- [x] Capture before cases with the current fixture: desktop 1440×900; narrow viewport 320×720; expanded hint/explanation; collapsed panel; unable-to-verify; short viewport 1024×480. Use the same step/data/theme for paired after captures. Existing pre-redesign help is the before counterpart of expanded help.
+- [x] Document exact fixture setup, viewport, theme, state, commit and capture command in the README. Exclude private page data and generated browser profiles. Commit only baseline review artifacts: `docs: record Phase 1.5 interface baseline`.
 
 ## Task 2 — Bounded progressive help component
 
@@ -71,12 +71,12 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 
 **Interfaces:** Export `type HelpSection = 'hint' | 'guidance' | 'why' | 'uncertainty'`. Export `ContextualHelp(props: ContextualHelpProps): React.JSX.Element` where props contain `open: boolean`, `section: HelpSection`, `onOpenChange(open: boolean): void`, `onSectionChange(section: HelpSection): void`, and `content: Partial<Record<HelpSection, React.ReactNode>>`. The component renders no action or persistence logic. `AssistantPanel` owns transient open/section state and passes existing controls/content as nodes.
 
-- [ ] Add failing component tests named `starts closed`, `shows only the chosen section`, and `Escape closes and returns focus`. Assert `aria-expanded`, missing hidden controls in tab order, one named scroll region, and no callbacks other than disclosure/section callbacks.
-- [ ] Run `pnpm exec vitest run --config vitest.config.ts apps/extension/src/components/panel/ContextualHelp.test.tsx`; confirm failures reflect absent behavior.
-- [ ] Implement the disclosure with native buttons, stable IDs/relationships, and one selected section. Escape is handled only inside open help; restore disclosure focus on Escape. Focus must not jump during passive content updates.
-- [ ] Integrate existing hints, explanation, recovery, native-search fallback and HINT/SHOW/GUIDE controls as content. Hint is the initial section. “More help” uses existing hint progression; opening a hint for the first time uses existing hint accounting, reopening does not increment it. Keep SHOW/GUIDE explicit and preserve unsupported-GUIDE text.
-- [ ] Add integration tests: opening help requests no highlight/check; subsequent hints preserve order and maximum; reopening retains current hint count; explanation switching does not alter guidance level; page identity change, step change, restart and collapse close transient help. Use existing in-memory page identity solely as a reset dependency; do not export/store it. Retain existing written-fallback lifecycle behavior outside help when required.
-- [ ] Run both new help and existing panel tests; update tests to open help before querying relocated controls, retaining original assertions. Commit `feat: add bounded progressive lesson help` after green results.
+- [x] Add failing component tests named `starts closed`, `shows only the chosen section`, and `Escape closes and returns focus`. Assert `aria-expanded`, missing hidden controls in tab order, one named scroll region, and no callbacks other than disclosure/section callbacks.
+- [x] Run `pnpm exec vitest run --config vitest.config.ts apps/extension/src/components/panel/ContextualHelp.test.tsx`; confirm failures reflect absent behavior.
+- [x] Implement the disclosure with native buttons, stable IDs/relationships, and one selected section. Escape is handled only inside open help; restore disclosure focus on Escape. Focus must not jump during passive content updates.
+- [x] Integrate existing hints, explanation, recovery, native-search fallback and HINT/SHOW/GUIDE controls as content. Hint is the initial section. “More help” uses existing hint progression; opening a hint for the first time uses existing hint accounting, reopening does not increment it. Keep SHOW/GUIDE explicit and preserve unsupported-GUIDE text.
+- [x] Add integration tests: opening help requests no highlight/check; subsequent hints preserve order and maximum; reopening retains current hint count; explanation switching does not alter guidance level; page identity change, step change, restart and collapse close transient help. Use existing in-memory page identity solely as a reset dependency; do not export/store it. Retain existing written-fallback lifecycle behavior outside help when required.
+- [x] Run both new help and existing panel tests; update tests to open help before querying relocated controls, retaining original assertions. Commit `feat: add bounded progressive lesson help` after green results.
 
 ## Task 3 — Context, action hierarchy, and evidence feedback
 
@@ -85,12 +85,12 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 **Consumes:** Task 2 controlled help. Existing `describeProgress`, `outcomeLabel`, completion predicates, session state and handlers.
 **Produces:** Named sections `Lesson context`, `Next action`, `Lesson help`, `Lesson progress`, and `Lesson actions`, with existing callback signatures unchanged.
 
-- [ ] Add failing regressions asserting a single visually primary eligible action in active acknowledgement, supported check, self-report, unknown/manual, paused/resume and completed/next cases. Assert disabled reasons and original Back/Next/Restart behavior remain intact. Use `within` for groups rather than selectors tied to copy layout.
-- [ ] Add an evidence matrix test covering NONE, ACKNOWLEDGED, SELF_REPORTED, UI_VERIFIED, MODEL_VERIFIED, UNKNOWN and NEEDS_CORRECTION. Assert literal “CAD work unverified” or existing equivalent for self-report, UI scope for UI verification, and no verified presentation for unknown/stale/ambiguous observations. Model-verified input is a labeled synthetic test only, not a new producer.
-- [ ] Run the panel test file and confirm the intended new hierarchy assertions fail before editing.
-- [ ] Reorganize markup into context, instruction, help, concise evidence and actions; retain calculations and handlers. Apply emphasis according to existing eligibility. Keep essential uncertainty outside help. Derive observed-action wording only from already available current supported observations; otherwise use waiting/unknown. Do not add an evidence normalizer that could strengthen outcomes.
-- [ ] Keep lesson-completion presentation qualified by the existing per-step outcomes. Preserve pause, resume, acknowledgement, self-report, retry and navigation. Focus the new step heading only after learner-initiated navigation, not on observer updates.
-- [ ] Test retained save failure/retry messages with help open, document switch without stale feedback, and saved session/preferences across remounts. Run panel and `apps/extension/src/services/progressStore.test.ts` tests; commit `refactor: clarify lesson context and evidence presentation` when green.
+- [x] Add failing regressions asserting a single visually primary eligible action in active acknowledgement, supported check, self-report, unknown/manual, paused/resume and completed/next cases. Assert disabled reasons and original Back/Next/Restart behavior remain intact. Use `within` for groups rather than selectors tied to copy layout.
+- [x] Add an evidence matrix test covering NONE, ACKNOWLEDGED, SELF_REPORTED, UI_VERIFIED, MODEL_VERIFIED, UNKNOWN and NEEDS_CORRECTION. Assert literal “CAD work unverified” or existing equivalent for self-report, UI scope for UI verification, and no verified presentation for unknown/stale/ambiguous observations. Model-verified input is a labeled synthetic test only, not a new producer.
+- [x] Run the panel test file and confirm the intended new hierarchy assertions fail before editing.
+- [x] Reorganize markup into context, instruction, help, concise evidence and actions; retain calculations and handlers. Apply emphasis according to existing eligibility. Keep essential uncertainty outside help. Derive observed-action wording only from already available current supported observations; otherwise use waiting/unknown. Do not add an evidence normalizer that could strengthen outcomes.
+- [x] Keep lesson-completion presentation qualified by the existing per-step outcomes. Preserve pause, resume, acknowledgement, self-report, retry and navigation. Focus the new step heading only after learner-initiated navigation, not on observer updates.
+- [x] Test retained save failure/retry messages with help open, document switch without stale feedback, and saved session/preferences across remounts. Run panel and `apps/extension/src/services/progressStore.test.ts` tests; commit `refactor: clarify lesson context and evidence presentation` when green.
 
 ## Task 4 — Responsive layout and keyboard accessibility
 
@@ -99,13 +99,13 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 **Consumes:** Task 3 semantic regions and Task 2 help.
 **Produces:** One bounded ordinary help scroller and an explicitly tested single-scroller compact-height fallback.
 
-- [ ] Write browser tests at 1440×900, 320×720, 1024×480 and 320×360. With longest lesson help, assert panel within viewport margin, no horizontal overflow, context/actions visible at ordinary heights, and help `scrollHeight > clientHeight` without body scrolling. At compact heights assert help has no independent scroll and all controls are reachable through the body scroller.
-- [ ] Run `pnpm exec playwright test apps/extension/tests/e2e/phase15-ui.spec.ts` against existing fixture; record the layout failures before styling.
-- [ ] Implement flex/grid rows with `min-height: 0`, capped help and fixed context/actions at ordinary heights. Preserve width/clamping and use dynamic viewport height with a compatible fallback. Remove shell shadow, use existing theme tokens and spacing. Do not shrink text to pass bounds tests.
-- [ ] Determine compact mode from available space relative to measured non-help regions, allowing at least 96px for help. Use a single local `ResizeObserver` only if CSS cannot reliably implement this content-dependent condition; disconnect on unmount and avoid observer oscillation by measuring stable non-help regions. In compact mode use body scrolling with non-obscuring action placement; if the footer itself cannot fit, let it scroll into view rather than clip. No new persisted layout state.
-- [ ] Add browser assertions for keyboard reachability, Escape/focus return, no hidden collapsed tabbables, retained keyboard dragging, resize position clamp, passive updates not stealing focus, reduced motion, long recovery content, and light/dark/system themes. Check text/focus contrast against AA thresholds and record measured pairs.
-- [ ] Test real 200% browser zoom where available and 200% text enlargement/reflow. A smaller viewport or deviceScaleFactor alone is not proof of browser zoom; document any actual zoom check requiring owner validation. Check wheel behavior inside help and outside the panel, with no page-wide interception.
-- [ ] Run focused browser tests plus existing `panel.spec.ts`, `v1-ui.spec.ts`, and `settings.spec.ts`; commit `style: keep lesson context usable with expanded help` when green.
+- [x] Write browser tests at 1440×900, 320×720, 1024×480 and 320×360. With longest lesson help, assert panel within viewport margin, no horizontal overflow, context/actions visible at ordinary heights, and help `scrollHeight > clientHeight` without body scrolling. At compact heights assert help has no independent scroll and all controls are reachable through the body scroller.
+- [x] Run `pnpm exec playwright test apps/extension/tests/e2e/phase15-ui.spec.ts` against existing fixture; record the layout failures before styling.
+- [x] Implement flex/grid rows with `min-height: 0`, capped help and fixed context/actions at ordinary heights. Preserve width/clamping and use dynamic viewport height with a compatible fallback. Remove shell shadow, use existing theme tokens and spacing. Do not shrink text to pass bounds tests.
+- [x] Determine compact mode from available space relative to measured non-help regions, allowing at least 96px for help. Use a single local `ResizeObserver` only if CSS cannot reliably implement this content-dependent condition; disconnect on unmount and avoid observer oscillation by measuring stable non-help regions. In compact mode use body scrolling with non-obscuring action placement; if the footer itself cannot fit, let it scroll into view rather than clip. No new persisted layout state.
+- [x] Add browser assertions for keyboard reachability, Escape/focus return, no hidden collapsed tabbables, retained keyboard dragging, resize position clamp, passive updates not stealing focus, reduced motion, long recovery content, and light/dark/system themes. Check text/focus contrast against AA thresholds and record measured pairs.
+- [x] Test real 200% browser zoom where available and 200% text enlargement/reflow. A smaller viewport or deviceScaleFactor alone is not proof of browser zoom; document any actual zoom check requiring owner validation. Check wheel behavior inside help and outside the panel, with no page-wide interception.
+- [x] Run focused browser tests plus existing `panel.spec.ts`, `v1-ui.spec.ts`, and `settings.spec.ts`; commit `style: keep lesson context usable with expanded help` when green.
 
 ## Task 5 — Local contextual Ask prototype
 
@@ -113,11 +113,11 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 
 **Interfaces:** Reuse `GuidanceLevel` and the existing closed `GuidanceTargetId` type from `guidanceRegistry.ts`. Define local `AskPrototypeContext` with lesson ID/title, step ID/title, requested help level, supported target identity or null, and already-sanitized display summaries of current observations with explicit unknown state. Define `LocalExampleResponse` with `kind: 'LOCAL_EXAMPLE'`, a stable example ID, a question label, explanation, hint, evidence, and uncertainty strings. `AskPrototype({ context, examples }: { context: AskPrototypeContext; examples: readonly LocalExampleResponse[] }): React.JSX.Element`. Example selection is local component state; no free-form question endpoint, provider, transport, or persistence.
 
-- [ ] Add failing tests asserting persistent `Local prototype — no AI connected`, `Local example` on responses, explicit unknown evidence, deterministic example switching, and reset of selection on step/context change. Assert no fetch, check, highlight, or session-write callback is invoked.
-- [ ] Run the new Ask test file and confirm expected failures.
-- [ ] Implement a small authored example set drawn from existing approved lesson explanation/hints, including Corner Rectangle rationale on its relevant step. Show only the selected example. Read-only context must omit document identifiers and private page text; unavailable observations remain unknown. Do not derive evidence from the example prose.
-- [ ] Replace the existing Ask placeholder with the component. Add integration tests that Learn → Ask → Learn preserves step, hints, progress/preferences and existing highlight cleanup. Ensure the existing primary lesson action is not duplicated in Ask and examples do not mutate progress.
-- [ ] Run Ask and panel tests. Commit `feat: add explicitly local Ask teaching examples` when green.
+- [x] Add failing tests asserting persistent `Local prototype — no AI connected`, `Local example` on responses, explicit unknown evidence, deterministic example switching, and reset of selection on step/context change. Assert no fetch, check, highlight, or session-write callback is invoked.
+- [x] Run the new Ask test file and confirm expected failures.
+- [x] Implement a small authored example set drawn from existing approved lesson explanation/hints, including Corner Rectangle rationale on its relevant step. Show only the selected example. Read-only context must omit document identifiers and private page text; unavailable observations remain unknown. Do not derive evidence from the example prose.
+- [x] Replace the existing Ask placeholder with the component. Add integration tests that Learn → Ask → Learn preserves step, hints, progress/preferences and existing highlight cleanup. Ensure the existing primary lesson action is not duplicated in Ask and examples do not mutate progress.
+- [x] Run Ask and panel tests. Commit `feat: add explicitly local Ask teaching examples` when green.
 
 ## Task 6 — Full regression, screenshots, and review handoff
 
@@ -142,4 +142,4 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 - **Complexity:** No component for every visual row, no new dependencies, no resize handle, no generalized chat protocol or standalone testing harness. Ask contracts remain local to its module until a later approved integration needs them.
 - **Review-focus closure:** All five listed risks have explicit task-level tests. Actual zoom and actual Onshape behavior remain separately reported manual gates if unavailable locally.
 
-The plan is ready for final owner review. No implementation has begun under this plan.
+Execution authorized by the owner after plan commit c89c358. Tasks 1–5 complete; Task 6 local checks and independent review complete. Hosted CI and owner live acceptance are recorded in the review handoff.
