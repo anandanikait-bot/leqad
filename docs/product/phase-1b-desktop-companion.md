@@ -5,6 +5,8 @@
 **Initial OS:** Windows; add macOS only after a proven Windows slice.  
 **Target:** A CAD-agnostic teaching companion with independently validated application adapters, starting with Onshape in Chrome and one native CAD editor.
 
+**Naming:** Phase **1B** is the standalone desktop feasibility/runtime track. Phase **1.5** is the separately implemented teaching-panel UX/local Ask prototype in the browser extension ([PR #15](https://github.com/anandanikait-bot/leqad/pull/15)); it is not a runnable desktop application or real AI. The first real contextual AI teacher is **Phase 2A**, while CAD model verification/verifier–teacher feedback is **Phase 2B**. See the [canonical roadmap](leqad-master-vision-roadmap.md). Historical specifications can retain their original labels for provenance.
+
 ## Why change
 The existing WXT/React extension and its eight-step Foundations engine are substantial work. However, some real Onshape controls are not reliably identifiable through DOM-based semantic matching. An independent desktop application can show an overlay on the selected CAD window, use user-authorized window capture plus native accessibility information, and stop guidance when the user leaves the current CAD context.
 
