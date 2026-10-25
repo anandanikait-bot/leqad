@@ -467,6 +467,8 @@ export function AssistantPanel({
   const [stepStates, setStepStates] = useState(
     initialLesson.current.stepStates,
   );
+  const stepHeading = useRef<HTMLParagraphElement>(null);
+  const focusStepAfterNavigation = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpSection, setHelpSection] = useState<HelpSection>('hint');
   const [showRecovery, setShowRecovery] = useState(false);
@@ -570,6 +572,10 @@ export function AssistantPanel({
   );
 
   useEffect(() => {
+    if (focusStepAfterNavigation.current) {
+      stepHeading.current?.focus();
+      focusStepAfterNavigation.current = false;
+    }
     setHelpOpen(false);
     setHelpSection('hint');
   }, [
@@ -1412,6 +1418,7 @@ export function AssistantPanel({
     if (!nextStep) return;
     const nextState = beginStep(stepStates[nextStep.id]!);
     const nextStates = { ...stepStates, [nextStep.id]: nextState };
+    focusStepAfterNavigation.current = true;
     setCurrentStepIndex(nextIndex);
     persistLesson(nextStep.id, nextStates);
     recordLearningHistory(nextStep.id, nextState.hintLevel);
@@ -1423,6 +1430,7 @@ export function AssistantPanel({
     const firstStep = FOUNDATIONS_FIRST_SKETCH.steps[0];
     if (!firstStep) return;
     sessionRef.current = null;
+    focusStepAfterNavigation.current = true;
     setCurrentStepIndex(0);
     persistLesson(firstStep.id, fresh.stepStates);
     resetTransientGuidance();
@@ -1658,7 +1666,13 @@ export function AssistantPanel({
                 />
               </main>
             )}
-            <main className="leqad-panel__body" hidden={settingsOpen}>
+            <main
+              className="leqad-panel__body"
+              data-learning-workspace={
+                mode === 'Learn' && onboardingComplete && !diagnosticsEnabled
+              }
+              hidden={settingsOpen}
+            >
               {!onboardingComplete && (
                 <section
                   className="leqad-onboarding"
@@ -1695,11 +1709,13 @@ export function AssistantPanel({
                 >
                   <p className="leqad-eyebrow">FOUNDATIONS · LESSON 01</p>
                   <h2>{FOUNDATIONS_FIRST_SKETCH.title}</h2>
-                  <p className="leqad-intro">
-                    {FOUNDATIONS_FIRST_SKETCH.description}
-                  </p>
+
                   <div className="leqad-progress-summary">
-                    <p className="leqad-step-count">
+                    <p
+                      className="leqad-step-count"
+                      ref={stepHeading}
+                      tabIndex={-1}
+                    >
                       Step {currentStepIndex + 1} of{' '}
                       {FOUNDATIONS_FIRST_SKETCH.steps.length} ·{' '}
                       {outcomeLabel(stepState.outcome)}
@@ -2025,7 +2041,7 @@ export function AssistantPanel({
                       )}
                       <button
                         type="button"
-                        className="leqad-button leqad-button--text"
+                        className={`leqad-button leqad-button--${stepState.status === 'PAUSED' ? 'primary' : 'text'}`}
                         onClick={pauseOrResume}
                         disabled={stepState.status === 'COMPLETED'}
                       >
@@ -2049,7 +2065,11 @@ export function AssistantPanel({
                     >
                       {describeProgress(stepState)}
                     </p>
-                    <div className="leqad-step-navigation">
+                    <div
+                      className="leqad-step-navigation"
+                      role="group"
+                      aria-label="Lesson actions"
+                    >
                       <button
                         type="button"
                         className="leqad-button leqad-button--text"
@@ -2060,7 +2080,7 @@ export function AssistantPanel({
                       </button>
                       <button
                         type="button"
-                        className="leqad-button leqad-button--secondary"
+                        className={`leqad-button leqad-button--${canGoNext ? 'primary' : 'secondary'}`}
                         onClick={() => goToStep(currentStepIndex + 1)}
                         disabled={!canGoNext}
                       >
