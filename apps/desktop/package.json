@@ -1,0 +1,16 @@
+{
+  "name": "@leqad/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node ../../scripts/desktop-build.mjs"
+  },
+  "dependencies": {
+    "@leqad/desktop-contracts": "workspace:*",
+    "@leqad/lesson-engine": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}
