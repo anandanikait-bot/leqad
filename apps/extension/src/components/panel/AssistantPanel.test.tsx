@@ -90,6 +90,15 @@ function uiDecision(status: 'PASS' | 'UNKNOWN'): VerificationDecision {
   };
 }
 
+function openHelp(
+  section:
+    'Detailed guidance' | 'Hint' | 'Why it matters' = 'Detailed guidance',
+) {
+  const toggle = screen.getByRole('button', { name: 'Help', exact: true });
+  if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle);
+  fireEvent.click(screen.getByRole('button', { name: section, exact: true }));
+}
+
 function completeCurrentStep(): void {
   const acknowledge = screen.queryByRole('button', { name: 'Got it' });
   if (acknowledge) {
@@ -278,8 +287,9 @@ describe('AssistantPanel', () => {
       within(action).getByText(/Open the Rectangle dropdown with its arrow/),
     ).toBeTruthy();
     expect(
-      within(help).getByRole('heading', { name: 'How can I help?' }),
+      within(help).getByRole('button', { name: 'Help', exact: true }),
     ).toBeTruthy();
+    openHelp();
     expect(within(action).queryByRole('button', { name: 'SHOW' })).toBeNull();
     expect(onShowTarget).not.toHaveBeenCalled();
     expect(onCheckStep).not.toHaveBeenCalled();
@@ -300,6 +310,7 @@ describe('AssistantPanel', () => {
         onSessionChange={onSessionChange}
       />,
     );
+    openHelp();
     for (const level of ['HINT', 'SHOW', 'GUIDE']) {
       fireEvent.click(screen.getByRole('button', { name: level }));
       for (const candidate of ['HINT', 'SHOW', 'GUIDE']) {
@@ -315,7 +326,12 @@ describe('AssistantPanel', () => {
         screen.getByRole('progressbar').getAttribute('aria-valuenow'),
       ).toBe('0');
     }
-    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(onSessionChange.mock.lastCall?.[0].steps).not.toMatchObject({
+      'draw-rectangle': { status: 'COMPLETED' },
+    });
   });
 
   it.each([
@@ -382,19 +398,23 @@ describe('AssistantPanel', () => {
       const instruction =
         /Open the Rectangle dropdown with its arrow, choose Corner Rectangle/;
       expect(screen.getByText(instruction)).toBeTruthy();
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(runner.getState().status).toBe(status);
       expect(screen.getByText(instruction)).toBeTruthy();
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
       expect(
         screen.getByText(/GUIDE is unavailable for the Rectangle tool group/),
       ).toBeTruthy();
       expect(screen.getByText(instruction)).toBeTruthy();
-      fireEvent.click(screen.getByRole('button', { name: 'Why?' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Why it matters' }));
       expect(
         screen.getByText(/Center Point Rectangle starts from the center/),
       ).toBeTruthy();
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+      openHelp('Hint');
       expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
       expect(
         screen.getByText(
@@ -402,7 +422,12 @@ describe('AssistantPanel', () => {
         ),
       ).toBeTruthy();
       expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
-      expect(onSessionChange).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('progressbar').getAttribute('aria-valuenow'),
+      ).toBe('0');
+      expect(onSessionChange.mock.lastCall?.[0].steps).not.toMatchObject({
+        'draw-rectangle': { status: 'COMPLETED' },
+      });
       runner.dispose();
     },
   );
@@ -546,6 +571,7 @@ describe('AssistantPanel', () => {
         onClearTarget={highlighter.clear}
       />,
     );
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(onShowCalibratedHighlight).not.toHaveBeenCalled();
     expect(document.querySelectorAll('[data-leqad-highlight]')).toHaveLength(1);
@@ -569,6 +595,7 @@ describe('AssistantPanel', () => {
         onSketchCalibrationChange={onSketchCalibrationChange}
       />,
     );
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(
       screen.getByRole('group', { name: 'Sketch highlight calibration' }),
@@ -578,6 +605,7 @@ describe('AssistantPanel', () => {
     await act(async () => undefined);
     expect(onSketchCalibrationChange).toHaveBeenCalledTimes(1);
     onShowCalibratedHighlight.mockClear();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(onShowTarget).toHaveBeenCalledWith('sketch');
     expect(onShowCalibratedHighlight).toHaveBeenCalledTimes(1);
@@ -601,6 +629,7 @@ describe('AssistantPanel', () => {
         onCheckStep={onCheckStep}
       />,
     );
+    openHelp();
     fireEvent.click(
       screen.getByRole('button', { name: "I'm already in Sketch mode" }),
     );
@@ -611,7 +640,12 @@ describe('AssistantPanel', () => {
       screen.queryByText(/With Top plane selected, choose the Sketch command/),
     ).toBeNull();
     expect(screen.getByText('Step 3 of 8 · Visited')).toBeTruthy();
-    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(onSessionChange.mock.lastCall?.[0].steps).not.toMatchObject({
+      'draw-rectangle': { status: 'COMPLETED' },
+    });
     expect(onCheckStep).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     const session = onSessionChange.mock.lastCall?.[0];
@@ -654,12 +688,16 @@ describe('AssistantPanel', () => {
       />,
     );
 
+    openHelp();
     expect(screen.getByRole('group', { name: 'Guidance level' })).toBeTruthy();
     expect(
       screen.getByText(/GUIDE is unavailable for the Rectangle tool group/),
     ).toBeTruthy();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+    openHelp('Hint');
     expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(runner.getState()).toMatchObject({
       status: 'READY',
@@ -670,13 +708,19 @@ describe('AssistantPanel', () => {
         /temporary highlight was shown for the Rectangle dropdown control/,
       ),
     ).toBeTruthy();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'GUIDE' }));
     expect(runner.getState()).toMatchObject({ status: 'UNSUPPORTED' });
     expect(
       screen.getByText(/Step-by-step guidance.*not available yet/),
     ).toBeTruthy();
     expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
-    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(onSessionChange.mock.lastCall?.[0].steps).not.toMatchObject({
+      'draw-rectangle': { status: 'COMPLETED' },
+    });
     expect(
       registryModule.GUIDANCE_REGISTRY['rectangle-tool-group'].guideRecipe,
     ).toBeUndefined();
@@ -708,6 +752,7 @@ describe('AssistantPanel', () => {
         />,
       );
 
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(
         screen.queryByRole('button', { name: 'Retry guidance' }),
@@ -717,6 +762,7 @@ describe('AssistantPanel', () => {
       ).toBeTruthy();
       expect(resolveTarget).toHaveBeenCalledTimes(1);
       // A new SHOW is still student-controlled after a real interface change.
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
       expect(resolveTarget).toHaveBeenCalledTimes(2);
       expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
@@ -748,6 +794,7 @@ describe('AssistantPanel', () => {
     expect(
       screen.queryByText('Find using Onshape Search', { exact: true }),
     ).toBeNull();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(runner.getState().status).toBe('MISSING');
     const summary = screen.getByText('Find using Onshape Search', {
@@ -779,7 +826,12 @@ describe('AssistantPanel', () => {
       screen.queryByText(/Leqad could not confirm this context/),
     ).toBeNull();
     expect(screen.getByText('Step 4 of 8 · Visited')).toBeTruthy();
-    expect(onSessionChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe(
+      '0',
+    );
+    expect(onSessionChange.mock.lastCall?.[0].steps).not.toMatchObject({
+      'draw-rectangle': { status: 'COMPLETED' },
+    });
     runner.dispose();
   });
 
@@ -802,6 +854,7 @@ describe('AssistantPanel', () => {
         guidanceRunner={runner}
       />,
     );
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     fireEvent.click(
       screen.getByText('Find using Onshape Search', { exact: true }),
@@ -851,6 +904,7 @@ describe('AssistantPanel', () => {
       />,
     );
 
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     fireEvent.click(
       screen.getByText('Find using Onshape Search', { exact: true }),
@@ -885,13 +939,16 @@ describe('AssistantPanel', () => {
         guidanceRunner={runner}
       />,
     );
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
     expect(highlightTarget).toHaveBeenCalledWith('rectangle-tool-group');
     expect(runner.getState().status).toBe('READY');
     expect(
       screen.queryByText('Find using Onshape Search', { exact: true }),
     ).toBeNull();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+    openHelp('Hint');
     expect(
       screen.queryByText('Find using Onshape Search', { exact: true }),
     ).toBeNull();
@@ -930,6 +987,7 @@ describe('AssistantPanel', () => {
           })}
         />,
       );
+      openHelp();
       fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
       expect(screen.getByText(message)).toBeTruthy();
       expect(screen.queryByText(/Developer detail/)).toBeNull();
@@ -944,6 +1002,7 @@ describe('AssistantPanel', () => {
         initialSession={restoredSession('select-reference-plane')}
       />,
     );
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
     expect(screen.getByText(/couldn't find the Top plane/)).toBeTruthy();
     expect(screen.queryByText(/The highlight follows/)).toBeNull();
@@ -967,6 +1026,7 @@ describe('AssistantPanel', () => {
     );
     expect(screen.getByText(/already editing a sketch/)).toBeTruthy();
     expect(screen.getByText(/Sketch dialog displays Top plane/)).toBeTruthy();
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
     expect(onShowTarget).not.toHaveBeenCalled();
     expect(screen.getByText('Step 2 of 8 · Visited')).toBeTruthy();
@@ -1635,8 +1695,10 @@ describe('AssistantPanel', () => {
       />,
     );
 
+    openHelp();
     expect(screen.queryByRole('button', { name: 'Show me' })).toBeNull();
     advanceToStep(2);
+    openHelp();
     fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
 
     expect(onShowTarget).toHaveBeenCalledWith('top-plane');
@@ -1690,7 +1752,7 @@ describe('AssistantPanel', () => {
     const { AssistantPanel } = await import('./AssistantPanel');
     render(<AssistantPanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
+    openHelp('Hint');
     expect(screen.getByText(/Hint 1 of 5/)).toBeTruthy();
     expect(
       screen.getByText('A sketch starts as geometry on one flat reference.'),
@@ -1826,7 +1888,7 @@ describe('AssistantPanel', () => {
     );
     advanceToStep(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'I’m stuck' }));
+    openHelp('Hint');
     fireEvent.click(screen.getByRole('button', { name: 'Check progress' }));
 
     const history = onLearningHistoryChange.mock.lastCall?.[0];
@@ -2068,6 +2130,7 @@ it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown captu
       onRecognitionDiagnostics={() => '{}'}
     />,
   );
+  openHelp();
   fireEvent.click(screen.getByRole('button', { name: 'SHOW' }));
   expect(
     screen.queryByRole('button', { name: 'Copy Rectangle SHOW diagnosis' }),
@@ -2091,7 +2154,9 @@ it('offers an opt-in read-only SHOW diagnosis without repeating a dropdown captu
     productionLookup: 'NOT_RUN',
   });
   expect(lookup).not.toHaveBeenCalled();
+  openHelp();
   fireEvent.click(screen.getByRole('button', { name: 'HINT' }));
+  openHelp('Hint');
   expect(screen.queryByLabelText('Recognition diagnostics output')).toBeNull();
   runner.dispose();
 });

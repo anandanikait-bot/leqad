@@ -1,3 +1,5 @@
+import { ContextualHelp } from './ContextualHelp';
+import type { HelpSection } from './ContextualHelp';
 import blackHeaderMark from '../../assets/brand/leqad-black.svg?inline';
 import { PanelSettings } from './PanelSettings';
 import { useAppearance } from './useAppearance';
@@ -465,7 +467,8 @@ export function AssistantPanel({
   const [stepStates, setStepStates] = useState(
     initialLesson.current.stepStates,
   );
-  const [showReason, setShowReason] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSection, setHelpSection] = useState<HelpSection>('hint');
   const [showRecovery, setShowRecovery] = useState(false);
   const [guidanceMessage, setGuidanceMessage] = useState('');
   const [helpLevel, setHelpLevel] = useState<GuidanceLevel>(
@@ -565,6 +568,19 @@ export function AssistantPanel({
     page.elementType !== 'other' &&
     onShowCalibratedHighlight,
   );
+
+  useEffect(() => {
+    setHelpOpen(false);
+    setHelpSection('hint');
+  }, [
+    step?.id,
+    collapsed,
+    mode,
+    settingsOpen,
+    page?.documentId,
+    page?.workspaceId,
+    page?.elementId,
+  ]);
 
   useEffect(() => {
     setSketchModeReported(false);
@@ -962,7 +978,8 @@ export function AssistantPanel({
   };
 
   const resetTransientGuidance = () => {
-    setShowReason(false);
+    setHelpOpen(false);
+    setHelpSection('hint');
     setShowRecovery(false);
     setGuidanceMessage('');
     setHintRequested(false);
@@ -1738,189 +1755,214 @@ export function AssistantPanel({
                         <p>{step.action}</p>
                       )}
                     </section>
-                    <section className="leqad-help" aria-label="Lesson help">
-                      <h3 className="leqad-help-heading">How can I help?</h3>
-                      <div className="leqad-help-row">
-                        {step.semanticTarget === 'top-plane' && (
-                          <button
-                            type="button"
-                            className="leqad-button leqad-button--secondary"
-                            onClick={showTarget}
-                            disabled={stepState.status === 'PAUSED'}
-                          >
-                            Show me
-                          </button>
-                        )}
-                        {step.semanticTarget &&
-                          step.semanticTarget !== 'top-plane' && (
-                            <div
-                              className="leqad-guidance-levels"
-                              role="group"
-                              aria-label="Guidance level"
+                    <ContextualHelp
+                      open={helpOpen}
+                      section={helpSection}
+                      onOpenChange={(open) => {
+                        setHelpOpen(open);
+                        if (
+                          open &&
+                          !visibleHint &&
+                          stepState.status !== 'PAUSED'
+                        )
+                          advanceHintLevel();
+                      }}
+                      onSectionChange={setHelpSection}
+                      content={{
+                        hint: (
+                          <>
+                            {visibleHint && (
+                              <p className="leqad-hint" aria-live="polite">
+                                <strong>
+                                  Hint {Math.min(visibleHintNumber, 5)} of 5:
+                                </strong>{' '}
+                                {visibleHint}
+                              </p>
+                            )}
+                            {showRecovery && (
+                              <div className="leqad-recovery">
+                                <p className="leqad-eyebrow">RECOVERY</p>
+                                <p>
+                                  {
+                                    step.recoveryActions[
+                                      Math.min(
+                                        Math.max(stepState.hintLevel - 1, 0),
+                                        step.recoveryActions.length - 1,
+                                      )
+                                    ]
+                                  }
+                                </p>
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              className="leqad-button leqad-button--text"
+                              onClick={advanceHintLevel}
+                              disabled={stepState.status === 'PAUSED'}
                             >
-                              {(['HINT', 'SHOW', 'GUIDE'] as const).map(
-                                (level) => (
+                              I’m stuck
+                            </button>
+                          </>
+                        ),
+                        guidance: (
+                          <>
+                            <div className="leqad-help-row">
+                              {step.semanticTarget === 'top-plane' && (
+                                <button
+                                  type="button"
+                                  className="leqad-button leqad-button--secondary"
+                                  onClick={showTarget}
+                                  disabled={stepState.status === 'PAUSED'}
+                                >
+                                  Show me
+                                </button>
+                              )}
+                              {step.semanticTarget &&
+                                step.semanticTarget !== 'top-plane' && (
+                                  <div
+                                    className="leqad-guidance-levels"
+                                    role="group"
+                                    aria-label="Guidance level"
+                                  >
+                                    {(['HINT', 'SHOW', 'GUIDE'] as const).map(
+                                      (level) => (
+                                        <button
+                                          key={level}
+                                          type="button"
+                                          className={`leqad-button leqad-button--secondary${helpLevel === level ? ' is-selected' : ''}`}
+                                          aria-pressed={helpLevel === level}
+                                          onClick={() => selectHelpLevel(level)}
+                                          disabled={
+                                            stepState.status === 'PAUSED' ||
+                                            calibrationOpen
+                                          }
+                                        >
+                                          {level}
+                                        </button>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                            {step.id === 'start-sketch' && (
+                              <div className="leqad-help-row">
+                                <button
+                                  type="button"
+                                  className="leqad-button leqad-button--secondary"
+                                  disabled={
+                                    stepState.status === 'PAUSED' ||
+                                    stepState.status === 'COMPLETED'
+                                  }
+                                  onClick={() => {
+                                    setSketchModeReported((value) => !value);
+                                    setCalibrationOpen(false);
+                                    guidanceRunner?.cancel();
+                                    setGuidanceState(null);
+                                    onClearTarget?.();
+                                    setGuidanceMessage('');
+                                  }}
+                                >
+                                  {sketchModeReported
+                                    ? 'Return to Start Sketch instructions'
+                                    : "I'm already in Sketch mode"}
+                                </button>
+                                {canCalibrateSketch && (
                                   <button
-                                    key={level}
                                     type="button"
-                                    className={`leqad-button leqad-button--secondary${helpLevel === level ? ' is-selected' : ''}`}
-                                    aria-pressed={helpLevel === level}
-                                    onClick={() => selectHelpLevel(level)}
+                                    className="leqad-button leqad-button--text"
+                                    onClick={openSketchCalibration}
                                     disabled={
                                       stepState.status === 'PAUSED' ||
                                       calibrationOpen
                                     }
                                   >
-                                    {level}
+                                    Calibrate Sketch highlight
                                   </button>
-                                ),
+                                )}
+                              </div>
+                            )}
+                            {step.id === 'start-sketch' &&
+                              calibrationOpen &&
+                              canCalibrateSketch &&
+                              onShowCalibratedHighlight && (
+                                <SketchCalibrationForm
+                                  calibration={sketchCalibration}
+                                  onPreview={onShowCalibratedHighlight}
+                                  onClear={onClearTarget ?? (() => undefined)}
+                                  onSave={saveSketchCalibration}
+                                  onCancel={() => setCalibrationOpen(false)}
+                                />
                               )}
-                            </div>
-                          )}
-                        <button
-                          type="button"
-                          className="leqad-button leqad-button--text"
-                          onClick={() => setShowReason((value) => !value)}
-                        >
-                          Why?
-                        </button>
-                        <button
-                          type="button"
-                          className="leqad-button leqad-button--text"
-                          onClick={advanceHintLevel}
-                          disabled={stepState.status === 'PAUSED'}
-                        >
-                          I’m stuck
-                        </button>
-                      </div>
-                      {step.id === 'start-sketch' && (
-                        <div className="leqad-help-row">
+                            {currentGuidanceActionId &&
+                              !GUIDANCE_REGISTRY[
+                                currentGuidanceActionId
+                              ].supportedLevels.includes('GUIDE') && (
+                                <p
+                                  className="leqad-guidance-unavailable"
+                                  role="status"
+                                >
+                                  {currentGuidanceActionId ===
+                                  'rectangle-tool-group'
+                                    ? 'GUIDE is unavailable for the Rectangle tool group until an authenticated Onshape capture validates its menu transitions.'
+                                    : 'GUIDE is unavailable for this action until its required interface transitions are validated.'}
+                                </p>
+                              )}
+                          </>
+                        ),
+                        why: (
+                          <p className="leqad-explanation">
+                            {step.explanation}
+                          </p>
+                        ),
+                        uncertainty: (
+                          <p>
+                            {describeProgress(stepState)} {step.action} Check
+                            the result in Onshape before marking this step done.
+                            Highlighting does not verify CAD geometry.
+                          </p>
+                        ),
+                      }}
+                    />
+                    {guidanceMessage && (
+                      <div className="leqad-guidance" aria-live="polite">
+                        {showNativeSearchGuidance
+                          ? `Leqad couldn’t safely highlight ${nativeSearchGuidance!.commandName}.`
+                          : guidanceMessage}
+                        {guidanceState?.retryAvailable && guidanceRunner && (
                           <button
                             type="button"
                             className="leqad-button leqad-button--secondary"
-                            disabled={
-                              stepState.status === 'PAUSED' ||
-                              stepState.status === 'COMPLETED'
-                            }
-                            onClick={() => {
-                              setSketchModeReported((value) => !value);
-                              setCalibrationOpen(false);
-                              guidanceRunner?.cancel();
-                              setGuidanceState(null);
-                              onClearTarget?.();
-                              setGuidanceMessage('');
-                            }}
+                            onClick={retryGuidance}
                           >
-                            {sketchModeReported
-                              ? 'Return to Start Sketch instructions'
-                              : "I'm already in Sketch mode"}
+                            Retry guidance
                           </button>
-                          {canCalibrateSketch && (
-                            <button
-                              type="button"
-                              className="leqad-button leqad-button--text"
-                              onClick={openSketchCalibration}
-                              disabled={
-                                stepState.status === 'PAUSED' || calibrationOpen
-                              }
-                            >
-                              Calibrate Sketch highlight
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {step.id === 'start-sketch' &&
-                        calibrationOpen &&
-                        canCalibrateSketch &&
-                        onShowCalibratedHighlight && (
-                          <SketchCalibrationForm
-                            calibration={sketchCalibration}
-                            onPreview={onShowCalibratedHighlight}
-                            onClear={onClearTarget ?? (() => undefined)}
-                            onSave={saveSketchCalibration}
-                            onCancel={() => setCalibrationOpen(false)}
-                          />
                         )}
-                      {currentGuidanceActionId &&
-                        !GUIDANCE_REGISTRY[
-                          currentGuidanceActionId
-                        ].supportedLevels.includes('GUIDE') && (
-                          <p
-                            className="leqad-guidance-unavailable"
-                            role="status"
-                          >
-                            {currentGuidanceActionId === 'rectangle-tool-group'
-                              ? 'GUIDE is unavailable for the Rectangle tool group until an authenticated Onshape capture validates its menu transitions.'
-                              : 'GUIDE is unavailable for this action until its required interface transitions are validated.'}
-                          </p>
-                        )}
-                      {showReason && (
-                        <p className="leqad-explanation">{step.explanation}</p>
-                      )}
-                      {visibleHint && (
-                        <p className="leqad-hint" aria-live="polite">
-                          <strong>
-                            Hint {Math.min(visibleHintNumber, 5)} of 5:
-                          </strong>{' '}
-                          {visibleHint}
-                        </p>
-                      )}
-                      {showRecovery && (
-                        <div className="leqad-recovery">
-                          <p className="leqad-eyebrow">RECOVERY</p>
-                          <p>
-                            {
-                              step.recoveryActions[
-                                Math.min(
-                                  Math.max(stepState.hintLevel - 1, 0),
-                                  step.recoveryActions.length - 1,
-                                )
-                              ]
-                            }
-                          </p>
-                        </div>
-                      )}
-                      {guidanceMessage && (
-                        <div className="leqad-guidance" aria-live="polite">
-                          {showNativeSearchGuidance
-                            ? `Leqad couldn’t safely highlight ${nativeSearchGuidance!.commandName}.`
-                            : guidanceMessage}
-                          {guidanceState?.retryAvailable && guidanceRunner && (
-                            <button
-                              type="button"
-                              className="leqad-button leqad-button--secondary"
-                              onClick={retryGuidance}
-                            >
-                              Retry guidance
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {showNativeSearchGuidance && nativeSearchGuidance && (
-                        <NativeSearchGuidance
-                          guidance={nativeSearchGuidance}
-                          availability={nativeSearchAvailability}
-                        />
-                      )}
-                      {cursorCue && (
-                        <div className="leqad-cursor-cue" aria-live="polite">
-                          {cursorCue}
-                          <button
-                            type="button"
-                            className="leqad-button leqad-button--text"
-                            onClick={() => {
-                              setDismissedCursorCues((prior) => [
-                                ...prior,
-                                step.id,
-                              ]);
-                              setCursorCue('');
-                            }}
-                          >
-                            Dismiss suggestion
-                          </button>
-                        </div>
-                      )}
-                    </section>
+                      </div>
+                    )}
+                    {showNativeSearchGuidance && nativeSearchGuidance && (
+                      <NativeSearchGuidance
+                        guidance={nativeSearchGuidance}
+                        availability={nativeSearchAvailability}
+                      />
+                    )}
+                    {cursorCue && (
+                      <div className="leqad-cursor-cue" aria-live="polite">
+                        {cursorCue}
+                        <button
+                          type="button"
+                          className="leqad-button leqad-button--text"
+                          onClick={() => {
+                            setDismissedCursorCues((prior) => [
+                              ...prior,
+                              step.id,
+                            ]);
+                            setCursorCue('');
+                          }}
+                        >
+                          Dismiss suggestion
+                        </button>
+                      </div>
+                    )}
                     {canContinueUnverified && (
                       <p className="leqad-guidance" aria-live="polite">
                         Finished the action in Onshape? Mark this step done.
