@@ -351,6 +351,9 @@ describe('learning history and preferences', () => {
       ...preferences,
       onboardingComplete: false,
       helpLevel: 'HINT',
+      appearance: 'light',
+      assistanceMode: 'on-demand',
+      dismissedCursorCues: [],
     });
   });
 
@@ -363,6 +366,9 @@ describe('learning history and preferences', () => {
       position: null,
       onboardingComplete: false,
       helpLevel: 'HINT',
+      appearance: 'light',
+      assistanceMode: 'on-demand',
+      dismissedCursorCues: [],
     });
   });
 
@@ -387,6 +393,9 @@ describe('learning history and preferences', () => {
       position: { left: 24, top: 32 },
       onboardingComplete: true,
       helpLevel: 'HINT',
+      appearance: 'light',
+      assistanceMode: 'on-demand',
+      dismissedCursorCues: [],
     });
   });
 
@@ -412,6 +421,9 @@ describe('learning history and preferences', () => {
       position: { left: 24, top: 32 },
       onboardingComplete: true,
       helpLevel: 'HINT',
+      appearance: 'light',
+      assistanceMode: 'on-demand',
+      dismissedCursorCues: [],
     });
   });
 
@@ -512,4 +524,110 @@ describe('ordered writes', () => {
       currentStepId: 'draw-rectangle',
     });
   });
+});
+
+describe('appearance and assistance preferences', () => {
+  it.each([
+    { appearance: 'dark', assistanceMode: 'proactive' },
+    { appearance: 'system', assistanceMode: 'on-demand' },
+  ] as const)(
+    'round trips settings without touching history or progress: %j',
+    async (settings) => {
+      const { createLessonProgressStore } = await import('./progressStore');
+      const storage = memoryStorage();
+      const store = createLessonProgressStore(storage);
+      await store.saveSession(completedSession());
+      const progressBefore = [...storage.values.entries()];
+      await store.savePanelPreferences({
+        collapsed: true,
+        position: { left: 20, top: 30 },
+        helpLevel: 'SHOW',
+        onboardingComplete: true,
+        ...settings,
+      });
+      expect(
+        await createLessonProgressStore(storage).loadPanelPreferences(),
+      ).toMatchObject({
+        ...settings,
+        collapsed: true,
+        helpLevel: 'SHOW',
+        onboardingComplete: true,
+      });
+      for (const [key, value] of progressBefore)
+        expect(storage.values.get(key)).toEqual(value);
+    },
+  );
+
+  it('defaults invalid settings independently, retaining valid legacy fields', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const storage = memoryStorage();
+    storage.values.set('leqad:panel-preferences:v2', {
+      schemaVersion: 2,
+      preferences: {
+        collapsed: true,
+        position: { left: 30, top: 40 },
+        helpLevel: 'GUIDE',
+        appearance: 'neon',
+        assistanceMode: 'autonomous',
+      },
+    });
+    expect(
+      await createLessonProgressStore(storage).loadPanelPreferences(),
+    ).toMatchObject({
+      collapsed: true,
+      position: { left: 30, top: 40 },
+      helpLevel: 'GUIDE',
+      appearance: 'light',
+      assistanceMode: 'on-demand',
+    });
+  });
+
+  it('rejects invalid outgoing settings', async () => {
+    const { createLessonProgressStore } = await import('./progressStore');
+    const store = createLessonProgressStore(memoryStorage());
+    await expect(
+      store.savePanelPreferences({
+        collapsed: false,
+        position: null,
+        appearance: 'neon',
+      } as never),
+    ).rejects.toThrow();
+    await expect(
+      store.savePanelPreferences({
+        collapsed: false,
+        position: null,
+        assistanceMode: 'autonomous',
+      } as never),
+    ).rejects.toThrow();
+  });
+});
+
+it('persists only bounded known dismissed cue identities', async () => {
+  const { createLessonProgressStore } = await import('./progressStore');
+  const storage = memoryStorage();
+  storage.values.set('leqad:panel-preferences:v2', {
+    schemaVersion: 2,
+    preferences: {
+      collapsed: false,
+      position: null,
+      dismissedCursorCues: [
+        'select-reference-plane',
+        'private arbitrary content',
+        'select-reference-plane',
+      ],
+    },
+  });
+  const store = createLessonProgressStore(storage);
+  expect((await store.loadPanelPreferences()).dismissedCursorCues).toEqual([
+    'select-reference-plane',
+  ]);
+  await store.savePanelPreferences({
+    collapsed: false,
+    position: null,
+    dismissedCursorCues: ['select-reference-plane'],
+  });
+  expect(
+    (await createLessonProgressStore(storage).loadPanelPreferences())
+      .dismissedCursorCues,
+  ).toEqual(['select-reference-plane']);
 });

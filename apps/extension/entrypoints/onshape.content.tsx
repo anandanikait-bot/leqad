@@ -342,11 +342,7 @@ export default defineContentScript({
                     );
                   }}
                   onSessionChange={progressStore.saveSession}
-                  onPanelPreferencesChange={(preferences) => {
-                    void progressStore
-                      .savePanelPreferences(preferences)
-                      .catch(() => undefined);
-                  }}
+                  onPanelPreferencesChange={progressStore.savePanelPreferences}
                   onLearningHistoryChange={(history) => {
                     void progressStore
                       .saveLearningHistory(history)

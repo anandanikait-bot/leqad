@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test, type Page } from '@playwright/test';
 
 // Every toolbar/popup role, relationship, layout and handler is SIMULATED.
@@ -7,7 +8,7 @@ async function rectangleStep(page: Page) {
   for (let step = 1; step < 4; step++) {
     await page
       .getByRole('button', {
-        name: step === 1 ? 'Got it' : "I've finished this step",
+        name: step === 1 ? 'Got it' : 'Mark done',
         exact: true,
       })
       .click();
@@ -35,6 +36,7 @@ for (const lastUsed of [
         },
         { name: lastUsed, zoom: scale },
       );
+      await openLessonHelp(page, 'Detailed guidance');
       await page.getByRole('button', { name: 'SHOW', exact: true }).click();
       const outline = page.locator('[data-leqad-highlight]');
       await expect(outline).toHaveCount(1);
@@ -59,6 +61,7 @@ for (const lastUsed of [
       await page.locator('[data-guidance-simulation-item]').click();
       await expect(outline).toHaveCount(0);
       await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
+      await openLessonHelp(page, 'Detailed guidance');
       await page.getByRole('button', { name: 'GUIDE', exact: true }).click();
       await expect(
         page.getByText(/Step-by-step guidance.*not available yet/),
@@ -93,6 +96,7 @@ test('capture-grounded labels remain BLOCKED in a simulated unowned nonsemantic 
     }
     document.body.append(menu);
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
   await expect(
@@ -119,6 +123,7 @@ test('production group SHOW clears on rerender, popup change, scroll/resize and 
   await page.clock.install();
   const control = page.locator('#fixture-rectangle');
   const outline = page.locator('[data-leqad-highlight]');
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await control.evaluate((element) => element.removeAttribute('aria-haspopup'));
@@ -126,6 +131,7 @@ test('production group SHOW clears on rerender, popup change, scroll/resize and 
   await control.evaluate((element) =>
     element.setAttribute('aria-haspopup', 'menu'),
   );
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await page.evaluate(() => {
     window.dispatchEvent(new Event('resize'));
@@ -137,10 +143,12 @@ test('production group SHOW clears on rerender, popup change, scroll/resize and 
     element.replaceWith(element.cloneNode(true)),
   );
   await expect(outline).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await page.clock.fastForward(5000);
   await expect(outline).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await page.evaluate(() =>
@@ -156,7 +164,7 @@ test('SHOW diagnosis distinguishes the actual stopped context gate, lookup and h
   for (let step = 1; step < 4; step++) {
     await page
       .getByRole('button', {
-        name: step === 1 ? 'Got it' : "I've finished this step",
+        name: step === 1 ? 'Got it' : 'Mark done',
         exact: true,
       })
       .click();
@@ -166,6 +174,7 @@ test('SHOW diagnosis distinguishes the actual stopped context gate, lookup and h
     .getByRole('button', { name: 'Enable recognition diagnostics' })
     .click();
   const report = async () => {
+    await openLessonHelp(page, 'Detailed guidance');
     await page.getByRole('button', { name: 'SHOW', exact: true }).click();
     await page
       .getByRole('button', { name: 'Copy Rectangle SHOW diagnosis' })
@@ -235,6 +244,7 @@ test('opt-in exit capture preserves a normal manual click without claiming activ
     });
     document.body.append(exit);
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await page
     .getByRole('button', { name: 'Enable recognition diagnostics' })
@@ -294,6 +304,7 @@ test('a generic three-branch SVG dialog cannot bypass the Sketch gate or identif
     }
     document.body.append(dialog);
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await page
     .getByRole('button', { name: 'Enable recognition diagnostics' })
@@ -414,6 +425,7 @@ test('failed SHOW offers a collapsible manual Search Tools fallback without CAD 
   await page
     .locator('#fixture-rectangle')
     .evaluate((element) => element.remove());
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
 
   const fallback = page.getByText('Find using Onshape Search', {

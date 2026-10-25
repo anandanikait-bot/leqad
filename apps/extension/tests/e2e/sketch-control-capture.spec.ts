@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test } from '@playwright/test';
 
 // Simulated toolbar only; not authenticated Onshape evidence.
@@ -7,7 +8,7 @@ test('Sketch capture retains clicked evidence past unrelated controls, preserves
   await page.goto('/fixture.html?unknown-permission');
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   const sketch = page.locator('#fixture-sketch');
   await sketch.evaluate((button) => {
@@ -19,6 +20,7 @@ test('Sketch capture retains clicked evidence past unrelated controls, preserves
     button.setAttribute('aria-label', 'private-command');
     button.setAttribute('title', 'Sketch');
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(
     page.getByRole('group', { name: 'Sketch highlight calibration' }),

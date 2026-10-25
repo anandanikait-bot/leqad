@@ -1,3 +1,4 @@
+import { openLessonHelp } from './help';
 import { expect, test, type Page } from '@playwright/test';
 
 // All controls and storage failures here are simulations, not live Onshape evidence.
@@ -6,7 +7,7 @@ async function reachStep(page: Page, step: number) {
   for (let current = 1; current < step; current++) {
     await page
       .getByRole('button', {
-        name: current === 1 ? 'Got it' : "I've finished this step",
+        name: current === 1 ? 'Got it' : 'Mark done',
       })
       .click();
     await page.getByRole('button', { name: 'Next' }).click();
@@ -25,6 +26,7 @@ test('Corner Rectangle teaching survives simulated SHOW failure and self-reporte
     /Open the Rectangle dropdown with its arrow, choose Corner Rectangle/,
   );
   await expect(instruction).toBeVisible();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(
     page.getByText(/couldn’t safely highlight Corner rectangle/),
@@ -34,17 +36,22 @@ test('Corner Rectangle teaching survives simulated SHOW failure and self-reporte
   ).toBeVisible();
   await expect(instruction).toBeVisible();
   await expect(page.locator('[data-leqad-highlight]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Why?', exact: true }).click();
+  await openLessonHelp(page, 'Detailed guidance');
+  await page
+    .getByRole('button', { name: 'Why it matters', exact: true })
+    .click();
   await expect(
     page.getByText(/Center Point Rectangle starts from the center/),
   ).toBeVisible();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'HINT', exact: true }).click();
+  await openLessonHelp(page, 'Hint');
   await expect(page.getByText(/Hint 1 of 5/)).toBeVisible();
   await expect(
     page.getByText(/The group icon can show the last-used Rectangle variant/),
   ).toBeVisible();
   await expect(page.getByText('Step 4 of 8 · Visited')).toBeVisible();
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   await page.reload();
   await expect(page.getByText('Step 4 of 8 · Marked done')).toBeVisible();
   await expect(instruction).toBeVisible();
@@ -66,6 +73,7 @@ test('simulated command identity conflicts fall back; inert and replaced control
     button.setAttribute('title', 'Sketch');
     button.textContent = 'Sketch';
   });
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(
     page.getByRole('group', { name: 'Sketch highlight calibration' }),
@@ -77,18 +85,21 @@ test('simulated command identity conflicts fall back; inert and replaced control
   await control.evaluate((button) =>
     button.setAttribute('aria-label', 'Sketch'),
   );
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   const outline = page.locator('[data-leqad-highlight]');
   await expect(outline).toHaveCount(1);
   await control.evaluate((button) => button.setAttribute('inert', ''));
   await expect(outline).toHaveCount(0);
   await control.evaluate((button) => button.removeAttribute('inert'));
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await control.evaluate((button) =>
     button.replaceWith(button.cloneNode(true)),
   );
   await expect(outline).toHaveCount(0);
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await control.evaluate((button) => {
@@ -112,14 +123,18 @@ test('simulated SHOW and GUIDE switch to keyboard HINT without retaining highlig
 }) => {
   await reachStep(page, 4);
   await page.locator('#fixture-sketch').click();
+  await openLessonHelp(page);
   const hint = page.getByRole('button', { name: 'HINT', exact: true });
   const outline = page.locator('[data-leqad-highlight]');
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'SHOW', exact: true }).click();
   await expect(outline).toHaveCount(1);
   await hint.focus();
   await hint.press('Enter');
+  await openLessonHelp(page, 'Hint');
   await expect(outline).toHaveCount(0);
   await expect(page.getByText(/Hint 1 of 5/)).toBeVisible();
+  await openLessonHelp(page, 'Detailed guidance');
   await page.getByRole('button', { name: 'GUIDE', exact: true }).click();
   await expect(
     page.getByText(/Waiting for you to open the menu/),
@@ -153,7 +168,7 @@ test('simulated storage failure offers retry and preserves self-reported progres
       { once: true },
     );
   });
-  await page.getByRole('button', { name: "I've finished this step" }).click();
+  await page.getByRole('button', { name: 'Mark done' }).click();
   const savingStatus = page.getByRole('status', { name: 'Progress saving' });
   await expect(savingStatus).toContainText('could not be saved');
   await expect(page.getByText('Step 4 of 8 · Marked done')).toBeVisible();
