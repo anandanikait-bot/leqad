@@ -81,3 +81,13 @@ Do not export credentials, session files, private CAD data or document identifie
 - Browser coverage includes 320×360, 320×720, 1024×480 and 1440×900, plus existing 100/125/150% effective-zoom/theme fixtures and a new 200% text-enlargement case. Text enlargement and effective viewport checks do not prove actual browser zoom.
 
 Commands ran at the delivery boundary, with no production edits afterward. Source commit and CI/artifact links belong to the PR handoff so the report does not copy hashes from older packages.
+
+## Review follow-up: extension/desktop and stack boundaries
+
+PR #15 is the WXT extension implementation; it does not implement PR #17's standalone desktop companion. Future integration can reuse the presentation components/contracts, with browser DOM, window measurement, storage, focus and lifecycle behavior supplied through host-specific adapters. Do not transplant extension recognition/orchestration into the desktop app.
+
+PR #15 targets PR #14's unmerged `test/reduce-manual-onshape-testing` branch and includes earlier V1 branding/settings changes. Preserve the stack until the dependencies are resolved; review the combined changes before any merge. The Task 6 checklist now records the verified implementation/CI handoff while leaving owner screenshot review and real Onshape acceptance unchecked.
+
+The contrast follow-up adds measured WCAG AA text checks for help topics/recovery, evidence feedback (waiting, acknowledged, unknown, UI-verified and self-reported) and local Ask labels, context, questions and response fields in both Light and Dark. It composites actual ancestor backgrounds, checks nonempty measurements and includes a deliberately illegible negative control. This is targeted text contrast coverage, not a claim that every pixel or keyboard/zoom behavior has been visually approved. MODEL_VERIFIED has no new producer in this phase; simulated evidence does not establish real CAD correctness.
+
+The targeted checks reproduced a dark-theme hover defect: an Ask secondary button inherited light text while the shared hover rule painted an ivory background (about 1:1 contrast). The hover background now uses the existing theme-aware navigation surface token. The new tests exercise selected/hovered Ask questions as well as HINT/SHOW/GUIDE controls and paused feedback. No CAD or storage behavior changed.

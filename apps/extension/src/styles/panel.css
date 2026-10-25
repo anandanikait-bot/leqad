@@ -443,7 +443,7 @@
 }
 
 .leqad-button--secondary:hover {
-  background: #f5efe7;
+  background: var(--leqad-nav-active);
 }
 
 .leqad-button--secondary.is-selected {

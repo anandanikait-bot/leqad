@@ -125,13 +125,28 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 
 **Consumes:** Completed Tasks 1–5. **Produces:** Reviewed implementation, exact checks/CI report, paired screenshots and owner live-test instructions, not live acceptance.
 
-- [ ] Add integrated eight-step browser coverage using existing fixture observations: ordered hints, manual completion, supported checks, unknown fallback, pause/resume, Back/Next/Restart, reload persistence, preferences and save-failure retry. Preserve existing Top/Sketch/Rectangle highlight tests and no-automation assertions.
-- [ ] Run focused integration cases; investigate failures without modifying production recognition, verification, or persistence to accommodate UI tests. If a non-UI blocker appears, report it as a scope issue.
-- [ ] Capture after images matching Task 1, plus local Ask and short-height fallback. Keep “before” artifacts immutable. Record screenshot commands, fixture provenance and revision. Manually inspect text clipping, primary action reachability, spacing, contrast and scrollbars; screenshots alone do not prove interactive behavior.
-- [ ] Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm reference:test`, `pnpm reference:validate`, `pnpm test:e2e`, `pnpm build`, `pnpm build:edge`, and `pnpm package:browsers`. Record actual exit status/counts. Fix regressions and rerun affected checks, then the required delivery checks after final changes.
-- [ ] Review the diff for accidental changes to recognition, verification, persistence schemas, permissions, branding geometry and website code. Check there are no network calls or falsely verified examples. Review accessibility and lifecycle regressions alongside screenshots.
-- [ ] Commit `test: validate Phase 1.5 teaching experience`; update the appropriate unmerged review PR after implementation approval and run existing CI. Report exact commit, run link and downloadable Chrome/Edge artifacts. Do not claim CI passed until the run finishes successfully; report infrastructure failures explicitly.
-- [ ] Deliver the audit, paired screenshot index, local Ask example, regression results and remaining owner checks: authorized Onshape lesson flow, SHOW, expanded help, drag/collapse, zoom/resize, document navigation, and reload. Stop for review; no merge or deployment.
+- [x] Add integrated eight-step browser coverage using existing fixture observations: ordered hints, manual completion, supported checks, unknown fallback, pause/resume, Back/Next/Restart, reload persistence, preferences and save-failure retry. Preserve existing Top/Sketch/Rectangle highlight tests and no-automation assertions.
+- [x] Run focused integration cases; investigate failures without modifying production recognition, verification, or persistence to accommodate UI tests. If a non-UI blocker appears, report it as a scope issue.
+- [x] Capture after images matching Task 1, plus local Ask and short-height fallback. Keep “before” artifacts immutable. Record screenshot commands, fixture provenance and revision. Manually inspect text clipping, primary action reachability, spacing, contrast and scrollbars; screenshots alone do not prove interactive behavior.
+- [x] Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm reference:test`, `pnpm reference:validate`, `pnpm test:e2e`, `pnpm build`, `pnpm build:edge`, and `pnpm package:browsers`. Record actual exit status/counts. Fix regressions and rerun affected checks, then the required delivery checks after final changes.
+- [x] Review the diff for accidental changes to recognition, verification, persistence schemas, permissions, branding geometry and website code. Check there are no network calls or falsely verified examples. Review accessibility and lifecycle regressions alongside screenshots.
+- [x] Commit `test: validate Phase 1.5 teaching experience`; update the appropriate unmerged review PR after implementation approval and run existing CI. Report exact commit, run link and downloadable Chrome/Edge artifacts. Do not claim CI passed until the run finishes successfully; report infrastructure failures explicitly.
+- [x] Deliver the audit, paired screenshot index, local Ask example, regression results and remaining owner checks: authorized Onshape lesson flow, SHOW, expanded help, drag/collapse, zoom/resize, document navigation, and reload. Stop for review; no merge or deployment.
+
+### Verified Task 6 record
+
+Implementation commit `36e29b37e669550a111704b6d56b965d84658de7`: [CI #129](https://github.com/anandanikait-bot/leqad/actions/runs/40171133002) succeeded with 632 unit/component, 45 reference and 83 browser tests. Formatting, lint, typecheck, reference integrity, Chrome/Edge builds, packaging and upload passed. [Tested package artifact](https://github.com/anandanikait-bot/leqad/actions/runs/40171133002/artifacts/12590271529). Local browser results were 82 passed plus one managed-browser installation skip; hosted CI passed all 83. The [review report](../../reviews/phase-1-5/README.md) contains the audit, immutable before captures, after captures, independent review findings/fixes and owner instructions. Production recognition, verification, persistence, permissions and branding geometry were unchanged.
+
+These seven checked items mean implementation, automated validation and review handoff were performed. They do not mean owner visual approval or real Onshape acceptance.
+
+- [ ] Owner performs authenticated Onshape acceptance: controls/SHOW, panel positioning, keyboard operation, actual browser zoom, reload persistence and document changes.
+- [ ] Owner reviews actual screenshot images and installed UI and approves any merge/deployment.
+
+### Extension versus desktop boundary and PR dependencies
+
+This plan implements the WXT extension teaching interface in PR #15. The standalone desktop companion is separate work in PR #17. Future desktop integration should reuse the presentation contracts/components after separating any browser-specific focus/layout adapters. Keep Onshape DOM recognition, content-script lifecycle, browser-window measurements, browser storage and extension permissions in their host adapters. Do not copy `AssistantPanel` orchestration wholesale into the desktop application or infer desktop compatibility from these fixtures.
+
+PR #15 remains stacked on PR #14's `test/reduce-manual-onshape-testing` branch, not `main`, and includes earlier V1 branding/settings changes. Preserve its base until that dependency is resolved. Review the combined stack and desktop boundaries before any eventual integration; no independent merge of #15 is authorized.
 
 ## Plan self-review
 
@@ -142,4 +157,4 @@ Keep context/instruction/actions/evidence as semantic sections in `AssistantPane
 - **Complexity:** No component for every visual row, no new dependencies, no resize handle, no generalized chat protocol or standalone testing harness. Ask contracts remain local to its module until a later approved integration needs them.
 - **Review-focus closure:** All five listed risks have explicit task-level tests. Actual zoom and actual Onshape behavior remain separately reported manual gates if unavailable locally.
 
-Execution authorized by the owner after plan commit c89c358. Tasks 1–5 complete; Task 6 local checks and independent review complete. Hosted CI and owner live acceptance are recorded in the review handoff.
+Execution authorized by the owner after plan commit c89c358. Tasks 1–6 implementation and automated review handoff complete as documented above. Owner visual approval and live Onshape acceptance remain outstanding.
