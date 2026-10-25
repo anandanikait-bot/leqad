@@ -1,3 +1,4 @@
+import { AskPrototype } from './AskPrototype';
 import { ContextualHelp } from './ContextualHelp';
 import type { HelpSection } from './ContextualHelp';
 import blackHeaderMark from '../../assets/brand/leqad-black.svg?inline';
@@ -2141,14 +2142,47 @@ export function AssistantPanel({
                 </section>
               )}
               {mode === 'Ask' && (
-                <section className="leqad-empty-state">
-                  <p className="leqad-eyebrow">CONTEXTUAL HELP · PREVIEW</p>
-                  <h2>Ask Leqad</h2>
-                  <p>
-                    Contextual answers need a connected service. You can use the
-                    Foundations lesson while access is limited.
-                  </p>
-                </section>
+                <AskPrototype
+                  key={`${step.id}:${page?.documentId ?? ''}:${page?.elementId ?? ''}`}
+                  context={{
+                    lessonId: FOUNDATIONS_FIRST_SKETCH.id,
+                    lessonTitle: FOUNDATIONS_FIRST_SKETCH.title,
+                    stepId: step.id,
+                    stepTitle: step.goal,
+                    helpLevel,
+                    targetId: currentGuidanceActionId
+                      ? GUIDANCE_REGISTRY[currentGuidanceActionId].targetId
+                      : null,
+                    observation: describeProgress(stepState),
+                  }}
+                  examples={[
+                    {
+                      id: 'why',
+                      question:
+                        step.id === 'draw-rectangle'
+                          ? 'Why use Corner Rectangle?'
+                          : 'Why does this step matter?',
+                      kind: 'LOCAL_EXAMPLE',
+                      explanation: step.explanation,
+                      hint: step.hints[0] ?? step.action,
+                      evidence:
+                        'This is an authored lesson example, not a new observation.',
+                      uncertainty:
+                        'No CAD geometry has been checked by this example.',
+                    },
+                    {
+                      id: 'verify',
+                      question: 'What can Leqad verify?',
+                      kind: 'LOCAL_EXAMPLE',
+                      explanation:
+                        'Leqad distinguishes supported interface observations, self-reported completion, and model evidence.',
+                      hint: 'Check the result in Onshape and use the lesson completion option that is available.',
+                      evidence: describeProgress(stepState),
+                      uncertainty:
+                        'A highlighted control or a click alone cannot verify CAD geometry.',
+                    },
+                  ]}
+                />
               )}
               {onRecognitionDiagnostics && (
                 <section

@@ -821,3 +821,25 @@
   max-height: none;
   overflow: visible;
 }
+.leqad-example-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.leqad-local-response {
+  margin-top: 16px;
+  border-top: 1px solid var(--leqad-border);
+  padding-top: 12px;
+}
+.leqad-local-response dt {
+  font-weight: 700;
+  margin-top: 12px;
+}
+.leqad-local-response dd {
+  margin: 4px 0 0;
+}
+.leqad-prototype-context {
+  font-size: 12px;
+  color: var(--leqad-description);
+  overflow-wrap: anywhere;
+}

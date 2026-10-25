@@ -60,3 +60,28 @@ it('emphasizes Next only after acknowledgement without upgrading evidence', () =
     screen.getByRole('status', { name: 'Lesson progress' }).textContent,
   ).toContain('does not claim CAD verification');
 });
+it('keeps local Ask examples separate from lesson state and guidance actions', () => {
+  const show = vi.fn(),
+    check = vi.fn(),
+    save = vi.fn();
+  render(
+    <AssistantPanel
+      onShowTarget={show}
+      onCheckStep={check}
+      onSessionChange={save}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+  const prior = save.mock.calls.length;
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Why does this step matter?' }),
+  );
+  expect(screen.getByText('Local prototype — no AI connected')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Learn' }));
+  expect(save.mock.calls.length).toBe(prior);
+  expect(show).not.toHaveBeenCalled();
+  expect(check).not.toHaveBeenCalled();
+  expect(screen.getByText('Step 1 of 8 · Visited')).toBeTruthy();
+  expect(screen.queryByRole('region', { name: 'Help content' })).toBeNull();
+});
