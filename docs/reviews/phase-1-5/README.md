@@ -91,3 +91,32 @@ PR #15 targets PR #14's unmerged `test/reduce-manual-onshape-testing` branch and
 The contrast follow-up adds measured WCAG AA text checks for help topics/recovery, evidence feedback (waiting, acknowledged, unknown, UI-verified and self-reported) and local Ask labels, context, questions and response fields in both Light and Dark. It composites actual ancestor backgrounds, checks nonempty measurements and includes a deliberately illegible negative control. This is targeted text contrast coverage, not a claim that every pixel or keyboard/zoom behavior has been visually approved. MODEL_VERIFIED has no new producer in this phase; simulated evidence does not establish real CAD correctness.
 
 The targeted checks reproduced a dark-theme hover defect: an Ask secondary button inherited light text while the shared hover rule painted an ivory background (about 1:1 contrast). The hover background now uses the existing theme-aware navigation surface token. The new tests exercise selected/hovered Ask questions as well as HINT/SHOW/GUIDE controls and paused feedback. No CAD or storage behavior changed.
+
+## Explicit real-pointer hover regression checks
+
+The follow-up uses Playwright `locator.hover()` (and asserts actual `:hover`) for each enabled Ask secondary question and the existing enabled HINT, SHOW and GUIDE controls on fixture step 3. It measures normal, hovered and pointer-away states through the same composited-background helper. Restored measurements must equal the initial measurements, and every sampled state must reach 4.5:1. A selected HINT can retain the same colors during hover; the test requires real pointer state, not a color change.
+
+Measured local fixture results (foreground and actual composited backgrounds):
+
+| Theme | Control                    | Foreground         | Normal background / ratio | Hover background / ratio | Restored ratio |
+| ----- | -------------------------- | ------------------ | ------------------------- | ------------------------ | -------------- |
+| light | Why does this step matter? | rgb(14, 41, 67)    | #FFFAF3 / 14.27:1         | #E8DED2 / 11.16:1        | 14.27:1        |
+| light | What can Leqad verify?     | rgb(14, 41, 67)    | #FFFAF3 / 14.27:1         | #E8DED2 / 11.16:1        | 14.27:1        |
+| light | HINT                       | rgb(255, 255, 255) | #0E2943 / 14.82:1         | #0E2943 / 14.82:1        | 14.82:1        |
+| light | SHOW                       | rgb(14, 41, 67)    | #FFFAF4 / 14.28:1         | #E8DED2 / 11.16:1        | 14.28:1        |
+| light | GUIDE                      | rgb(14, 41, 67)    | #FFFAF4 / 14.28:1         | #E8DED2 / 11.16:1        | 14.28:1        |
+| dark  | Why does this step matter? | rgb(243, 240, 235) | #303030 / 11.61:1         | #3B3834 / 10.26:1        | 11.61:1        |
+| dark  | What can Leqad verify?     | rgb(243, 240, 235) | #303030 / 11.61:1         | #3B3834 / 10.26:1        | 11.61:1        |
+| dark  | HINT                       | rgb(25, 25, 25)    | #F5EFE7 / 15.39:1         | #F5EFE7 / 15.39:1        | 15.39:1        |
+| dark  | SHOW                       | rgb(243, 240, 235) | #2B2B2B / 12.46:1         | #3B3834 / 10.26:1        | 12.46:1        |
+| dark  | GUIDE                      | rgb(243, 240, 235) | #2B2B2B / 12.46:1         | #3B3834 / 10.26:1        | 12.46:1        |
+
+Failure messages and JSON test attachments include theme, control text, interaction state, computed foreground/background, composited background and ratio. The original equal-color negative control remains. A second dark-theme sentinel temporarily restores ivory behind the light SHOW text while genuinely hovered and requires the measurement to reject it; its styles are restored in `finally`. No production color changed for this follow-up.
+
+Hover batches compare fixture storage, lesson progress/outcome, host click counts, highlight counts and local response selection before and after. Theme selection, opening help and progressing to fixture step 3 are explicit setup actions outside those comparisons; hover never clicks HINT/SHOW/GUIDE or CAD controls. Test buttons are discovered from the actual mounted interface; unavailable/disabled controls are not enabled or fabricated.
+
+Focused validation: all five contrast tests passed (two retained state tests, two explicit pointer tests and a simulated-CAD click-guard negative control). These are controlled Chromium fixtures; real Onshape acceptance, actual browser zoom and owner pixel-level visual approval remain outstanding.
+
+Independent diff review identified two test gaps, now corrected: all three guidance controls must exist and be enabled in this fixture (none may silently disappear), and the side-effect guard now counts external composed-path clicks plus snapshots Top selection and Sketch-dialog state. A dedicated negative test clicks those two simulated CAD controls and proves the guard detects both actions and state changes. The Ask batch also compares the Learn view before entering Ask and after returning, covering transient lesson state while the Learn UI is unmounted. This instrumentation is test-only; it does not add production listeners or change control availability.
+
+Pointer cases use a fixed 1440×1400 fixture viewport so setup-driven panel resizing/clamping does not overlap the storage baseline. The initial Light/Dark preference save is awaited through the existing storage envelope. Six repeated pointer runs (three per theme) passed after this setup correction; no arbitrary sleep or production layout change was introduced.
