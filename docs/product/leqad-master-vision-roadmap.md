@@ -1,10 +1,11 @@
 # Leqad — Master Vision & Roadmap
 
 > **Status:** Long-term product vision and phase-gating reference  
-> **Updated:** October 15, 2026  
-> **Initial product:** Onshape in Chrome / Edge  
-> **Long-term product:** CAD-platform-independent education and design assistance through validated integrations  
-> **Implementation status:** Phase 1 engineering/hardening in progress; live Onshape acceptance is not complete  
+> **Updated:** October 25, 2026 — phase names and desktop direction reconciled  
+> **Initial proving ground:** Onshape in Chrome / Edge via the existing extension  
+> **Target delivery:** Windows-first standalone desktop companion; browser extension retained as a prototype/fallback pending desktop acceptance  
+> **Long-term product:** CAD-platform-independent education and design assistance through individually validated integrations  
+> **Implementation status:** Phase 1 and Phase 1.5 extension code are fixture-tested but not fully live-accepted; Phase 1B desktop is not yet runnable  
 > **Repository:** [anandanikait-bot/leqad](https://github.com/anandanikait-bot/leqad)
 
 ## 1. Product statement
@@ -124,12 +125,16 @@ Over time, reduce unnecessary hints as the learner demonstrates understanding. L
 
 **Rule:** Phases are ordered by *dependencies and evidence*, not by arbitrary deadlines. Partial prototyping in a future phase may occur only without bypassing acceptance gates or silently changing current scope.
 
+**Canonical names (October 25, 2026):** **Phase 1** = browser-extension Foundations alpha; **Phase 1B** = Windows desktop-companion feasibility/runtime; **Phase 1.5** = teaching-interface refinement and clearly labeled local Ask prototype, initially implemented in the extension; **Phase 2A** = first real contextual AI teacher; **Phase 2B** = validated model truth and verifier–teacher feedback. The older *First Intelligent Interaction* design calls itself “Phase 1.5” because it predates the teaching-UI milestone; it is historical and is now tracked as **Phase 2A**, not as a currently shipped feature. Phase 3 onward retains its original numbering. Parallel prototype work never implies earlier real-CAD acceptance.
+
 | Phase | Deliverable | Gate to advance |
 | --- | --- | --- |
 | **0 — Capability prototype** | Evidence for real Onshape access, UI observations, official model/API capabilities, revision behavior, and extension behavior; explicit capability matrix | Critical assumptions are confirmed or limitations documented; do not claim untested capabilities |
-| **1 — Foundations alpha (CURRENT)** | Reliable WXT/React extension, lesson engine, evidence boundaries, HINT/SHOW/GUIDE, semantic highlights, local bounded cursor intent, eight-step First Sketch lesson, persistence, recovery, accessibility | Full required lesson and recovery scenarios tested in an authorized real Onshape session, across supported zoom/reload, without false advancement |
-| **1.5 — First intelligent interaction** | Narrow conversational AI teacher for First Sketch; optional AI-assisted Sketch-tool location after explicit one-shot screenshot consent; manual fallback | Real question → grounded reply → authorized capture (if chosen) → correct temporary outline → student manual action; errors, consent and stale results tested |
-| **2 — Model truth + collaborative feedback** | Secure Onshape connector, normalized model snapshots, committed-feature/parameter/revision verification, contextual diagnosis and evidence passed to teacher | Representative real model scenarios yield correct supported PASS/FAIL/UNKNOWN plus helpful evidence-grounded explanation; no false success |
+| **1 — Foundations browser-extension alpha** | WXT/React extension, lesson engine, evidence boundaries, HINT/SHOW/GUIDE, semantic highlights, eight-step First Sketch lesson, persistence, recovery, accessibility | Required lesson/recovery scenarios tested in an authorized real Onshape session, without false advancement |
+| **1B — Windows desktop-companion feasibility** | Safety policy, then runnable Windows host, user-selected CAD-window context, non-interfering overlay and validated Onshape/one-native-CAD guidance | Reliable target placement, tab/foreground safety, scaling, click-through, abstention and recovery shown in two real CAD environments |
+| **1.5 — Teaching experience / AI-ready local interface** | Bounded inline help, action/evidence clarity, responsive UI, authored **local Ask examples only**; initially extension-based and selectively reusable in desktop | Automated regressions, owner visual review and real Onshape acceptance; no real AI or model-truth claim |
+| **2A — First contextual AI teacher** | Narrow opt-in AI teaching and optional separately consented, host-appropriate screenshot fallback | Grounded explanations, explicit privacy/consent, safe abstention and stale-context handling; AI cannot certify geometry |
+| **2B — Model truth + verifier–teacher feedback** | Validated CAD connector(s), normalized model snapshots, committed-feature/parameter/revision checks, evidence passed to teacher | Real model scenarios give correct PASS/FAIL/UNKNOWN and evidence-grounded explanations, without false success |
 | **3 — Custom Part Studio** | Structured need/brief, 2–3 concept images for ambiguity, learner selection and feedback, dimension provenance, feasibility rules, constrained feature planning and stepwise CAD guidance | Reference single-part builds work without invented critical dimensions; learner can inspect, revise, complete, and modify a validated plan |
 | **4 — Robotics and manufacturing** | Vetted component references, basic FDM printability, fits/tolerances, part-specific domain guidance, print preparation and export | Reference models and manufacturer-source audits pass; unsupported engineering guarantees never made |
 | **5 — Beginner beta** | Broader curricula, learner testing, feedback quality evaluations, accessibility, compatibility, performance, recovery, privacy/retention/export/deletion, educator capabilities where justified | Beginner usability and product acceptance targets met in documented environments |
@@ -160,25 +165,30 @@ Current user action sequence:
 3. Test in an authorized **disposable** Onshape Part Studio in regular Chrome and Edge where available.
 4. Validate Top plane, Sketch, Rectangle, Dimension, Finish Sketch, all eight steps, hints, highlights, recovery, reload, document switching, browser zoom, and no false completion.
 5. Fix and retest demonstrated failures, update PASS/FAIL/BLOCKED rows with actual observations, and obtain owner sign-off.
-6. Only then treat Phase 1 as accepted, consider PR merge, and start Phase 1.5 implementation.
+6. Only then accept the **Phase 1 extension** or consider merging its dependent PRs. Separately implemented **Phase 1.5 UI** work still requires owner real-CAD acceptance; desktop **Phase 1B** must pass its own safety and live-window gate.
 
 Consult the live checklist in the development branch:
 [Phase 1 acceptance record](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/testing/results/phase1-live-acceptance.md).
 Do not copy its historical counts into later reports without a fresh review.
 
-### Phase 1.5: intentionally narrow, separate prototype
+### Phase 1B: desktop-companion feasibility
 
-The [first intelligent interaction design](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md) proposes OpenAI through a **local development server** with configurable server-side models and credentials. The approved screenshot gesture is:
+See [Phase 1B desktop companion](phase-1b-desktop-companion.md). Desktop software is the Windows-first intended client, **not** a completed replacement for the extension. As of October 25, 2026, [draft PR #17](https://github.com/anandanikait-bot/leqad/pull/17) supplies the architecture and overlay safety policy/tests only: there is no runnable Electron host, capture backend, working desktop highlight renderer or installer. Screen-based recognition is an unproven hypothesis until real testing establishes reliability.
 
-**SHOW → click Leqad Chrome toolbar icon → confirm one screenshot.**
+### Phase 1.5: teaching experience and AI-ready local prototype
 
-The existing semantic resolver runs first; capture is an opt-in fallback. A single screenshot is transient, bounded, and consented. An AI-proposed rectangle is never treated as proven tool identity, model evidence, or permission to perform an action. No background capture. On failure, use manual calibration/text guidance.
+The [Phase 1.5 teaching-interface work in draft PR #15](https://github.com/anandanikait-bot/leqad/pull/15) implements bounded inline help, clearer lesson actions and evidence, responsive scrolling, accessibility regressions and deterministic Ask **local examples only** in the **extension**. It does **not** connect an AI provider, capture a screen, verify model geometry or run as a desktop app. Automated checks passed; owner visual review and authenticated Onshape acceptance remain pending.
 
-The local Node server is a **developer prototype**, not a production installation requirement: end users must not need to install Node/Python. Design for later hosted service deployment with privacy, authentication, rate controls and user consent.
+The future desktop host should reuse lesson content, evidence boundaries and presentation where feasible while keeping DOM selectors, content-script lifecycle, extension permissions and browser storage in extension-specific adapters.
 
-This milestone does **not** add arbitrary geometry recognition, automatic clicking, full model verification, general autonomous agents, or generated design concepts.
+### Phase 2A: first contextual AI teacher — renamed historical prototype
 
-### Phase 2: verifier–teacher feedback contract
+The [First Intelligent Interaction design](https://github.com/anandanikait-bot/leqad/blob/phase1-hardening/docs/superpowers/specs/2026-10-15-first-intelligent-interaction-design.md) originally used the label “Phase 1.5,” before the separately approved Phase 1.5 teaching-UI work. Preserve its historical filename/text; track its **unimplemented** AI scope as **Phase 2A**, with a fresh desktop-appropriate implementation and acceptance review.
+
+The earlier extension-specific gesture **SHOW → click Leqad Chrome toolbar icon → confirm one screenshot** is **not** an approved Windows desktop gesture. For a desktop implementation, explicitly design selected-window consent, fresh target observation, narrowly scoped capture, privacy controls and fail-closed abstention. AI-proposed target rectangles are never proven identity, permission to click, or geometry verification. The proposed local development Node server is for developers, not an end-user installation dependency.
+
+### Phase 2B: verifier–teacher feedback contract
+
 
 The first valuable integrated loop should be:
 
@@ -220,7 +230,7 @@ Official supported interfaces / validated UI observations
 - **Shared core:** CAD concepts, teaching objectives, lesson transitions, question interpretation, evidence levels, brief/dimension schemas, feature-plan validation, feedback, and privacy decisions.
 - **Per-platform adapter:** Tool identifiers, menu/UI recognition, current state, document identity, permissions, feature types and mappings, revision information, CAD model reads, capabilities, and supported actions.
 - **Explicit capability negotiation:** An adapter returns supported/partial/unknown/unavailable, with provenance. A concept may be taught everywhere while verification depth differs per platform.
-- **Client delivery:** Onshape can use the Chrome/Edge extension. Desktop CAD tools may need vendor-supported plugins, a desktop companion, or different integration mechanisms. Do not pretend browser APIs work everywhere.
+- **Client delivery:** Target a Windows-first standalone desktop companion with separately validated CAD adapters. Keep the Chrome/Edge extension as a limited experimental fallback until desktop live acceptance; neither screen capture nor browser DOM access establishes cross-CAD compatibility.
 - **No premature generalization:** Preserve clean shared boundaries today but do not build speculative adapters or overhaul stable Phase 1 code before Onshape has passed acceptance.
 
 Multi-CAD support is a strategic direction with platform-by-platform delivery; this is **not** a promise that every CAD product will support identical capabilities.
@@ -247,11 +257,13 @@ These are durable requirements across every phase:
 | Onshape browser extension, panel, local state | 1 | Reported implemented; full live acceptance pending |
 | First Sketch lesson, HINT/SHOW/GUIDE, highlights | 1 | Reported implemented/fixture-tested; live workflow pending |
 | Local cursor intent and calibration | 1 | Reported implemented; not evidence of completed CAD |
-| One-shot screenshot-assisted Sketch location | 1.5 | Design for review; not current production capability |
-| Narrow conversational teacher | 1.5 | Proposed |
-| Official CAD-model reads / committed geometry verification | 2 | Planned; evidence contracts exist earlier |
-| Teacher collaboration with model verifier | 2 | Planned integration |
-| Contextual diagnoses in an unrelated project | 2 onward | Planned/limited pilot may precede full support |
+| Windows desktop companion (selected window, click-through overlay) | 1B | Feasibility policy/tests exist; runnable desktop host and live validation pending |
+| Bounded teaching help, evidence presentation, local Ask | 1.5 | Implemented/fixture-tested in extension PR #15; real acceptance pending; Ask is **not** AI |
+| One-shot screenshot-assisted Sketch location | 2A | Historical proposal; host-specific consent/design review needed; not implemented |
+| Narrow conversational teacher | 2A | Proposed, not implemented |
+| Official CAD-model reads / committed geometry verification | 2B | Planned; evidence contracts exist earlier |
+| Teacher collaboration with model verifier | 2B | Planned integration |
+| Contextual diagnoses in an unrelated project | 2B onward | Planned; may require later platform-specific capability |
 | Generated alternative concept images | 3 | Planned |
 | Student selection/correction/combining concepts | 3 | Planned |
 | Dimension questioning, traceability and validation | 3 | Planned |
