@@ -42,7 +42,7 @@ Playwright writes screenshots and per-test results under `apps/desktop/test-resu
 pnpm exec playwright show-report apps/desktop/playwright-report
 ```
 
-A local Linux or macOS result does not establish a Windows pass. Record a Windows result only with the runner log for the tested commit. The PR #19 Windows job ran on Windows Server 2025; that CI result is separate from owner acceptance on Windows 10 or 11.
+A local Linux or macOS result does not establish a Windows pass. Record a Windows result only with the runner log for the tested commit. The PR #19 Windows job ran on Windows Server 2025; that CI result is separate from owner acceptance on Windows 10 or 11, which remains outstanding.
 
 ## Linux development checks
 
@@ -68,11 +68,13 @@ If Electron cannot open a window because the runner has no display, record the r
 
 These checks exercise the written desktop UI and local persistence in Electron. They do not establish selection of a real CAD window, capture permission handling, screenshots of CAD, recognition, overlays, click-through behavior, CAD geometry, Onshape or FreeCAD compatibility, Windows DPI behavior, mixed-monitor placement, Narrator behavior, or live accessibility acceptance. Visual help remains unavailable in this milestone. Fixture results and screenshots must not be described as live CAD evidence.
 
-Historical PR #19 checks for commit `e7e8dd1021ae81845ec222e782aa6eb43b297cd5` succeeded: General check `40278660055` and Windows check `40278660170`. The Windows check ran on Windows Server 2025; it does not establish owner acceptance on Windows 10 or 11. The clean-cache installation proof added to the workflow still awaits the primary final CI result; no result for that new validation is claimed here.
+Final PR #19 validation passed for source commit [`0db10cdb342fc33dbeed08c6fa4307226bd4f31c`](https://github.com/anandanikait-bot/leqad/commit/0db10cdb342fc33dbeed08c6fa4307226bd4f31c). [General CI run `40285294670`](https://github.com/anandanikait-bot/leqad/actions/runs/40285294670) passed 697 unit tests, 45 reference tests, and 88 browser tests. [Windows CI run `40285294645`](https://github.com/anandanikait-bot/leqad/actions/runs/40285294645) passed on Windows Server 2025, including 65 desktop unit tests and 15 native Electron Playwright tests. Its clean-cache check verified that the Electron executable was absent before installation, set `electron_config_cache` to a new empty directory, and installed and verified Electron `v45.0.0` with `pnpm exec install-electron`.
+
+The Windows run uploaded [artifact `12633971828`](https://github.com/anandanikait-bot/leqad/actions/runs/40285294645/artifacts/12633971828) (`desktop-windows-runtime-evidence`), which contains the Playwright report and screenshots. Playwright traces use `retain-on-failure`, so passing tests do not produce retained traces. This CI result does not establish owner acceptance on Windows 10 or 11; that manual acceptance remains outstanding.
 
 ## Validation record
 
-Before the host build was available, the seven Playwright cases all stopped at Electron launch with `Cannot find module .../apps/desktop/dist/main.cjs`. Electron itself launched under the local Xvfb display. This RED run confirmed the test harness uses the built Electron entry; it did not reach the renderer assertions. Historical post-build check results are recorded above. The clean-cache installation proof added in this revision remains pending the primary final CI result.
+An earlier local Linux run, before the host build was available, stopped all seven Playwright cases at Electron launch with `Cannot find module .../apps/desktop/dist/main.cjs`; it did not reach renderer assertions. The final Windows run above built the host and passed all 15 native Electron Playwright tests.
 
 ## Owner smoke after automated checks
 

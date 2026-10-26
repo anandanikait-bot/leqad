@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { DesktopLessonView } from './lessonController';
 
 type CompletionSummaryProps = {
@@ -30,6 +31,10 @@ export function CompletionSummary({
   onReviewSteps,
   onEndSession,
 }: CompletionSummaryProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
   const independentlyVerified = view.steps.some(
     ({ outcome }) => outcome === 'UI_VERIFIED' || outcome === 'MODEL_VERIFIED',
   );
@@ -42,7 +47,9 @@ export function CompletionSummary({
         role="region"
         tabIndex={0}
       >
-        <h2>Lesson completed</h2>
+        <h2 ref={headingRef} tabIndex={-1}>
+          Lesson completed
+        </h2>
         <p>
           {view.completionCount} steps completed.{' '}
           {independentlyVerified

@@ -35,7 +35,15 @@ test('completes all eight written steps with honest outcome categories', async (
   await page.getByRole('button', { name: 'Next step', exact: true }).click();
 
   await expectStep(page, 8);
-  await markAsReported(page);
+  const finalAction = page.getByRole('button', {
+    name: 'Mark done',
+    exact: true,
+  });
+  await finalAction.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', { name: 'Lesson completed' }),
+  ).toBeFocused();
 
   await expect(
     page.getByRole('heading', { name: 'Lesson completed' }),
@@ -66,6 +74,9 @@ test('completes all eight written steps with honest outcome categories', async (
   ).toBeVisible();
   await captureScreenshot(page, testInfo, 'desktop-eight-step-completion.png');
   await page.getByRole('button', { name: 'Review steps', exact: true }).click();
+  await expect(
+    page.getByLabel('Open lesson menu', { exact: true }),
+  ).toBeFocused();
   for (let step = 1; step < 8; step++)
     await page.getByRole('button', { name: 'Next step', exact: true }).click();
   await page

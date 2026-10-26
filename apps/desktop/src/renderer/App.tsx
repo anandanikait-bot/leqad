@@ -349,7 +349,10 @@ export function App() {
       ) : showSummary ? (
         <CompletionSummary
           onEndSession={endSession}
-          onReviewSteps={() => dispatch({ type: 'REVIEW_STEPS' })}
+          onReviewSteps={() => {
+            dispatch({ type: 'REVIEW_STEPS' });
+            requestAnimationFrame(() => menuTriggerRef.current?.focus());
+          }}
           view={view}
         />
       ) : (
@@ -357,7 +360,10 @@ export function App() {
           loadError={view.loadError || lessonLoadFailed}
           onAskQuestion={setSelectedQuestion}
           onDispatch={dispatch}
-          onPageChange={setPage}
+          onPageChange={(nextPage) => {
+            setPage(nextPage);
+            requestAnimationFrame(() => menuTriggerRef.current?.focus());
+          }}
           onRetrySave={retrySave}
           onStartFresh={requestRestart}
           page={page}

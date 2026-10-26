@@ -68,7 +68,9 @@ export function LessonWorkspace({
       <div
         className="workspace-content"
         data-help-measurement-container
-        data-scroll-mode={singleScroller ? 'single' : 'internal'}
+        data-scroll-mode={
+          page === 'ask' || singleScroller ? 'single' : 'internal'
+        }
       >
         {loadError ? (
           <p className="load-error" role="alert">
