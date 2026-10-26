@@ -1,0 +1,285 @@
+{
+  "scope": "Static design boards only; not Electron, real CAD, or live compatibility evidence",
+  "fonts": [
+    {
+      "family": "Manrope",
+      "status": "loaded"
+    },
+    {
+      "family": "Space",
+      "status": "loaded"
+    }
+  ],
+  "panels": [
+    {
+      "board": "board-01",
+      "width": 558,
+      "height": 618,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 562,
+        "scrollHeight": 562,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-02",
+      "width": 558,
+      "height": 618,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 562,
+        "scrollHeight": 562,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-03",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-04",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": 148,
+      "body": {
+        "height": 329,
+        "scrollHeight": 410,
+        "overflow": "auto"
+      }
+    },
+    {
+      "board": "board-05",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-07",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-08",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-09",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-10",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 397,
+        "scrollHeight": 397,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-11",
+      "width": 318,
+      "height": 398,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": 190,
+      "body": {
+        "height": 129,
+        "scrollHeight": 460,
+        "overflow": "auto"
+      }
+    },
+    {
+      "board": "board-12",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": 148,
+      "body": {
+        "height": 329,
+        "scrollHeight": 410,
+        "overflow": "auto"
+      }
+    },
+    {
+      "board": "board-14",
+      "width": 278,
+      "height": 110,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": null
+    },
+    {
+      "board": "board-15",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-16",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": 80,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-16",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": 87,
+      "body": {
+        "height": 329,
+        "scrollHeight": 382,
+        "overflow": "auto"
+      }
+    },
+    {
+      "board": "board-17",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-17",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-18",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-18",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-18",
+      "width": 363,
+      "height": 598,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 329,
+        "scrollHeight": 329,
+        "overflow": "visible"
+      }
+    },
+    {
+      "board": "board-19",
+      "width": 558,
+      "height": 618,
+      "overflowX": false,
+      "overflowY": false,
+      "helpViewport": null,
+      "body": {
+        "height": 562,
+        "scrollHeight": 562,
+        "overflow": "visible"
+      }
+    }
+  ],
+  "externalAssets": []
+}
