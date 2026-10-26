@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "df1879e",
+  "source": "docs/branding/official-logo.md on main",
+  "sha256": {
+    "leqad-official-horizontal-dark-v1.svg": "1f97fb47482b4a9c35cbbcd01f5f52de0eafe2bbbb9e475d09de488cd5e80bf5",
+    "leqad-official-symbol-dark-v1.svg": "941e91b9746e116f060e46a796f58f4c14991160ad6b87ce5dc167283bc900af",
+    "leqad-official-symbol-light-v1.svg": "212e5d144ea8ecec790b8b166e7d4eba94bdd7d3e49d86da9228033ee93e801f",
+    "leqad-official-horizontal-light-v1.svg": "5340d37ad4b3eab494c79257d398ab9d82952fb1081f4b16f1b8f764aebee0b2"
+  }
+}
