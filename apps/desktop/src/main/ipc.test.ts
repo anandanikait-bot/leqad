@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSessionController } from './session';
 import { registerDesktopIpc } from './ipc';
-import type { RendererEvent } from './ipc';
+import type { DesktopIpcDependencies, RendererEvent } from './ipc';
 
-function createHarness() {
-  const handlers = new Map<string, (event: RendererEvent, ...args: unknown[]) => unknown>();
+function createHarness(
+  onPreferencesSaved?: DesktopIpcDependencies['onPreferencesSaved'],
+) {
+  const handlers = new Map<
+    string,
+    (event: RendererEvent, ...args: unknown[]) => unknown
+  >();
   const removeHandler = vi.fn((channel: string) => handlers.delete(channel));
   const mainFrame = { url: 'file:///app/renderer/index.html' };
   const trustedUrl = mainFrame.url;
@@ -39,9 +44,19 @@ function createHarness() {
     isTrustedRendererUrl: (url) => url === trustedUrl,
     controller,
     store,
+    ...(onPreferencesSaved ? { onPreferencesSaved } : {}),
   });
   const event = { sender: webContents, senderFrame: mainFrame };
-  return { controller, event, handlers, mainFrame, registered, removeHandler, store, webContents };
+  return {
+    controller,
+    event,
+    handlers,
+    mainFrame,
+    registered,
+    removeHandler,
+    store,
+    webContents,
+  };
 }
 
 describe('desktop IPC boundary', () => {
@@ -49,14 +64,24 @@ describe('desktop IPC boundary', () => {
     const harness = createHarness();
     const commandHandler = harness.handlers.get('desktop:command')!;
 
-    await expect(commandHandler({
-      ...harness.event,
-      sender: { ...harness.event.sender },
-    }, { type: 'pause', paused: true })).rejects.toThrow(/untrusted/i);
-    await expect(commandHandler({
-      ...harness.event,
-      senderFrame: { url: harness.mainFrame.url },
-    }, { type: 'pause', paused: true })).rejects.toThrow(/untrusted/i);
+    await expect(
+      commandHandler(
+        {
+          ...harness.event,
+          sender: { ...harness.event.sender },
+        },
+        { type: 'pause', paused: true },
+      ),
+    ).rejects.toThrow(/untrusted/i);
+    await expect(
+      commandHandler(
+        {
+          ...harness.event,
+          senderFrame: { url: harness.mainFrame.url },
+        },
+        { type: 'pause', paused: true },
+      ),
+    ).rejects.toThrow(/untrusted/i);
     expect(harness.controller.getView().paused).toBe(false);
   });
 
@@ -64,7 +89,9 @@ describe('desktop IPC boundary', () => {
     const harness = createHarness();
     const handler = harness.handlers.get('desktop:command')!;
 
-    await expect(handler(harness.event, { type: 'run-javascript', code: 'x' })).rejects.toThrow();
+    await expect(
+      handler(harness.event, { type: 'run-javascript', code: 'x' }),
+    ).rejects.toThrow();
     expect(harness.controller.getView().paused).toBe(false);
   });
 
@@ -74,7 +101,13 @@ describe('desktop IPC boundary', () => {
     const inherited = Object.create({ type: 'close' }) as object;
 
     await expect(handler(harness.event, inherited)).rejects.toThrow();
-    await expect(handler(harness.event, { type: 'pause', paused: true, selector: '#button' })).rejects.toThrow();
+    await expect(
+      handler(harness.event, {
+        type: 'pause',
+        paused: true,
+        selector: '#button',
+      }),
+    ).rejects.toThrow();
     expect(harness.webContents.send).not.toHaveBeenCalled();
     expect(harness.controller.getView().paused).toBe(false);
   });
@@ -82,22 +115,57 @@ describe('desktop IPC boundary', () => {
   it('rejects untrusted renderer URLs and invalid preference or lesson records', async () => {
     const harness = createHarness();
     const badUrl = harness.handlers.get('desktop:load-lesson')!;
-    const invalidPreferences = harness.handlers.get('desktop:save-preferences')!;
+    const invalidPreferences = harness.handlers.get(
+      'desktop:save-preferences',
+    )!;
     const invalidLesson = harness.handlers.get('desktop:save-lesson')!;
 
     harness.mainFrame.url = 'file:///tmp/attacker.html';
     await expect(badUrl(harness.event)).rejects.toThrow(/untrusted/i);
-    await expect(invalidPreferences(harness.event, { appearance: 'system', textScale: 8 })).rejects.toThrow();
-    await expect(invalidLesson(harness.event, { schemaVersion: 1, lessonId: 'untrusted' })).rejects.toThrow();
+    await expect(
+      invalidPreferences(harness.event, { appearance: 'system', textScale: 8 }),
+    ).rejects.toThrow();
+    await expect(
+      invalidLesson(harness.event, { schemaVersion: 1, lessonId: 'untrusted' }),
+    ).rejects.toThrow();
     expect(harness.store.savePreferences).not.toHaveBeenCalled();
     expect(harness.store.saveLesson).not.toHaveBeenCalled();
+  });
+
+  it('applies the native preference after a successful durable save only', async () => {
+    const order: string[] = [];
+    const onPreferencesSaved = vi.fn(() => order.push('applied'));
+    const harness = createHarness(onPreferencesSaved);
+    harness.store.savePreferences.mockImplementation(async () => {
+      order.push('saved');
+    });
+    const handler = harness.handlers.get('desktop:save-preferences')!;
+    const preferences = {
+      appearance: 'system',
+      textScale: 1,
+      keepVisible: false,
+      reduceMotion: 'system',
+    } as const;
+
+    await handler(harness.event, preferences);
+    expect(order).toEqual(['saved', 'applied']);
+    expect(onPreferencesSaved).toHaveBeenCalledWith(preferences);
+
+    harness.store.savePreferences.mockRejectedValueOnce(new Error('disk full'));
+    await expect(handler(harness.event, preferences)).rejects.toThrow(
+      'disk full',
+    );
+    expect(onPreferencesSaved).toHaveBeenCalledTimes(1);
   });
 
   it('returns no selectable windows and removes IPC listeners on disposal', async () => {
     const harness = createHarness();
     const list = harness.handlers.get('desktop:list-windows')!;
 
-    await expect(list(harness.event)).resolves.toEqual({ windows: [], incomplete: false });
+    await expect(list(harness.event)).resolves.toEqual({
+      windows: [],
+      incomplete: false,
+    });
     harness.registered.dispose();
     harness.registered.dispose();
 

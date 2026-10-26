@@ -3,7 +3,11 @@ import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { registerDesktopIpc, type DesktopIpcRegistration, type IpcWindow } from './ipc';
+import {
+  registerDesktopIpc,
+  type DesktopIpcRegistration,
+  type IpcWindow,
+} from './ipc';
 import { createDesktopStateStore, type DesktopStateStore } from './preferences';
 import {
   createTrustedRendererUrlCheck,
@@ -11,6 +15,10 @@ import {
   resolveTestUserDataPath,
 } from './runtimeConfig';
 import { createSessionController, type SessionController } from './session';
+import {
+  createWindowPreferenceController,
+  type WindowPreferenceController,
+} from './windowPreferences';
 import {
   createWindowPlacementController,
   type NativePanelWindow,
@@ -34,10 +42,10 @@ if (!gotSingleInstanceLock) app.quit();
 let mainWindow: BrowserWindow | null = null;
 let stateStore: DesktopStateStore | null = null;
 let placement: WindowPlacementController | null = null;
+let windowPreferences: WindowPreferenceController | null = null;
 let session: SessionController | null = null;
 let ipcRegistration: DesktopIpcRegistration | null = null;
 let shuttingDown = false;
-let keepVisible = true;
 
 function cleanupSession(): void {
   ipcRegistration?.dispose();
@@ -47,7 +55,8 @@ function cleanupSession(): void {
 }
 
 function recreateSession(): void {
-  if (shuttingDown || !mainWindow || mainWindow.isDestroyed() || !stateStore) return;
+  if (shuttingDown || !mainWindow || mainWindow.isDestroyed() || !stateStore)
+    return;
   cleanupSession();
   const ownerWindow = mainWindow;
   session = createSessionController({
@@ -58,8 +67,11 @@ function recreateSession(): void {
     },
   });
   ipcRegistration = registerDesktopIpc({
-    ipcMain: ipcMain as unknown as Parameters<typeof registerDesktopIpc>[0]['ipcMain'],
-    getWindow: () => (ownerWindow.isDestroyed() ? null : ownerWindow as unknown as IpcWindow),
+    ipcMain: ipcMain as unknown as Parameters<
+      typeof registerDesktopIpc
+    >[0]['ipcMain'],
+    getWindow: () =>
+      ownerWindow.isDestroyed() ? null : (ownerWindow as unknown as IpcWindow),
     isTrustedRendererUrl: createTrustedRendererUrlCheck(
       devServerUrl,
       pathToFileURL(path.join(__dirname, 'renderer', 'index.html')).toString(),
@@ -67,7 +79,13 @@ function recreateSession(): void {
     controller: session,
     store: stateStore,
     onPreferencesSaved: (preferences) => {
-      keepVisible = preferences.keepVisible;
+      windowPreferences?.setKeepVisible(preferences.keepVisible);
+      const currentPlacement = placement;
+      if (currentPlacement) {
+        void currentPlacement
+          .applyBounds(currentPlacement.getBounds())
+          .catch(() => undefined);
+      }
     },
   });
 }
@@ -82,12 +100,7 @@ function createMainWindow(): void {
   stateStore = createDesktopStateStore(
     path.join(app.getPath('userData'), 'desktop-state.json'),
   );
-  void stateStore.loadPreferences().then(
-    (preferences) => {
-      keepVisible = preferences.keepVisible;
-    },
-    () => undefined,
-  );
+  const preferencesPromise = stateStore.loadPreferences();
 
   const window = new BrowserWindow({
     x: 8,
@@ -113,13 +126,18 @@ function createMainWindow(): void {
     },
   });
   mainWindow = window;
+  windowPreferences = createWindowPreferenceController(window);
 
   placement = createWindowPlacementController({
     window: window as unknown as NativePanelWindow,
     getWorkAreas: workAreas,
-    loadPlacement: () => stateStore!.loadPlacement(),
+    loadPlacement: async () => {
+      const preferences = await preferencesPromise;
+      windowPreferences?.setKeepVisible(preferences.keepVisible);
+      return stateStore!.loadPlacement();
+    },
     savePlacement: (value) => stateStore!.savePlacement(value),
-    keepVisible: () => keepVisible,
+    keepVisible: () => windowPreferences?.getKeepVisible() ?? true,
   });
   void placement.initialize().catch(() => undefined);
 
@@ -135,7 +153,8 @@ function createMainWindow(): void {
     }
   });
   window.webContents.on('will-frame-navigate', (event) => {
-    if (!event.isMainFrame || !trustedRendererUrl(event.url)) event.preventDefault();
+    if (!event.isMainFrame || !trustedRendererUrl(event.url))
+      event.preventDefault();
   });
   window.webContents.on('will-redirect', (event, targetUrl) => {
     if (!trustedRendererUrl(targetUrl)) {
@@ -143,10 +162,15 @@ function createMainWindow(): void {
       session?.invalidate();
     }
   });
-  window.webContents.on('will-attach-webview', (event) => event.preventDefault());
-  window.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => {
-    if (isMainFrame) recreateSession();
-  });
+  window.webContents.on('will-attach-webview', (event) =>
+    event.preventDefault(),
+  );
+  window.webContents.on(
+    'did-start-navigation',
+    (_event, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) recreateSession();
+    },
+  );
   window.webContents.on('render-process-gone', () => recreateSession());
   window.webContents.on('destroyed', cleanupSession);
   window.once('ready-to-show', () => {
@@ -156,6 +180,7 @@ function createMainWindow(): void {
     cleanupSession();
     placement?.dispose();
     placement = null;
+    windowPreferences = null;
     mainWindow = null;
   });
 
@@ -178,6 +203,7 @@ app.on('before-quit', () => {
   cleanupSession();
   placement?.dispose();
   placement = null;
+  windowPreferences = null;
 });
 
 if (gotSingleInstanceLock) {
