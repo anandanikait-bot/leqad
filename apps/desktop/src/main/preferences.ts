@@ -88,11 +88,19 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[]): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): void {
   const keys = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  if (keys.length !== sortedExpected.length || keys.some((key, index) => key !== sortedExpected[index])) {
-    throw new Error('Stored desktop state contains unexpected or missing fields');
+  if (
+    keys.length !== sortedExpected.length ||
+    keys.some((key, index) => key !== sortedExpected[index])
+  ) {
+    throw new Error(
+      'Stored desktop state contains unexpected or missing fields',
+    );
   }
 }
 
@@ -101,10 +109,22 @@ export function parsePanelPlacement(value: unknown): PanelPlacement {
   exactKeys(item, ['x', 'y', 'width', 'height', 'collapsed']);
   const { x, y, width, height, collapsed } = item;
   if (
-    typeof x !== 'number' || !Number.isSafeInteger(x) || x < -100_000 || x > 100_000 ||
-    typeof y !== 'number' || !Number.isSafeInteger(y) || y < -100_000 || y > 100_000 ||
-    typeof width !== 'number' || !Number.isSafeInteger(width) || width < 1 || width > 480 ||
-    typeof height !== 'number' || !Number.isSafeInteger(height) || height < 1 || height > 760 ||
+    typeof x !== 'number' ||
+    !Number.isSafeInteger(x) ||
+    x < -100_000 ||
+    x > 100_000 ||
+    typeof y !== 'number' ||
+    !Number.isSafeInteger(y) ||
+    y < -100_000 ||
+    y > 100_000 ||
+    typeof width !== 'number' ||
+    !Number.isSafeInteger(width) ||
+    width < 1 ||
+    width > 480 ||
+    typeof height !== 'number' ||
+    !Number.isSafeInteger(height) ||
+    height < 1 ||
+    height > 760 ||
     typeof collapsed !== 'boolean'
   ) {
     throw new Error('Stored panel placement is invalid');
@@ -115,12 +135,14 @@ export function parsePanelPlacement(value: unknown): PanelPlacement {
 function parseDesktopState(value: unknown): DesktopState {
   const item = record(value);
   exactKeys(item, ['schemaVersion', 'preferences', 'lesson', 'placement']);
-  if (item.schemaVersion !== 1) throw new Error('Unsupported desktop state version');
+  if (item.schemaVersion !== 1)
+    throw new Error('Unsupported desktop state version');
   return {
     schemaVersion: 1,
     preferences: PreferencesSchema.parse(item.preferences),
     lesson: item.lesson === null ? null : parseStoredLesson(item.lesson),
-    placement: item.placement === null ? null : parsePanelPlacement(item.placement),
+    placement:
+      item.placement === null ? null : parsePanelPlacement(item.placement),
   };
 }
 
@@ -159,7 +181,9 @@ export function createDesktopStateStore(
   options: DesktopStateStoreOptions = {},
 ): DesktopStateStore {
   const fileSystem = options.fileSystem ?? defaultFileSystem;
-  const saveAtomic = options.saveAtomic ?? ((target, data) => atomicWrite(target, data, fileSystem));
+  const saveAtomic =
+    options.saveAtomic ??
+    ((target, data) => atomicWrite(target, data, fileSystem));
   let current: DesktopState | undefined;
   let loadPromise: Promise<DesktopState> | undefined;
   let writeQueue: Promise<void> = Promise.resolve();
@@ -180,7 +204,9 @@ export function createDesktopStateStore(
         current = parseDesktopState(JSON.parse(text) as unknown);
         return current;
       } catch {
-        throw new Error('Stored desktop state is corrupt or uses an unsupported schema');
+        throw new Error(
+          'Stored desktop state is corrupt or uses an unsupported schema',
+        );
       }
     })().finally(() => {
       loadPromise = undefined;
@@ -188,7 +214,9 @@ export function createDesktopStateStore(
     return loadPromise;
   };
 
-  const transact = (mutate: (state: DesktopState) => DesktopState): Promise<void> => {
+  const transact = (
+    mutate: (state: DesktopState) => DesktopState,
+  ): Promise<void> => {
     const operation = writeQueue.then(async () => {
       const prior = await loadFromDisk();
       const next = parseDesktopState(mutate(cloneState(prior)));

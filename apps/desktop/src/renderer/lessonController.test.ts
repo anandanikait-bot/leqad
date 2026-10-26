@@ -64,8 +64,12 @@ describe('desktop lesson controller', () => {
     });
 
     expect(controller.getView().isComplete).toBe(true);
-    expect(controller.getView().steps.map(({ outcome }) => outcome)).toEqual(outcomes);
-    expect(JSON.stringify(controller.getView())).not.toContain('MODEL_VERIFIED');
+    expect(controller.getView().steps.map(({ outcome }) => outcome)).toEqual(
+      outcomes,
+    );
+    expect(JSON.stringify(controller.getView())).not.toContain(
+      'MODEL_VERIFIED',
+    );
   });
 
   it('keeps hint history ordered and pauses and resumes without changing outcome', () => {
@@ -98,7 +102,9 @@ describe('desktop lesson controller', () => {
     expect(saved.steps[1]?.outcome).toBe('SELF_REPORTED');
     expect(resumed.getView().currentStepIndex).toBe(1);
     expect(resumed.getView().steps[1]?.outcome).toBe('SELF_REPORTED');
-    expect(JSON.stringify(saved)).not.toMatch(/capture|consent|window|MODEL_VERIFIED/i);
+    expect(JSON.stringify(saved)).not.toMatch(
+      /capture|consent|window|MODEL_VERIFIED/i,
+    );
   });
 
   it('restarts lesson progress only on the explicit restart event', () => {
@@ -108,7 +114,9 @@ describe('desktop lesson controller', () => {
     controller.dispatch({ type: 'RESTART' });
 
     expect(controller.getView().currentStepIndex).toBe(0);
-    expect(controller.getView().steps.every(({ outcome }) => outcome === 'NONE')).toBe(true);
+    expect(
+      controller.getView().steps.every(({ outcome }) => outcome === 'NONE'),
+    ).toBe(true);
     expect(controller.getView().currentStep.status).toBe('AWAITING_ACTION');
   });
 
@@ -129,7 +137,9 @@ describe('desktop lesson controller', () => {
       controller.dispatch({ type });
       if (index < events.length - 1) controller.dispatch({ type: 'NEXT' });
     });
-    const completedOutcomes = controller.getView().steps.map(({ outcome }) => outcome);
+    const completedOutcomes = controller
+      .getView()
+      .steps.map(({ outcome }) => outcome);
 
     controller.dispatch({ type: 'REVIEW_STEPS' });
     for (let index = 0; index < 7; index += 1) {

@@ -39,8 +39,12 @@ describe('desktop host session', () => {
       closeWindow: vi.fn(),
     });
 
-    expect((await controller.command({ type: 'pause', paused: true })).paused).toBe(true);
-    expect((await controller.command({ type: 'pause', paused: false })).paused).toBe(false);
+    expect(
+      (await controller.command({ type: 'pause', paused: true })).paused,
+    ).toBe(true);
+    expect(
+      (await controller.command({ type: 'pause', paused: false })).paused,
+    ).toBe(false);
     const beforeCancel = controller.getView().generation;
     const canceled = await controller.command({ type: 'cancel' });
     expect(canceled.generation).toBeGreaterThan(beforeCancel);

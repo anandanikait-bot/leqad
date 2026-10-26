@@ -2,7 +2,9 @@ import path from 'node:path';
 
 const LOCALHOST_NAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
-export function resolveDevServerUrl(value: string | undefined): string | undefined {
+export function resolveDevServerUrl(
+  value: string | undefined,
+): string | undefined {
   if (value === undefined) return undefined;
   let parsed: URL;
   try {
@@ -20,7 +22,9 @@ export function resolveDevServerUrl(value: string | undefined): string | undefin
     parsed.search !== '' ||
     parsed.hash !== ''
   ) {
-    throw new Error('LEQAD_DESKTOP_DEV_URL must use localhost without credentials, path, query, or fragment');
+    throw new Error(
+      'LEQAD_DESKTOP_DEV_URL must use localhost without credentials, path, query, or fragment',
+    );
   }
   return parsed.toString();
 }
@@ -32,7 +36,9 @@ export function resolveTestUserDataPath(
 ): string | undefined {
   if (configuredPath === undefined) return undefined;
   if (testMode !== '1') {
-    throw new Error('LEQAD_DESKTOP_USER_DATA is available only in desktop test mode');
+    throw new Error(
+      'LEQAD_DESKTOP_USER_DATA is available only in desktop test mode',
+    );
   }
 
   const root = path.resolve(temporaryDirectory);
@@ -45,10 +51,14 @@ export function resolveTestUserDataPath(
     path.isAbsolute(relative) ||
     path.dirname(resolved) !== root
   ) {
-    throw new Error('LEQAD_DESKTOP_USER_DATA must be a direct child of the temporary directory');
+    throw new Error(
+      'LEQAD_DESKTOP_USER_DATA must be a direct child of the temporary directory',
+    );
   }
   if (!/^leqad-desktop-test-[a-zA-Z0-9_-]+$/.test(path.basename(resolved))) {
-    throw new Error('LEQAD_DESKTOP_USER_DATA must use the leqad-desktop-test- prefix');
+    throw new Error(
+      'LEQAD_DESKTOP_USER_DATA must use the leqad-desktop-test- prefix',
+    );
   }
   return resolved;
 }

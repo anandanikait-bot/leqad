@@ -4,10 +4,15 @@ import { createDesktopBridge } from './bridge';
 describe('sandboxed DesktopBridge', () => {
   it('exposes only closed bridge methods and fixed IPC channels', async () => {
     const invoke = vi.fn(async (channel: string) => {
-      if (channel === 'desktop:list-windows') return { windows: [], incomplete: false };
+      if (channel === 'desktop:list-windows')
+        return { windows: [], incomplete: false };
       return undefined;
     });
-    const bridge = createDesktopBridge({ invoke, on: vi.fn(), removeListener: vi.fn() });
+    const bridge = createDesktopBridge({
+      invoke,
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    });
 
     expect(Object.keys(bridge).sort()).toEqual([
       'command',

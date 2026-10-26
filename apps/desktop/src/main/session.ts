@@ -84,7 +84,9 @@ export function createSessionController(
             publish({
               ...view,
               paused: command.paused,
-              generation: command.paused ? view.generation + 1 : view.generation,
+              generation: command.paused
+                ? view.generation + 1
+                : view.generation,
               reason: command.paused ? 'canceled' : view.reason,
             });
           }

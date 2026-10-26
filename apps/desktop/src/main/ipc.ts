@@ -34,7 +34,10 @@ export interface RendererEvent {
 }
 
 export interface IpcMainPort {
-  handle(channel: string, listener: (event: RendererEvent, ...args: unknown[]) => unknown): void;
+  handle(
+    channel: string,
+    listener: (event: RendererEvent, ...args: unknown[]) => unknown,
+  ): void;
   removeHandler(channel: string): void;
 }
 
@@ -48,7 +51,10 @@ export interface DesktopIpcDependencies {
   getWindow(): IpcWindow | null;
   isTrustedRendererUrl(value: string): boolean;
   controller: SessionController;
-  store: Pick<DesktopStateStore, 'loadPreferences' | 'savePreferences' | 'loadLesson' | 'saveLesson'>;
+  store: Pick<
+    DesktopStateStore,
+    'loadPreferences' | 'savePreferences' | 'loadLesson' | 'saveLesson'
+  >;
   onPreferencesSaved?(preferences: DesktopPreferences): void;
 }
 
@@ -56,31 +62,45 @@ export interface DesktopIpcRegistration {
   dispose(): void;
 }
 
-function copyPlainData(value: unknown, state = { nodes: 0 }, depth = 0): unknown {
+function copyPlainData(
+  value: unknown,
+  state = { nodes: 0 },
+  depth = 0,
+): unknown {
   state.nodes += 1;
-  if (state.nodes > 2_000 || depth > 16) throw new Error('IPC payload is too complex');
+  if (state.nodes > 2_000 || depth > 16)
+    throw new Error('IPC payload is too complex');
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
-    if (value.length > 8_192) throw new Error('IPC payload contains an oversized string');
+    if (value.length > 8_192)
+      throw new Error('IPC payload contains an oversized string');
     return value;
   }
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('IPC payload contains a non-finite number');
+    if (!Number.isFinite(value))
+      throw new Error('IPC payload contains a non-finite number');
     return value;
   }
   if (Array.isArray(value)) {
-    if (Object.getPrototypeOf(value) !== Array.prototype) throw new Error('IPC array prototype is not allowed');
+    if (Object.getPrototypeOf(value) !== Array.prototype)
+      throw new Error('IPC array prototype is not allowed');
     return value.map((item) => copyPlainData(item, state, depth + 1));
   }
-  if (typeof value !== 'object') throw new Error('IPC payload must contain only plain data');
+  if (typeof value !== 'object')
+    throw new Error('IPC payload must contain only plain data');
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
     throw new Error('IPC payload prototype is not allowed');
   }
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new Error('IPC symbol properties are not allowed');
-  const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  if (Object.getOwnPropertySymbols(value).length > 0)
+    throw new Error('IPC symbol properties are not allowed');
+  const result: Record<string, unknown> = Object.create(null) as Record<
+    string,
+    unknown
+  >;
   for (const key of Object.keys(value)) {
-    if (key === '__proto__') throw new Error('IPC prototype mutation is not allowed');
+    if (key === '__proto__')
+      throw new Error('IPC prototype mutation is not allowed');
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
       throw new Error('IPC accessors are not allowed');
@@ -129,24 +149,32 @@ export function registerDesktopIpc(
   ) => {
     dependencies.ipcMain.handle(channel, async (event, ...args) => {
       assertTrustedSender(event, dependencies);
-      if (args.length !== expectedArgs) throw new Error('Unexpected IPC argument count');
+      if (args.length !== expectedArgs)
+        throw new Error('Unexpected IPC argument count');
       return handler(dependencies.getWindow()!, ...args);
     });
   };
 
-  addHandler(DESKTOP_CHANNELS.listWindows, 0, () => ({ windows: [], incomplete: false }));
+  addHandler(DESKTOP_CHANNELS.listWindows, 0, () => ({
+    windows: [],
+    incomplete: false,
+  }));
   addHandler(DESKTOP_CHANNELS.command, 1, async (_window, rawCommand) => {
     const command: Command = parseCommand(copyPlainData(rawCommand));
     return dependencies.controller.command(command);
   });
-  addHandler(DESKTOP_CHANNELS.loadPreferences, 0, () => dependencies.store.loadPreferences());
+  addHandler(DESKTOP_CHANNELS.loadPreferences, 0, () =>
+    dependencies.store.loadPreferences(),
+  );
   addHandler(DESKTOP_CHANNELS.savePreferences, 1, async (_window, value) => {
     const safeValue = copyPlainData(value);
     const preferences = PreferencesSchema.parse(safeValue);
     await dependencies.store.savePreferences(preferences);
     dependencies.onPreferencesSaved?.(preferences);
   });
-  addHandler(DESKTOP_CHANNELS.loadLesson, 0, () => dependencies.store.loadLesson());
+  addHandler(DESKTOP_CHANNELS.loadLesson, 0, () =>
+    dependencies.store.loadLesson(),
+  );
   addHandler(DESKTOP_CHANNELS.saveLesson, 1, (_window, value) => {
     const safeValue = copyPlainData(value);
     return dependencies.store.saveLesson(parseStoredLesson(safeValue));
@@ -157,7 +185,8 @@ export function registerDesktopIpc(
       if (disposed) return;
       disposed = true;
       unsubscribe();
-      for (const channel of channels) dependencies.ipcMain.removeHandler(channel);
+      for (const channel of channels)
+        dependencies.ipcMain.removeHandler(channel);
     },
   };
 }

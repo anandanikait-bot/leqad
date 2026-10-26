@@ -4,14 +4,8 @@ import {
   FOUNDATIONS_FIRST_SKETCH,
   transitionLessonStep,
 } from '@leqad/lesson-engine';
-import type {
-  LessonStepEvent,
-  LessonStepState,
-} from '@leqad/lesson-engine';
-import {
-  parseStoredLesson,
-  type StoredLesson,
-} from '@leqad/desktop-contracts';
+import type { LessonStepEvent, LessonStepState } from '@leqad/lesson-engine';
+import { parseStoredLesson, type StoredLesson } from '@leqad/desktop-contracts';
 
 export type DesktopLessonEvent =
   | { type: 'ACKNOWLEDGE' }
@@ -24,13 +18,14 @@ export type DesktopLessonEvent =
   | { type: 'RESTART' }
   | { type: 'REVIEW_STEPS' };
 
-export type DesktopStepView = (typeof FOUNDATIONS_FIRST_SKETCH.steps)[number] & {
-  status: LessonStepState['status'];
-  hintLevel: number;
-  hint: string | null;
-  verification: 'UNKNOWN' | null;
-  outcome: LessonStepState['outcome'];
-};
+export type DesktopStepView =
+  (typeof FOUNDATIONS_FIRST_SKETCH.steps)[number] & {
+    status: LessonStepState['status'];
+    hintLevel: number;
+    hint: string | null;
+    verification: 'UNKNOWN' | null;
+    outcome: LessonStepState['outcome'];
+  };
 
 export type DesktopLessonView = Readonly<{
   lesson: typeof FOUNDATIONS_FIRST_SKETCH;
@@ -51,7 +46,9 @@ const activateStep = (state: LessonStepState): LessonStepState => {
 const initialStates = (): LessonStepState[] =>
   FOUNDATIONS_FIRST_SKETCH.steps.map(() => createInitialLessonStepState());
 
-const deserializeStep = (saved: StoredLesson['steps'][number]): LessonStepState => ({
+const deserializeStep = (
+  saved: StoredLesson['steps'][number],
+): LessonStepState => ({
   status: saved.status,
   hintLevel: saved.hintLevel,
   verification: saved.verification,
@@ -98,12 +95,16 @@ export function createDesktopLessonController(saved: unknown = null) {
         ...definition,
         status: state.status,
         hintLevel: state.hintLevel,
-        hint: state.hintLevel > 0 ? (definition.hints[state.hintLevel - 1] ?? null) : null,
+        hint:
+          state.hintLevel > 0
+            ? (definition.hints[state.hintLevel - 1] ?? null)
+            : null,
         verification: state.verification === 'UNKNOWN' ? 'UNKNOWN' : null,
         outcome: state.outcome,
       },
       steps: states.map((step) => ({ ...step })),
-      completionCount: states.filter(({ status }) => status === 'COMPLETED').length,
+      completionCount: states.filter(({ status }) => status === 'COMPLETED')
+        .length,
       isComplete,
       loadError,
     };
@@ -116,7 +117,9 @@ export function createDesktopLessonController(saved: unknown = null) {
     switch (event.type) {
       case 'ACKNOWLEDGE': {
         if (definition.completionMode !== 'ACKNOWLEDGEMENT') break;
-        states[currentStepIndex] = transitionLessonStep(current, { type: 'ACKNOWLEDGE' });
+        states[currentStepIndex] = transitionLessonStep(current, {
+          type: 'ACKNOWLEDGE',
+        });
         isComplete = states.every(({ status }) => status === 'COMPLETED');
         break;
       }
@@ -151,10 +154,14 @@ export function createDesktopLessonController(saved: unknown = null) {
         break;
       }
       case 'PAUSE':
-        states[currentStepIndex] = transitionLessonStep(current, { type: 'PAUSE' });
+        states[currentStepIndex] = transitionLessonStep(current, {
+          type: 'PAUSE',
+        });
         break;
       case 'RESUME':
-        states[currentStepIndex] = transitionLessonStep(current, { type: 'RESUME' });
+        states[currentStepIndex] = transitionLessonStep(current, {
+          type: 'RESUME',
+        });
         break;
       case 'MORE_HELP': {
         const nextHint = advanceHint(current.hintLevel);
