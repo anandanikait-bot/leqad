@@ -234,6 +234,7 @@ export function App() {
       className="desktop-app"
       data-appearance={preferences.appearance}
       data-motion={preferences.reduceMotion}
+      data-text-scale={preferences.textScale}
       style={rootStyle}
     >
       <header className="app-header">

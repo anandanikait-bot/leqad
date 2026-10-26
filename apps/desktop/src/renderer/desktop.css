@@ -98,6 +98,13 @@ button {
   }
 }
 
+.app-header,
+.session-strip,
+.workspace-navigation,
+.workspace-footer {
+  flex-shrink: 0;
+}
+
 .app-header {
   z-index: 3;
   display: flex;
@@ -737,11 +744,33 @@ input:focus-visible,
 }
 
 @media (max-height: 559px), (max-width: 336px) {
-  .workspace-content {
-    display: block;
+  .desktop-app {
     overflow-x: hidden;
     overflow-y: auto;
-    scrollbar-gutter: stable;
+  }
+
+  .workspace-content {
+    display: block;
+    min-height: auto;
+    flex: 1 0 auto;
+    overflow: visible;
+  }
+
+  .workspace-content[data-scroll-mode='single'] {
+    overflow: visible;
+  }
+
+  .settings-body,
+  .completion-body {
+    min-height: auto;
+    flex: 1 0 auto;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .resume-body,
+  .load-warning {
+    flex-shrink: 0;
   }
 
   .help-area {
@@ -751,6 +780,52 @@ input:focus-visible,
 
   .help-content,
   .help-topic-body {
+    display: block;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-height: 700px), (max-width: 480px) {
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2']) {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2'])
+    > :is(.resume-body, .load-warning) {
+    flex-shrink: 0;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2'])
+    > .workspace-content {
+    display: block;
+    min-height: auto;
+    flex: 1 0 auto;
+    overflow: visible;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2'])
+    .workspace-content[data-scroll-mode='single'] {
+    overflow: visible;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2'])
+    > :is(.settings-body, .completion-body) {
+    min-height: auto;
+    flex: 1 0 auto;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2']) .help-area {
+    display: block;
+    overflow: visible;
+  }
+
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2']) .help-content,
+  .desktop-app:is([data-text-scale='1.5'], [data-text-scale='2'])
+    .help-topic-body {
     display: block;
     max-height: none;
     overflow: visible;
