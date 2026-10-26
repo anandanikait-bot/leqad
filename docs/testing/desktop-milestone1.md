@@ -16,14 +16,17 @@ Then from the repository root:
 ```powershell
 npm install --global pnpm@11.25.0
 pnpm install --frozen-lockfile
+pnpm exec install-electron
 pnpm dev:desktop
 ```
+
+Run `pnpm exec install-electron` after every fresh dependency install. It installs the pinned Electron 45 runtime needed to launch the desktop app.
 
 `pnpm dev:desktop` starts Vite and watches the Electron main and preload entries. Close the app, then stop the development process with Ctrl+C.
 
 ## Windows tests
 
-Build the packaged renderer and Electron host before running the Playwright suite. The E2E command launches `apps/desktop/dist/main.cjs` with the pinned Electron executable.
+Build the packaged renderer and Electron host before running the Playwright suite. After a fresh `pnpm install`, run `pnpm exec install-electron` before building. The E2E command launches `apps/desktop/dist/main.cjs` with the pinned Electron executable.
 
 ```powershell
 pnpm desktop:build
@@ -33,13 +36,13 @@ pnpm desktop:test:e2e
 
 The Playwright tests create one isolated profile under the Windows temporary directory for each test. The profile path uses the `leqad-desktop-test-*` prefix and is passed through `LEQAD_DESKTOP_USER_DATA` with `LEQAD_DESKTOP_TEST_MODE=1`. The tests remove their profiles when they finish.
 
-Playwright writes traces, screenshots, and reports under `apps/desktop/test-results` and `apps/desktop/playwright-report`. Open a local HTML report with:
+Playwright writes screenshots and per-test results under `apps/desktop/test-results` and the HTML report under `apps/desktop/playwright-report`. The integration tests attach their screenshots to the report. Traces use `retain-on-failure`, so they are retained for failed tests only and are not promised for passing runs. The Windows CI artifact uploads both directories after every run; a successful artifact contains the screenshots and Playwright report. Open a local HTML report with:
 
 ```powershell
 pnpm exec playwright show-report apps/desktop/playwright-report
 ```
 
-The CI job should retain the Playwright report and test results when a run fails. A local Linux or macOS result does not establish a Windows pass. Record a Windows result only with the runner log for the tested commit.
+A local Linux or macOS result does not establish a Windows pass. Record a Windows result only with the runner log for the tested commit. The PR #19 Windows job ran on Windows Server 2025; that CI result is separate from owner acceptance on Windows 10 or 11.
 
 ## Linux development checks
 
@@ -65,11 +68,11 @@ If Electron cannot open a window because the runner has no display, record the r
 
 These checks exercise the written desktop UI and local persistence in Electron. They do not establish selection of a real CAD window, capture permission handling, screenshots of CAD, recognition, overlays, click-through behavior, CAD geometry, Onshape or FreeCAD compatibility, Windows DPI behavior, mixed-monitor placement, Narrator behavior, or live accessibility acceptance. Visual help remains unavailable in this milestone. Fixture results and screenshots must not be described as live CAD evidence.
 
-Windows test status: pending a Windows runner log for the implementation commit. No Windows success is claimed by this procedure.
+Historical PR #19 checks for commit `e7e8dd1021ae81845ec222e782aa6eb43b297cd5` succeeded: General check `40278660055` and Windows check `40278660170`. The Windows check ran on Windows Server 2025; it does not establish owner acceptance on Windows 10 or 11. The clean-cache installation proof added to the workflow still awaits the primary final CI result; no result for that new validation is claimed here.
 
 ## Validation record
 
-Before the host build was available, the seven Playwright cases all stopped at Electron launch with `Cannot find module .../apps/desktop/dist/main.cjs`. Electron itself launched under the local Xvfb display. This RED run confirmed the test harness uses the built Electron entry; it did not reach the renderer assertions. The post-build integration result and Windows runner result must be recorded after those runs complete.
+Before the host build was available, the seven Playwright cases all stopped at Electron launch with `Cannot find module .../apps/desktop/dist/main.cjs`. Electron itself launched under the local Xvfb display. This RED run confirmed the test harness uses the built Electron entry; it did not reach the renderer assertions. Historical post-build check results are recorded above. The clean-cache installation proof added in this revision remains pending the primary final CI result.
 
 ## Owner smoke after automated checks
 

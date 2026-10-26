@@ -13,12 +13,14 @@ Environment: Linux. Windows launch must be established by a Windows CI runtime j
 
 Contract freeze: desktop-contracts/src/index.ts. Stored lesson schema is eight ordered records, version 2.0.0. No stored UI/model PASS. Milestone 1 session never grants consent or reports selectable windows.
 
-Tasks 1–6 implementation: complete locally, pending Windows CI and owner Milestone 1 review. Renderer commit b981baf; host commits e8d42a9/f5a5919. Primary integration includes bb04575/f93d6ca. No capture/recognition/overlay implementation followed.
+Tasks 1–6 implementation: complete locally; historical Windows CI succeeded and owner Milestone 1 review remains pending. Renderer commit b981baf; host commits e8d42a9/f5a5919. Primary integration includes bb04575/f93d6ca. No capture/recognition/overlay implementation followed.
 
 Verification: 697 unit/component tests; 45 independent reference tests and integrity validation; 7 actual Electron integration tests on Linux/Xvfb; extension browser tests 87 PASS, 1 SKIPPED locally. Typecheck, lint, format:check, full build, Edge build and Chrome/Edge packaging pass. Earlier two scan timing failures under simultaneous heavy browser/unit load passed in a serial rerun and the complete 697-test run. No production timeouts were changed.
 
 Primary corrections: native content size preserved, menu closes with focus restored to its trigger, completed review returns to summary, native always-on-top preference works without focus stealing, unreadable saves are never silently overwritten, Leqad uses its own appData directory and application identity. Regression tests observed RED before fixes.
 
-Development proof: dev:desktop launched Electron and Vite, renderer React HMR messages observed, Ctrl+C stopped server and child. This is Linux runtime evidence. Windows test workflow is separate; see PR #19 checks for the tested SHA. Native Windows manual DPI/Narrator/multi-monitor acceptance remains owner work.
+Development proof: dev:desktop launched Electron and Vite, renderer React HMR messages observed, Ctrl+C stopped server and child. This is Linux runtime evidence. Historical PR #19 checks for `e7e8dd1021ae81845ec222e782aa6eb43b297cd5` succeeded: General check `40278660055` and Windows check `40278660170`. The Windows job ran on Windows Server 2025. That CI result is separate from native Windows 10/11 manual DPI, Narrator, and multi-monitor acceptance, which remains owner work.
+
+The Windows workflow now adds a clean Electron installation proof using an initially empty isolated cache and an assertion that `electron.exe` is absent before invoking the installer. Validation of this new proof is pending the primary final CI result; the historical checks above do not establish its result.
 
 Read-only independent host review identified summary navigation, pin semantics and unreadable-store recovery issues; all were addressed. Primary reviewed IPC, assets, lesson outcomes, screenshot hierarchy and unchanged extension/shared lesson files. No merge, deployment, installer, website edit or later-milestone implementation.
