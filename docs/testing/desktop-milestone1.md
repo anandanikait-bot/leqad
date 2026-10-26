@@ -4,11 +4,17 @@ This guide covers the written lesson desktop prototype. The Playwright suite lau
 
 ## Windows development
 
-Use Windows 10 or 11 with Node.js 22.12.0 or later. The repository pins pnpm 11.25.0 and Electron 45. From the repository root:
+Use Windows 10 or 11 with Node.js 22.12.0 or later. The repository pins pnpm 11.25.0 and Electron 45. Use Node.js 24 LTS for the tested toolchain. In PowerShell, obtain the review branch:
 
 ```powershell
-corepack enable
-corepack prepare pnpm@11.25.0 --activate
+git clone --branch feat/phase1b-compact-companion https://github.com/anandanikait-bot/leqad.git
+cd leqad
+```
+
+Then from the repository root:
+
+```powershell
+npm install --global pnpm@11.25.0
 pnpm install --frozen-lockfile
 pnpm dev:desktop
 ```
@@ -64,3 +70,16 @@ Windows test status: pending a Windows runner log for the implementation commit.
 ## Validation record
 
 Before the host build was available, the seven Playwright cases all stopped at Electron launch with `Cannot find module .../apps/desktop/dist/main.cjs`. Electron itself launched under the local Xvfb display. This RED run confirmed the test harness uses the built Electron entry; it did not reach the renderer assertions. The post-build integration result and Windows runner result must be recorded after those runs complete.
+
+## Owner smoke after automated checks
+
+1. Start dev:desktop; verify official branding and written-only status.
+2. Work through all eight steps. Informational instructions are acknowledged; modeled work is self-reported.
+3. Open Help, switch topics, request more help, close with Escape. Resize and test 200% text.
+4. Open local Ask. Confirm Local prototype and Local example labels; return to Learn.
+5. Use Settings, switch themes and pin preference, reset placement, return with keyboard focus. Capture/window selection/report actions remain explicitly unavailable.
+6. Mark a step done, wait for saved status, close/relaunch. Choose Resume lesson; confirm progress and preferences. Restart requires confirmation.
+7. Review completed steps and return to summary from step 8.
+8. Record PASS/FAIL/BLOCKED and a short observed result. Test Windows display scaling, Narrator and multiple monitors separately; Linux/CI results cannot establish these manual outcomes.
+
+Ordinary state is stored under the current user's appData/Leqad directory. Test profiles are isolated and removed. Unreadable files produce a visible error; a fresh in-memory lesson does not promise that an unreadable disk record was replaced. No authentication or CAD content is stored.
