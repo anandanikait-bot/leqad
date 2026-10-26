@@ -65,4 +65,12 @@ test('completes all eight written steps with honest outcome categories', async (
     page.getByRole('button', { name: 'Review steps', exact: true }),
   ).toBeVisible();
   await captureScreenshot(page, testInfo, 'desktop-eight-step-completion.png');
+  await page.getByRole('button', { name: 'Review steps', exact: true }).click();
+  for (let step = 1; step < 8; step++)
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Back to summary', exact: true })
+    .click();
+  await expect(summary).toBeVisible();
+  expect(await summary.innerText()).toBe(summaryText);
 });

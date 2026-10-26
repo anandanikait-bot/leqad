@@ -12,6 +12,7 @@ test('launches one secure written-only Electron window', async ({
     BrowserWindow.getAllWindows()[0]?.getContentSize(),
   );
 
+  expect(await app.evaluate(({ app }) => app.getName())).toBe('Leqad');
   expect(windowCount).toBe(1);
   expect(contentSize).toEqual([365, 600]);
   await expect(page.getByText('Written lessons · Capture off')).toBeVisible();

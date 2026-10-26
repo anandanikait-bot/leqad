@@ -25,6 +25,10 @@ import {
   type WindowPlacementController,
 } from './windowPlacement';
 
+app.setName('Leqad');
+// Keep ordinary development state separate from other Electron applications.
+app.setPath('userData', path.join(app.getPath('appData'), 'Leqad'));
+
 const devServerUrl = resolveDevServerUrl(process.env.LEQAD_DESKTOP_DEV_URL);
 const testUserDataPath = resolveTestUserDataPath(
   process.env.LEQAD_DESKTOP_USER_DATA,
