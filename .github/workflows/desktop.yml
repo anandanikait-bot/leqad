@@ -51,7 +51,8 @@ jobs:
           if (-not (Test-Path -LiteralPath $electronBinary -PathType Leaf)) {
             throw "Electron installer did not create the executable: $electronBinary"
           }
-          $electronVersion = (& $electronBinary --version).Trim()
+          # A GUI executable's stdout is not reliably captured directly by PowerShell.
+          $electronVersion = node -e "const {execFileSync}=require('node:child_process'); console.log(execFileSync(require('electron'),['--version'],{encoding:'utf8',timeout:30000}).trim())"
           if ($LASTEXITCODE -ne 0 -or $electronVersion -ne 'v45.0.0') {
             throw "Expected Electron v45.0.0; executable reported '$electronVersion'."
           }
