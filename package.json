@@ -25,7 +25,7 @@
     "format:check": "prettier --check .",
     "dev:desktop": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
-    "desktop:test": "vitest run apps/desktop/src packages/desktop-contracts packages/desktop-core",
+    "desktop:test": "vitest run apps/desktop packages/desktop-contracts packages/desktop-core",
     "desktop:test:e2e": "playwright test --config apps/desktop/playwright.config.ts"
   },
   "devDependencies": {

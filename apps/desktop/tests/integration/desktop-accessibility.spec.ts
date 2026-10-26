@@ -38,7 +38,9 @@ test('Help and Settings work from the keyboard and keep one scroller at minimum 
   await page
     .getByRole('button', { name: 'Back to lesson', exact: true })
     .click();
-  await expect(page.getByLabel('Open lesson menu', { exact: true })).toBeFocused();
+  await expect(
+    page.getByLabel('Open lesson menu', { exact: true }),
+  ).toBeFocused();
 
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]?.setContentSize(320, 400),
@@ -107,8 +109,7 @@ for (const theme of ['light', 'dark'] as const) {
     const controls = [
       { label: 'Ask', name: 'Ask' },
       { label: 'Help', name: /^Help/ },
-      { label: 'Settings', name: 'Settings' },
-      { label: 'Mark done', name: 'Mark done' },
+      { label: 'Acknowledgement', name: 'Got it' },
     ];
     const report: Record<string, unknown> = {};
 
