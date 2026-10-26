@@ -311,3 +311,5 @@ Files: root CI configuration for Windows desktop fixture lane; desktop acceptanc
 Coverage checked against final design: selection/consent Tasks 7/9; teaching/Ask Task 4; responsive Help/Settings/completion Task 5; persistence/placement Task 6; overlays/context Tasks 8–10; accessibility Tasks 5/11; phases and delivery Task 12. Exactly three implementers with primary ownership of shared contracts, lockfile, integration tests and review.
 
 Correction made during review: catalog return includes incomplete status, rather than silently truncating WindowChoice[]. Freeze that proposal in Task 1 before dispatch. Native provider selection is deliberately an evidence gate with an explicit BLOCKED outcome; it is not permission for agents to invent working recognition. No implementation work is authorized until the owner approves this plan.
+
+Execution amendment: the owner later limited active implementation to two GPT-6 Luna extra-high agents at regular speed. Renderer and host remain agent-owned; the primary takes over the third workstream’s integration tests and review. No additional agents or capture/overlay implementation are authorized in Milestone 1.
