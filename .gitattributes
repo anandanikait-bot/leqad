@@ -1,0 +1,3 @@
+# Preserve official SVG master bytes on Windows checkouts.
+apps/desktop/src/assets/brand/*.svg -text
+docs/design/desktop-compact/assets/*.svg -text

@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import {
   createTrustedRendererUrlCheck,
@@ -28,17 +30,23 @@ describe('desktop runtime URL and profile boundaries', () => {
   });
 
   it('allows an isolated test profile only under the named temporary-directory boundary', () => {
-    expect(
-      resolveTestUserDataPath('/tmp/leqad-desktop-test-run-123', '1', '/tmp'),
-    ).toBe('/tmp/leqad-desktop-test-run-123');
+    const root = tmpdir();
+    const candidate = path.join(root, 'leqad-desktop-test-run-123');
+    expect(resolveTestUserDataPath(candidate, '1', root)).toBe(
+      path.resolve(candidate),
+    );
+    expect(() => resolveTestUserDataPath(candidate, '', root)).toThrow(
+      /test mode/i,
+    );
     expect(() =>
-      resolveTestUserDataPath('/tmp/leqad-desktop-test-run-123', '', '/tmp'),
-    ).toThrow(/test mode/i);
-    expect(() =>
-      resolveTestUserDataPath('/workspace/user-data', '1', '/tmp'),
+      resolveTestUserDataPath(
+        path.join(root, '..', 'outside-profile'),
+        '1',
+        root,
+      ),
     ).toThrow(/temporary/i);
     expect(() =>
-      resolveTestUserDataPath('/tmp/unrelated', '1', '/tmp'),
+      resolveTestUserDataPath(path.join(root, 'unrelated'), '1', root),
     ).toThrow(/prefix/i);
   });
 
