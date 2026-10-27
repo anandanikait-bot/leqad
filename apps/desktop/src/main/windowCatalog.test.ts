@@ -102,6 +102,24 @@ describe('WindowCatalogProvider', () => {
     );
   });
 
+  it('uses only visible-window and process identity metadata in its native query', async () => {
+    let observedScript = '';
+    const scan = createWindowsMetadataScanner(async (script) => {
+      observedScript = script;
+      return JSON.stringify({ incomplete: false, windows: [] });
+    });
+
+    await scan();
+
+    expect(observedScript).toContain('EnumWindows');
+    expect(observedScript).toContain('IsWindowVisible');
+    expect(observedScript).toContain('GetWindowThreadProcessId');
+    expect(observedScript).toContain('processName == "explorer"');
+    expect(observedScript).not.toMatch(
+      /GetWindowText|GetTitle|UIAutomation|Accessibility|screenshot|thumbnail/i,
+    );
+  });
+
   it('marks incomplete metadata as incomplete and excludes inconsistent rows', async () => {
     const provider = createWindowCatalogProvider({
       platform: 'win32',
@@ -120,13 +138,7 @@ describe('WindowCatalogProvider', () => {
 
     const catalog = await provider.list();
     expect(catalog.incomplete).toBe(true);
-    expect(
-      catalog.windows.map(({ application, ordinal, kind }) => ({
-        application,
-        ordinal,
-        kind,
-      })),
-    ).toEqual([{ application: 'FreeCAD', ordinal: 1, kind: 'native' }]);
+    expect(catalog.windows).toEqual([]);
     provider.dispose();
   });
 
@@ -142,6 +154,19 @@ describe('WindowCatalogProvider', () => {
     expect(await provider.isCurrent(choice)).toBe(false);
     current = metadata();
     expect(await provider.isCurrent(choice)).toBe(false);
+    expect(await provider.select(choice.token)).toBeNull();
+    provider.dispose();
+  });
+
+  it('rejects a reused native handle with a different process instance', async () => {
+    let current = metadata();
+    const provider = createWindowCatalogProvider({
+      platform: 'win32',
+      scanWindows: async () => ({ windows: [current], incomplete: false }),
+    });
+    const choice = (await provider.list()).windows[0]!;
+
+    current = metadata({ processId: 43, processStart: 'start-2' });
     expect(await provider.select(choice.token)).toBeNull();
     provider.dispose();
   });
@@ -164,7 +189,56 @@ describe('WindowCatalogProvider', () => {
     provider.dispose();
   });
 
-  it('does not present duplicate native handles as separate choices', async () => {
+  it('rejects selection when revalidation is incomplete even if the row is present', async () => {
+    let incomplete = false;
+    const provider = createWindowCatalogProvider({
+      platform: 'win32',
+      scanWindows: async () => ({ windows: [metadata()], incomplete }),
+    });
+    const choice = (await provider.list()).windows[0]!;
+
+    incomplete = true;
+    expect(await provider.select(choice.token)).toBeNull();
+    provider.dispose();
+  });
+
+  it('disconnects a binding when a later liveness scan is incomplete', async () => {
+    let incomplete = false;
+    const provider = createWindowCatalogProvider({
+      platform: 'win32',
+      scanWindows: async () => ({ windows: [metadata()], incomplete }),
+    });
+    const choice = (await provider.list()).windows[0]!;
+    const binding = await provider.select(choice.token);
+    expect(binding).not.toBeNull();
+
+    incomplete = true;
+    expect(await provider.isCurrent(binding!)).toBe(false);
+    provider.dispose();
+  });
+
+  it('invalidates all choices when a refreshed scan becomes incomplete', async () => {
+    let incomplete = false;
+    const provider = createWindowCatalogProvider({
+      platform: 'win32',
+      scanWindows: async () => ({
+        windows: [metadata()],
+        incomplete,
+      }),
+    });
+    const choice = (await provider.list()).windows[0]!;
+
+    incomplete = true;
+    expect(await provider.list()).toMatchObject({
+      availability: 'available',
+      incomplete: true,
+      windows: [],
+    });
+    expect(await provider.select(choice.token)).toBeNull();
+    provider.dispose();
+  });
+
+  it('fails closed when duplicate native handles make a scan ambiguous', async () => {
     const provider = createWindowCatalogProvider({
       platform: 'win32',
       scanWindows: async () => ({
@@ -178,9 +252,7 @@ describe('WindowCatalogProvider', () => {
 
     const catalog = await provider.list();
     expect(catalog.incomplete).toBe(true);
-    expect(catalog.windows.map(({ application }) => application)).toEqual([
-      'Chrome',
-    ]);
+    expect(catalog.windows).toEqual([]);
     provider.dispose();
   });
 
@@ -232,8 +304,7 @@ describe('WindowCatalogProvider', () => {
     const catalog = await provider.list();
     expect(catalog.availability).toBe('available');
     expect(catalog.incomplete).toBe(true);
-    expect(catalog.windows).toHaveLength(50);
-    expect(catalog.windows[49]?.ordinal).toBe(50);
+    expect(catalog.windows).toEqual([]);
     provider.dispose();
   });
 

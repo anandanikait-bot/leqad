@@ -65,6 +65,13 @@ export async function openSettings(page: Page) {
   return settingsButton;
 }
 
+export async function chooseWrittenLessons(page: Page) {
+  await page
+    .getByRole('button', { name: 'Use written lessons', exact: true })
+    .click();
+  await page.getByRole('button', { name: /Got it|Resume lesson/ }).waitFor();
+}
+
 export const test = base.extend<DesktopFixtures>({
   desktop: async ({}, use) => {
     const userDataDir = await createUserDataDir();

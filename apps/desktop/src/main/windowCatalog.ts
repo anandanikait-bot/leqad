@@ -88,6 +88,13 @@ namespace LeqadWindowCatalog {
         try {
           using (Process process = Process.GetProcessById((int)processId)) {
             string processName = process.ProcessName.ToLowerInvariant();
+            // Do not offer Windows desktop chrome as an application window.
+            if (processName == "explorer" ||
+                processName == "shellexperiencehost" ||
+                processName == "startmenuexperiencehost" ||
+                processName == "searchhost" ||
+                processName == "textinputhost" ||
+                processName == "applicationframehost") return true;
             string application = "Other app";
             string kind = "other";
             if (processName == "chrome") {
@@ -335,6 +342,29 @@ function sameBinding(left: WindowBinding, right: WindowBinding): boolean {
   );
 }
 
+function validatedScan(
+  scan: NativeWindowScan,
+): readonly NativeWindowMetadata[] | null {
+  if (scan.incomplete || scan.windows.length > 50) return null;
+  const windows: NativeWindowMetadata[] = [];
+  const seenHandles = new Set<string>();
+  for (const row of scan.windows) {
+    const metadata = safeMetadata(row);
+    if (!metadata || seenHandles.has(metadata.handle)) return null;
+    seenHandles.add(metadata.handle);
+    windows.push(metadata);
+  }
+  return windows;
+}
+
+function containsValidatedWindow(
+  scan: NativeWindowScan,
+  expected: NativeWindowMetadata,
+): boolean {
+  const windows = validatedScan(scan);
+  return windows?.some((current) => sameWindow(expected, current)) ?? false;
+}
+
 export function createWindowCatalogProvider(
   options: WindowCatalogProviderOptions = {},
 ): WindowCatalogProvider {
@@ -375,25 +405,19 @@ export function createWindowCatalogProvider(
         const result = await scanWindows();
         if (disposed || revision !== listRevision)
           return unavailable('provider-failed');
+        const records = validatedScan(result);
+        if (!records) {
+          byToken.clear();
+          return parseWindowCatalog({
+            availability: 'available',
+            unavailableReason: null,
+            incomplete: true,
+            windows: [],
+          });
+        }
         const windows: WindowCatalog['windows'][number][] = [];
         const ordinalByApplication = new Map<WindowApplication, number>();
-        const seenHandles = new Set<string>();
-        let incomplete = result.incomplete;
-        for (const nativeMetadata of result.windows) {
-          const metadata = safeMetadata(nativeMetadata);
-          if (!metadata) {
-            incomplete = true;
-            continue;
-          }
-          if (seenHandles.has(metadata.handle)) {
-            incomplete = true;
-            continue;
-          }
-          seenHandles.add(metadata.handle);
-          if (windows.length >= 50) {
-            incomplete = true;
-            break;
-          }
+        for (const metadata of records) {
           const ordinal =
             (ordinalByApplication.get(metadata.application) ?? 0) + 1;
           ordinalByApplication.set(metadata.application, ordinal);
@@ -420,7 +444,7 @@ export function createWindowCatalogProvider(
         return parseWindowCatalog({
           availability: 'available',
           unavailableReason: null,
-          incomplete,
+          incomplete: false,
           windows,
         });
       } catch {
@@ -438,12 +462,7 @@ export function createWindowCatalogProvider(
       try {
         const result = await scanWindows();
         if (disposed || byToken.get(token) !== entry) return null;
-        if (
-          !result.windows.some(
-            (current) =>
-              isMetadata(current) && sameWindow(entry.metadata, current),
-          )
-        ) {
+        if (!containsValidatedWindow(result, entry.metadata)) {
           byToken.delete(token);
           return null;
         }
@@ -465,10 +484,7 @@ export function createWindowCatalogProvider(
       try {
         const result = await scanWindows();
         if (disposed || byToken.get(binding.token) !== entry) return false;
-        const present = result.windows.some(
-          (current) =>
-            isMetadata(current) && sameWindow(entry.metadata, current),
-        );
+        const present = containsValidatedWindow(result, entry.metadata);
         if (!present) byToken.delete(binding.token);
         return present;
       } catch {

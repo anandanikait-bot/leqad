@@ -1,6 +1,11 @@
 import { expect, type Locator } from '@playwright/test';
 import { DESKTOP_STEP_COPY } from '../../src/renderer/desktopCopy';
-import { captureScreenshot, openSettings, test } from './helpers/desktop';
+import {
+  captureScreenshot,
+  chooseWrittenLessons,
+  openSettings,
+  test,
+} from './helpers/desktop';
 
 // Measure individual rendered lines, since a paragraph may be taller than a
 // 400px window at 200% text. Scrolling must make every line reachable.
@@ -93,6 +98,7 @@ for (const [width, height, scale] of [
     desktop,
   }, info) => {
     const { page, app } = desktop;
+    await chooseWrittenLessons(page);
     await openSettings(page);
     await page.getByRole('radio', { name: `${scale}%`, exact: true }).check();
     await page

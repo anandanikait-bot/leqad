@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import {
   captureScreenshot,
+  chooseWrittenLessons,
   launchDesktop,
   openSettings,
   test,
@@ -10,6 +11,7 @@ test('keeps appearance and lesson progress after app and renderer reloads', asyn
   desktop,
 }, testInfo) => {
   const { app, page, userDataDir } = desktop;
+  await chooseWrittenLessons(page);
   await openSettings(page);
   await page.getByRole('radio', { name: 'Dark', exact: true }).check();
   await page.getByRole('radio', { name: '150%', exact: true }).check();
@@ -23,6 +25,7 @@ test('keeps appearance and lesson progress after app and renderer reloads', asyn
   await app.close();
   const relaunched = await launchDesktop(userDataDir);
   try {
+    await chooseWrittenLessons(relaunched.page);
     await expect(
       relaunched.page.getByText('Continue Your First Sketch?'),
     ).toBeVisible();
@@ -42,6 +45,7 @@ test('keeps appearance and lesson progress after app and renderer reloads', asyn
       .click();
 
     await relaunched.page.reload();
+    await chooseWrittenLessons(relaunched.page);
     await expect(
       relaunched.page.getByText('Continue Your First Sketch?'),
     ).toBeVisible();

@@ -4,7 +4,12 @@ import { createHash } from 'node:crypto';
 import { expect, type Locator } from '@playwright/test';
 import { DEFAULT_PREFERENCES } from '@leqad/desktop-contracts';
 import { createDesktopLessonController } from '../../src/renderer/lessonController';
-import { createUserDataDir, launchDesktop, test } from './helpers/desktop';
+import {
+  chooseWrittenLessons,
+  createUserDataDir,
+  launchDesktop,
+  test,
+} from './helpers/desktop';
 
 // Isolated saved-state fixture. No owner profile or CAD content is read.
 const controller = createDesktopLessonController();
@@ -130,6 +135,7 @@ for (const [width, height] of [
                 ),
               [width, height],
             );
+            await chooseWrittenLessons(page);
             await expect(
               page.getByRole('heading', {
                 name: 'Continue Your First Sketch?',
@@ -352,6 +358,7 @@ test('a completed saved lesson resumes its summary without resetting progress', 
   );
   const { app, page } = await launchDesktop(userDataDir);
   try {
+    await chooseWrittenLessons(page);
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.setContentSize(320, 400),
     );

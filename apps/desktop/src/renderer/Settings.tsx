@@ -1,22 +1,35 @@
 import { useEffect, useRef } from 'react';
-import type { DesktopPreferences } from '@leqad/desktop-contracts';
+import type {
+  DesktopPreferences,
+  WindowSummary,
+} from '@leqad/desktop-contracts';
 
 type SettingsProps = {
   preferences: DesktopPreferences;
+  selectedWindow: WindowSummary | null;
+  sessionPaused: boolean;
   returnLabel: 'Back to lesson' | 'Back to Ask';
   statusMessage: string;
   onPreferenceChange(next: DesktopPreferences): void;
   onStopVisualAccess(): void;
+  onChangeWindow(): void;
+  onDisconnectWindow(): void;
+  onSessionPause(): void;
   onResetPosition(): void;
   onReturn(): void;
 };
 
 export function Settings({
   preferences,
+  selectedWindow,
+  sessionPaused,
   returnLabel,
   statusMessage,
   onPreferenceChange,
   onStopVisualAccess,
+  onChangeWindow,
+  onDisconnectWindow,
+  onSessionPause,
   onResetPosition,
   onReturn,
 }: SettingsProps) {
@@ -41,23 +54,54 @@ export function Settings({
         <section className="settings-group" aria-labelledby="recovery-heading">
           <h3 id="recovery-heading">Screen access and panel position</h3>
           <p className="muted-copy">
-            This app can't capture the screen or highlight Onshape tools. No CAD
-            window is selected.
+            This build cannot capture a screen, inspect controls, or highlight
+            Onshape tools.
           </p>
+          {selectedWindow ? (
+            <p className="settings-reason">
+              Selected: {selectedWindow.application} · Window{' '}
+              {selectedWindow.ordinal}. Screen access is off.
+            </p>
+          ) : (
+            <p className="settings-reason">
+              No window selected. Screen access is off.
+            </p>
+          )}
           <div className="settings-actions">
             <button
               className="secondary-button"
               onClick={onStopVisualAccess}
               type="button"
             >
-              Turn off screen access
+              Keep screen access off
             </button>
-            <button className="secondary-button" disabled type="button">
-              Choose a CAD window
+            {selectedWindow ? (
+              <button
+                className="secondary-button"
+                onClick={onSessionPause}
+                type="button"
+              >
+                {sessionPaused
+                  ? 'Resume window session'
+                  : 'Pause window session'}
+              </button>
+            ) : null}
+            <button
+              className="secondary-button"
+              onClick={onChangeWindow}
+              type="button"
+            >
+              {selectedWindow ? 'Change CAD window' : 'Choose a CAD window'}
             </button>
-            <p className="settings-reason">
-              You can't choose a CAD window in this app.
-            </p>
+            {selectedWindow ? (
+              <button
+                className="secondary-button"
+                onClick={onDisconnectWindow}
+                type="button"
+              >
+                Disconnect window
+              </button>
+            ) : null}
             <button
               className="secondary-button"
               onClick={onResetPosition}
