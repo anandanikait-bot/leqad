@@ -114,7 +114,8 @@ function recreateSession(): void {
       healthCheckInFlight = false;
     });
   }, 1200);
-  sessionHealthTimer.unref();
+  // This window-owned timer must keep waking Electron's Node loop while idle.
+  // cleanupSession clears it on navigation, window close, and application exit.
 }
 
 function workAreas() {

@@ -343,9 +343,37 @@ for (const [width, height, textScale, appearance] of [
       ).toHaveCount(0);
       await stopWindowsFixture(fixture);
       fixture = undefined;
+      const afterClosure = await createWindowsMetadataScanner()();
+      expect(
+        afterClosure.windows.some(
+          (window) => window.processId === fixtureProcessId,
+        ),
+        'The real fixture window must be absent before checking disconnection',
+      ).toBe(false);
       await expect(
         page.getByText('Selected window disconnected', { exact: true }),
-      ).toBeVisible({ timeout: 10_000 });
+      )
+        .toBeVisible({ timeout: 10_000 })
+        .catch(async (error) => {
+          const state = await page.evaluate(async () => {
+            try {
+              // Already resumed: this is a no-op host-state read, not an acceptance shortcut.
+              const view = await window.leqad?.command({
+                type: 'pause',
+                paused: false,
+              });
+              return {
+                binding: view?.binding,
+                paused: view?.paused,
+                reason: view?.reason,
+              };
+            } catch {
+              return { reason: 'host-state-unreadable' };
+            }
+          });
+          console.log('M2_DISCONNECT_FAILURE_STATE', JSON.stringify(state));
+          throw error;
+        });
       console.log(
         'M2_NATIVE_WINDOW: closing fixture disconnected selected window',
       );
