@@ -27,31 +27,44 @@ function startWindowsFixture(): ChildProcess {
       '-File',
       fixtureScript,
     ],
-    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    { windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] },
   );
 }
 
 // Fixed readiness signal only: never read or log titles, handles, or credentials.
 async function waitForFixtureWindow(fixture: ChildProcess) {
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<number>((resolve, reject) => {
+    let received = '';
     const timer = setTimeout(
       () => finish(new Error('Disposable window did not become visible')),
       15_000,
     );
     const onData = (data: Buffer) => {
-      if (data.toString().includes('WINDOW_READY')) finish();
+      received += data.toString();
+      if (received.length > 128 || received.includes('WINDOW_NOT_VISIBLE')) {
+        finish(
+          new Error(
+            'Disposable fixture did not expose a visible native window',
+          ),
+        );
+        return;
+      }
+      const match = received.trim().match(/^WINDOW_READY:([0-9]+)$/);
+      if (match) finish(undefined, Number(match[1]));
     };
     const onExit = () =>
       finish(new Error('Disposable window process exited before readiness'));
     const onError = () =>
       finish(new Error('Disposable window process could not start'));
-    function finish(error?: Error) {
+    function finish(error?: Error, processId?: number) {
       clearTimeout(timer);
       fixture.stdout?.off('data', onData);
       fixture.off('exit', onExit);
       fixture.off('error', onError);
       if (error) reject(error);
-      else resolve();
+      else if (Number.isSafeInteger(processId) && processId! > 0)
+        resolve(processId!);
+      else reject(new Error('Invalid fixture readiness signal'));
     }
     fixture.stdout?.on('data', onData);
     fixture.once('exit', onExit);
@@ -224,7 +237,7 @@ for (const [width, height, textScale, appearance] of [
           exact: true,
         }),
       ).toBeVisible();
-      await waitForFixtureWindow(fixture);
+      const fixtureProcessId = await waitForFixtureWindow(fixture);
       // The startup catalog predates this window. Refresh through the normal UI.
       await page
         .getByRole('button', { name: 'Refresh window list', exact: true })
@@ -246,7 +259,7 @@ for (const [width, height, textScale, appearance] of [
           window.application === 'Other app',
       );
       const matches = otherWindows.filter(
-        (window) => window.processId === fixture?.pid,
+        (window) => window.processId === fixtureProcessId,
       );
       expect(
         matches.length,
