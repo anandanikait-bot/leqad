@@ -197,6 +197,77 @@ describe('desktop host session', () => {
     });
   });
 
+  it('revalidates a selected window before resuming the session', async () => {
+    const windowCatalog = createCatalogProvider();
+    const { controller } = createController(windowCatalog);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+    await controller.command({ type: 'pause', paused: true });
+
+    const view = await controller.command({ type: 'pause', paused: false });
+
+    expect(windowCatalog.isCurrent).toHaveBeenNthCalledWith(2, firstBinding);
+    expect(view.paused).toBe(false);
+    expect(view.binding).toBe('selected');
+  });
+
+  it('keeps a stale selected window paused and disconnected on resume', async () => {
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.isCurrent
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const { controller } = createController(windowCatalog);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+    await controller.command({ type: 'pause', paused: true });
+
+    const view = await controller.command({ type: 'pause', paused: false });
+
+    expect(view).toMatchObject({
+      paused: true,
+      binding: 'disconnected',
+      selectedWindow: null,
+      token: null,
+      consent: 'off',
+      visual: 'unavailable',
+      reason: 'window-lost',
+    });
+  });
+
+  it('keeps an explicit disconnect canceled when a pending resume check settles late', async () => {
+    const lateValidation = deferred<boolean>();
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.isCurrent
+      .mockResolvedValueOnce(true)
+      .mockReturnValueOnce(lateValidation.promise);
+    const { controller } = createController(windowCatalog);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+    await controller.command({ type: 'pause', paused: true });
+
+    const resuming = controller.command({ type: 'pause', paused: false });
+    const disconnected = await controller.command({ type: 'disconnect' });
+    lateValidation.resolve(false);
+    await resuming;
+
+    expect(disconnected.reason).toBe('canceled');
+    expect(controller.getView()).toMatchObject({
+      paused: true,
+      binding: 'disconnected',
+      selectedWindow: null,
+      consent: 'off',
+      reason: 'canceled',
+    });
+  });
+
+  it('reports explicit user disconnect as canceled, not a lost window', async () => {
+    const { controller } = createController();
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+
+    const view = await controller.command({ type: 'disconnect' });
+
+    expect(view.binding).toBe('disconnected');
+    expect(view.selectedWindow).toBeNull();
+    expect(view.reason).toBe('canceled');
+  });
+
   it('denies consent without losing the selected written-learning context', async () => {
     const { controller } = createController();
     await controller.command({ type: 'select', windowToken: 'listed-token-1' });

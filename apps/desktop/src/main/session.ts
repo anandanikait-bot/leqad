@@ -277,16 +277,46 @@ export function createSessionController(
           // Visual inspection, recognition, and highlighting are unavailable.
           return noVisualAccess(view, { reason: 'unsupported' });
         case 'pause':
-          if (command.paused !== view.paused) {
-            if (command.paused) abortActive();
+          if (command.paused) {
+            // Repeated Pause also invalidates an in-flight resume check.
+            abortActive();
             publish(
               noVisualAccess(view, {
-                paused: command.paused,
+                paused: true,
                 generation: view.generation + 1,
-                reason: command.paused ? 'canceled' : view.reason,
+                reason: 'canceled',
               }),
             );
+            return view;
           }
+
+          if (!view.paused) return view;
+
+          const binding = selectedBinding;
+          const generation = view.generation;
+          if (binding) {
+            let isCurrent: boolean;
+            try {
+              isCurrent = await dependencies.windowCatalog.isCurrent(binding);
+            } catch {
+              return disconnectIfCurrent(
+                generation,
+                binding,
+                'provider-failed',
+              );
+            }
+
+            if (!currentSelection(generation, binding)) return view;
+            if (!isCurrent)
+              return disconnectIfCurrent(generation, binding, 'window-lost');
+          }
+
+          publish(
+            noVisualAccess(view, {
+              paused: false,
+              generation: view.generation + 1,
+            }),
+          );
           return view;
         case 'cancel':
           abortActive();
@@ -309,7 +339,7 @@ export function createSessionController(
           return view;
         case 'disconnect':
           abortActive();
-          clearBinding('disconnected', 'window-lost');
+          clearBinding('disconnected', 'canceled');
           return view;
         case 'reset-position':
           abortActive();
