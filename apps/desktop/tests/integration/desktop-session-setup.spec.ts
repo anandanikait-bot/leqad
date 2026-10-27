@@ -322,6 +322,12 @@ for (const [width, height, textScale, appearance] of [
         page.getByText('Screen access off', { exact: true }),
       ).toBeVisible();
 
+      await expect(page.locator('.session-strip')).toContainText(
+        `Other app · Window ${ordinal}`,
+      );
+      await expect(
+        page.getByText('Selected window disconnected', { exact: true }),
+      ).toHaveCount(0);
       await stopWindowsFixture(fixture);
       fixture = undefined;
       await expect(
