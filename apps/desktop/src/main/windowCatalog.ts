@@ -184,6 +184,7 @@ function invokePowerShell(script: string): Promise<string> {
       'CommonProgramFiles',
       'CommonProgramFiles(x86)',
       'CommonProgramW6432',
+      'PSModuleAnalysisCachePath',
     ]) {
       if (process.env[key]) environment[key] = process.env[key];
     }

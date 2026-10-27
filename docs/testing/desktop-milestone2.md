@@ -97,7 +97,10 @@ The restricted PowerShell subprocess originally omitted Windows host/compiler
 runtime paths. On Windows CI this stalled at `Add-Type` until the deadline;
 changing module search paths or command encoding alone did not resolve it. The
 same query with the host environment completed in 2.2 seconds. The provider now
-preserves an explicit Windows runtime-variable allowlist, uses the trusted system
+preserves an explicit Windows runtime-variable allowlist, including the host's
+`PSModuleAnalysisCachePath`. An independent native comparison adding only that
+cache setting to the runtime allowlist completed in 2.0 seconds; adding home paths
+alone still timed out. The provider uses the trusted system
 module directory, and still excludes credentials and unrelated environment data.
 The five-second subprocess deadline and fail-closed checks remain. A real Windows
 query regression and a secret-forwarding negative test guard this boundary.

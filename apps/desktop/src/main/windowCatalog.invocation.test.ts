@@ -13,6 +13,7 @@ it('preserves Windows compiler runtime paths without forwarding unrelated secret
   vi.stubEnv('PATH', 'C:\\Windows\\System32');
   vi.stubEnv('ComSpec', 'C:\\Windows\\System32\\cmd.exe');
   vi.stubEnv('LOCALAPPDATA', 'C:\\Users\\test\\AppData\\Local');
+  vi.stubEnv('PSModuleAnalysisCachePath', 'C:\\PowerShellCache');
   vi.stubEnv('GH_TOKEN', 'private-test-token');
   let passedEnvironment: NodeJS.ProcessEnv = {};
   vi.mocked(execFile).mockImplementation((...args: unknown[]) => {
@@ -32,6 +33,9 @@ it('preserves Windows compiler runtime paths without forwarding unrelated secret
     ComSpec: 'C:\\Windows\\System32\\cmd.exe',
     LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local',
   });
+  expect(passedEnvironment.PSModuleAnalysisCachePath).toBe(
+    'C:\\PowerShellCache',
+  );
   expect(passedEnvironment).not.toHaveProperty('GH_TOKEN');
   expect(JSON.stringify(passedEnvironment)).not.toContain('private-test-token');
 });
