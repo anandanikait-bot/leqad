@@ -1,42 +1,248 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSessionController } from './session';
+import type { WindowBinding } from './windowCatalogTypes';
+
+const firstBinding: WindowBinding = Object.freeze({
+  token: 'listed-token-1',
+  application: 'Chrome',
+  ordinal: 1,
+  kind: 'browser',
+});
+
+const secondBinding: WindowBinding = Object.freeze({
+  token: 'listed-token-2',
+  application: 'FreeCAD',
+  ordinal: 1,
+  kind: 'native',
+});
+
+function createCatalogProvider() {
+  return {
+    list: vi.fn(async () => ({
+      availability: 'available' as const,
+      unavailableReason: null,
+      incomplete: false,
+      windows: [],
+    })),
+    select: vi.fn(async (token: string) =>
+      token === 'listed-token-1'
+        ? firstBinding
+        : token === 'listed-token-2'
+          ? secondBinding
+          : null,
+    ),
+    isCurrent: vi.fn(async () => true),
+    dispose: vi.fn(),
+  };
+}
+
+function createController(
+  windowCatalog = createCatalogProvider(),
+  overrides: {
+    abortActive?: () => void;
+    resetPosition?: () => Promise<void> | void;
+    closeWindow?: () => void;
+  } = {},
+) {
+  const abortActive = overrides.abortActive ?? vi.fn();
+  const resetPosition = overrides.resetPosition ?? vi.fn();
+  const closeWindow = overrides.closeWindow ?? vi.fn();
+  const controller = createSessionController({
+    abortActive,
+    resetPosition,
+    closeWindow,
+    windowCatalog,
+  });
+  return { abortActive, closeWindow, controller, resetPosition, windowCatalog };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
 
 describe('desktop host session', () => {
-  it('keeps selection, consent and SHOW unsupported in the written-only milestone', async () => {
-    const abortActive = vi.fn();
-    const controller = createSessionController({
-      abortActive,
-      resetPosition: vi.fn(),
-      closeWindow: vi.fn(),
-    });
+  it('binds only after catalog selection and fresh validation, exposing safe metadata only', async () => {
+    const { controller, windowCatalog } = createController();
 
-    await controller.command({ type: 'select', windowToken: 'anything' });
-    await controller.command({ type: 'consent', allow: true });
     const view = await controller.command({
-      type: 'show',
-      requestId: 'request-1',
-      action: 'rectangle.corner',
-      generation: 0,
+      type: 'select',
+      windowToken: 'listed-token-1',
     });
 
+    expect(windowCatalog.select).toHaveBeenCalledWith('listed-token-1');
+    expect(windowCatalog.isCurrent).toHaveBeenCalledWith(firstBinding);
     expect(view).toMatchObject({
       token: null,
-      binding: 'unbound',
+      binding: 'selected',
+      selectedWindow: {
+        application: 'Chrome',
+        ordinal: 1,
+        kind: 'browser',
+      },
       consent: 'off',
       visual: 'unavailable',
       reason: 'unsupported',
       availableActions: [],
     });
-    expect(abortActive).not.toHaveBeenCalled();
+    expect(view.selectedWindow).not.toHaveProperty('token');
+    expect(view.selectedWindow).not.toHaveProperty('title');
+    expect(view.selectedWindow).not.toHaveProperty('url');
   });
 
-  it('applies pause, cancel, revoke, disconnect and reset-position locally', async () => {
+  it('leaves a stale, closed, or reused catalog target disconnected', async () => {
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.isCurrent.mockResolvedValue(false);
+    const { controller } = createController(windowCatalog);
+
+    const view = await controller.command({
+      type: 'select',
+      windowToken: 'listed-token-1',
+    });
+
+    expect(view).toMatchObject({
+      token: null,
+      binding: 'disconnected',
+      selectedWindow: null,
+      consent: 'off',
+      visual: 'unavailable',
+      reason: 'window-lost',
+    });
+  });
+
+  it('drops a selected window when selection returns no current binding', async () => {
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.select.mockResolvedValue(null);
+    const { controller } = createController(windowCatalog);
+
+    const view = await controller.command({
+      type: 'select',
+      windowToken: 'expired-token',
+    });
+
+    expect(view.binding).toBe('disconnected');
+    expect(view.selectedWindow).toBeNull();
+    expect(view.consent).toBe('off');
+    expect(windowCatalog.isCurrent).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late selection result after disconnect', async () => {
+    const selection = deferred<WindowBinding | null>();
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.select.mockReturnValue(selection.promise);
+    const { controller } = createController(windowCatalog);
+
+    const selecting = controller.command({
+      type: 'select',
+      windowToken: 'listed-token-1',
+    });
+    await controller.command({ type: 'disconnect' });
+    selection.resolve(firstBinding);
+    await selecting;
+
+    expect(controller.getView()).toMatchObject({
+      binding: 'disconnected',
+      token: null,
+      selectedWindow: null,
+      consent: 'off',
+    });
+    expect(windowCatalog.isCurrent).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late validation result after a new window is selected', async () => {
+    const lateValidation = deferred<boolean>();
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.isCurrent
+      .mockResolvedValueOnce(true)
+      .mockReturnValueOnce(lateValidation.promise)
+      .mockResolvedValueOnce(true);
+    const { controller } = createController(windowCatalog);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+
+    const checking = controller.checkWindow();
+    await controller.command({ type: 'select', windowToken: 'listed-token-2' });
+    lateValidation.resolve(false);
+    await checking;
+
+    expect(controller.getView()).toMatchObject({
+      binding: 'selected',
+      selectedWindow: {
+        application: 'FreeCAD',
+        ordinal: 1,
+        kind: 'native',
+      },
+      consent: 'off',
+    });
+  });
+
+  it('disconnects the binding when fresh liveness validation fails', async () => {
+    const windowCatalog = createCatalogProvider();
+    windowCatalog.isCurrent
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const { controller } = createController(windowCatalog);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+
+    const view = await controller.checkWindow();
+
+    expect(view).toMatchObject({
+      token: null,
+      binding: 'disconnected',
+      selectedWindow: null,
+      consent: 'off',
+      reason: 'window-lost',
+    });
+  });
+
+  it('denies consent without losing the selected written-learning context', async () => {
+    const { controller } = createController();
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+
+    const view = await controller.command({
+      type: 'consent',
+      allow: false,
+    });
+
+    expect(view).toMatchObject({
+      binding: 'selected',
+      selectedWindow: {
+        application: 'Chrome',
+        ordinal: 1,
+        kind: 'browser',
+      },
+      consent: 'denied',
+      visual: 'unavailable',
+      availableActions: [],
+    });
+  });
+
+  it('never turns an allow request into visual permission', async () => {
+    const { controller } = createController();
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
+
+    const view = await controller.command({
+      type: 'consent',
+      allow: true,
+    });
+
+    expect(view).toMatchObject({
+      binding: 'selected',
+      consent: 'off',
+      visual: 'unavailable',
+      reason: 'unsupported',
+      availableActions: [],
+    });
+  });
+
+  it('applies pause, resume, cancel, revoke, disconnect and reset-position locally', async () => {
     const abortActive = vi.fn();
     const resetPosition = vi.fn();
-    const controller = createSessionController({
+    const { controller } = createController(undefined, {
       abortActive,
       resetPosition,
-      closeWindow: vi.fn(),
     });
 
     expect(
@@ -63,11 +269,7 @@ describe('desktop host session', () => {
   });
 
   it('notifies only active subscribers and releases them on dispose', async () => {
-    const controller = createSessionController({
-      abortActive: vi.fn(),
-      resetPosition: vi.fn(),
-      closeWindow: vi.fn(),
-    });
+    const { controller } = createController();
     const first = vi.fn();
     const second = vi.fn();
     const unsubscribeFirst = controller.subscribe(first);
@@ -85,40 +287,46 @@ describe('desktop host session', () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it('aborts work before closing and makes cleanup idempotent', async () => {
-    const abortActive = vi.fn();
+  it('clears the binding and disposes its provider on close', async () => {
     const closeWindow = vi.fn();
-    const controller = createSessionController({
-      abortActive,
-      resetPosition: vi.fn(),
-      closeWindow,
-    });
+    const windowCatalog = createCatalogProvider();
+    const { controller } = createController(windowCatalog, { closeWindow });
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
 
     await controller.command({ type: 'close' });
     controller.dispose();
     controller.dispose();
 
-    expect(abortActive).toHaveBeenCalledTimes(1);
+    expect(controller.getView()).toMatchObject({
+      token: null,
+      binding: 'disconnected',
+      selectedWindow: null,
+      consent: 'off',
+      visual: 'unavailable',
+    });
+    expect(windowCatalog.dispose).toHaveBeenCalledTimes(1);
     expect(closeWindow).toHaveBeenCalledTimes(1);
   });
 
-  it('invalidates the generation on renderer reload while retaining the host bridge', async () => {
+  it('clears the selected window and revokes consent on renderer invalidation', async () => {
     const abortActive = vi.fn();
     const subscriber = vi.fn();
-    const controller = createSessionController({
-      abortActive,
-      resetPosition: vi.fn(),
-      closeWindow: vi.fn(),
-    });
+    const { controller } = createController(undefined, { abortActive });
     controller.subscribe(subscriber);
+    await controller.command({ type: 'select', windowToken: 'listed-token-1' });
     const priorGeneration = controller.getView().generation;
 
     controller.invalidate();
 
+    expect(controller.getView()).toMatchObject({
+      binding: 'disconnected',
+      token: null,
+      selectedWindow: null,
+      consent: 'off',
+      reason: 'canceled',
+    });
     expect(controller.getView().generation).toBeGreaterThan(priorGeneration);
-    expect(controller.getView().consent).toBe('off');
-    expect(controller.getView().reason).toBe('canceled');
-    expect(abortActive).toHaveBeenCalledTimes(1);
-    expect(subscriber).toHaveBeenCalledTimes(1);
+    expect(abortActive).toHaveBeenCalled();
+    expect(subscriber).toHaveBeenCalledTimes(3);
   });
 });
