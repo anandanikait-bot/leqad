@@ -8,6 +8,7 @@ export default tseslint.config(...tseslint.configs.recommended, {
     '**/dist/**',
     '**/node_modules/**',
     '**/test-results/**',
+    '**/playwright-report/**',
     '.superpowers/**',
   ],
 });

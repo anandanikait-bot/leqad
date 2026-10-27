@@ -1,0 +1,77 @@
+name: Desktop Milestone 1
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Electron from an empty cache
+        shell: pwsh
+        run: |
+          $electronPackage = node -p "require.resolve('electron/package.json')"
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not resolve the pinned Electron package.'
+          }
+
+          $electronRoot = Split-Path -Parent $electronPackage
+          $electronBinary = Join-Path $electronRoot 'dist/electron.exe'
+          if (Test-Path -LiteralPath $electronBinary) {
+            throw "Electron binary already exists before installation: $electronBinary"
+          }
+
+          $cacheRoot = Join-Path $env:RUNNER_TEMP ("electron-cache-" + [guid]::NewGuid().ToString('N'))
+          if (Test-Path -LiteralPath $cacheRoot) {
+            throw "Isolated Electron cache unexpectedly exists: $cacheRoot"
+          }
+          New-Item -ItemType Directory -Path $cacheRoot -ErrorAction Stop | Out-Null
+          if (Get-ChildItem -LiteralPath $cacheRoot -Force | Select-Object -First 1) {
+            throw "Isolated Electron cache is not empty: $cacheRoot"
+          }
+
+          $env:electron_config_cache = $cacheRoot
+          Write-Host "Electron package: $electronRoot"
+          Write-Host "Electron cache is empty before installation: $cacheRoot"
+          pnpm exec install-electron
+          if ($LASTEXITCODE -ne 0) {
+            throw 'pnpm exec install-electron failed.'
+          }
+
+          if (-not (Test-Path -LiteralPath $electronBinary -PathType Leaf)) {
+            throw "Electron installer did not create the executable: $electronBinary"
+          }
+          # A GUI executable's stdout is not reliably captured directly by PowerShell.
+          $electronVersion = node -e "const {execFileSync}=require('node:child_process'); console.log(execFileSync(require('electron'),['--version'],{encoding:'utf8',timeout:30000}).trim())"
+          if ($LASTEXITCODE -ne 0 -or $electronVersion -ne 'v45.0.0') {
+            throw "Expected Electron v45.0.0; executable reported '$electronVersion'."
+          }
+
+          $cachedArchive = Get-ChildItem -LiteralPath $cacheRoot -Filter 'electron-v45.0.0-win32-x64.zip' -File -Recurse
+          if (-not $cachedArchive) {
+            throw 'Electron installer did not populate the isolated cache with the Windows x64 archive.'
+          }
+          Write-Host "Electron clean-cache install verified: $electronVersion"
+      - run: pnpm desktop:test
+      - run: pnpm desktop:build
+      - run: pnpm desktop:test:e2e
+        env:
+          LEQAD_REVIEW_STARTUP_PNGS: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-windows-runtime-evidence
+          path: |
+            apps/desktop/test-results/
+            apps/desktop/playwright-report/
+          if-no-files-found: warn

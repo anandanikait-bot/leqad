@@ -1,0 +1,87 @@
+import { expect } from '@playwright/test';
+import { captureScreenshot, test } from './helpers/desktop';
+
+async function expectStep(page: import('@playwright/test').Page, step: number) {
+  await expect(page.getByText(new RegExp(`Step ${step} of 8`))).toBeVisible();
+}
+
+async function markAsReported(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'Mark done', exact: true }).click();
+  await expect(
+    page.getByText(/You marked this step done/).first(),
+  ).toBeVisible();
+  await expect(page.getByText(/hasn't checked/i).first()).toBeVisible();
+}
+
+test('completes all eight written steps with honest outcome categories', async ({
+  desktop,
+}, testInfo) => {
+  const { page } = desktop;
+
+  await expectStep(page, 1);
+  await page.getByRole('button', { name: 'Got it', exact: true }).click();
+  await expect(page.getByText('You clicked Got it')).toBeVisible();
+  await page.getByRole('button', { name: 'Next step', exact: true }).click();
+
+  for (let step = 2; step <= 6; step += 1) {
+    await expectStep(page, step);
+    await markAsReported(page);
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  }
+
+  await expectStep(page, 7);
+  await page.getByRole('button', { name: 'Got it', exact: true }).click();
+  await expect(page.getByText('You clicked Got it')).toBeVisible();
+  await page.getByRole('button', { name: 'Next step', exact: true }).click();
+
+  await expectStep(page, 8);
+  const finalAction = page.getByRole('button', {
+    name: 'Mark done',
+    exact: true,
+  });
+  await finalAction.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', { name: 'Lesson complete' }),
+  ).toBeFocused();
+
+  await expect(
+    page.getByRole('heading', { name: 'Lesson complete' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/8 steps marked complete.*has not checked/i),
+  ).toBeVisible();
+  const summary = page.getByRole('region', {
+    name: 'Eight-step completion summary',
+  });
+  await expect(summary).toBeVisible();
+  const summaryText = await summary.innerText();
+  expect(summaryText.match(/You clicked Got it/g) ?? []).toHaveLength(2);
+  expect(summaryText.match(/Marked done by you/g) ?? []).toHaveLength(6);
+  expect(summaryText).not.toMatch(/MODEL_VERIFIED|UI_VERIFIED|model verified/i);
+
+  const initialScrollTop = await summary.evaluate(
+    (element) => element.scrollTop,
+  );
+  await summary.focus();
+  await page.keyboard.press('End');
+  await expect
+    .poll(() => summary.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(initialScrollTop);
+  await expect(summary).toContainText(/Make another sketch on your own/i);
+  await expect(
+    page.getByRole('button', { name: 'Review steps', exact: true }),
+  ).toBeVisible();
+  await captureScreenshot(page, testInfo, 'desktop-eight-step-completion.png');
+  await page.getByRole('button', { name: 'Review steps', exact: true }).click();
+  await expect(
+    page.getByLabel('Open lesson menu', { exact: true }),
+  ).toBeFocused();
+  for (let step = 1; step < 8; step++)
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Back to summary', exact: true })
+    .click();
+  await expect(summary).toBeVisible();
+  expect(await summary.innerText()).toBe(summaryText);
+});

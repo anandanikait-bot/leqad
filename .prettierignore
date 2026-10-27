@@ -7,3 +7,9 @@ apps/extension/src/assets/brand/Leqad_Original_Left_Faithful.svg
 apps/extension/src/assets/brand/leqad-primary.svg
 apps/extension/src/assets/brand/leqad-black.svg
 apps/extension/src/assets/brand/leqad-grey.svg
+
+# Immutable official desktop artwork
+apps/desktop/src/assets/brand/*.svg
+
+# Approved design reference SVG bytes
+docs/design/desktop-compact/assets/*.svg

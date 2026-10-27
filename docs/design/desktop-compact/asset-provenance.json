@@ -1,0 +1,14 @@
+{
+  "sourceCommit": "df1879e223b055583a0a8d150438483afebdb085",
+  "sourceOfTruth": "docs/branding/official-logo.md",
+  "files": {
+    "Manrope-OFL.txt": "58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b",
+    "Manrope.ttf": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+    "SpaceGrotesk-OFL.txt": "564ce565c371c5e5bbf286006565a7c9aa55a9f56e7ca58d56e05d649dd61a72",
+    "SpaceGrotesk.ttf": "acad6de1fc93436f5c0f1f4137751ef04f1aea3063e7036535970ffcfbd79f72",
+    "leqad-official-horizontal-dark-v1.svg": "1f97fb47482b4a9c35cbbcd01f5f52de0eafe2bbbb9e475d09de488cd5e80bf5",
+    "leqad-official-horizontal-light-v1.svg": "5340d37ad4b3eab494c79257d398ab9d82952fb1081f4b16f1b8f764aebee0b2",
+    "leqad-official-symbol-dark-v1.svg": "941e91b9746e116f060e46a796f58f4c14991160ad6b87ce5dc167283bc900af",
+    "leqad-official-symbol-light-v1.svg": "212e5d144ea8ecec790b8b166e7d4eba94bdd7d3e49d86da9228033ee93e801f"
+  }
+}

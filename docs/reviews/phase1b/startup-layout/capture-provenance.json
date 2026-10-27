@@ -1,0 +1,90 @@
+{
+  "evidence": "Native Windows Electron UI with synthetic isolated saved state; not CAD evidence",
+  "os": "Windows Server 2025",
+  "captures": [
+    {
+      "file": "before-windows-startup-loading-320x400-200-dark-top.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "4e185ced6840ff29932c53df977f4f6e1cef6fa52de1aace7bac3a0a4cb4b0bd"
+    },
+    {
+      "file": "before-windows-startup-loading-365x600-100-light-top.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "7c1b6df12e791fcca863c385000c14da0fdb8ce733ab263daba3a4434c9c6daf"
+    },
+    {
+      "file": "before-windows-startup-resume-320x400-200-dark-actions.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "d63d7e993cf59eb8ee64f6b1d47f95587e51dc052c36a2d10af1e3042b7fe2ed"
+    },
+    {
+      "file": "before-windows-startup-resume-320x400-200-dark-top.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "82f70b1e7837190e4732bcb861c995fcdabd51b881e2d52f176874939be9116a"
+    },
+    {
+      "file": "before-windows-startup-resume-365x600-100-light-actions.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "68f74a5b69e3f2b779c57a93d5765f0e625e43ac2ed14d8051ea50b07eef5055"
+    },
+    {
+      "file": "before-windows-startup-resume-365x600-100-light-top.png",
+      "sourceCommit": "10ec4911b416791617a222397ff98591f2c6e76d",
+      "workflowRun": 40587117569,
+      "artifactId": 12772128805,
+      "sha256": "68f74a5b69e3f2b779c57a93d5765f0e625e43ac2ed14d8051ea50b07eef5055"
+    },
+    {
+      "file": "after-windows-startup-loading-320x400-200-dark-top.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "8547aa1119e8da957de01b211dec757f16a193d80f259e356553db4eb2d9214f"
+    },
+    {
+      "file": "after-windows-startup-loading-365x600-100-light-top.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "25dff99882843bf83caab808a04f978357bdbecf69946e660cd17fd5cd9607b3"
+    },
+    {
+      "file": "after-windows-startup-resume-320x400-200-dark-actions.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "23b5275dd35a48cab03ca4e45aba7737a69ecae3e2c02743e82cfcfa4fc399cf"
+    },
+    {
+      "file": "after-windows-startup-resume-320x400-200-dark-top.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "485631340ae502103201f39bd1368b67ba30c3de80e536f7c3f8e3cafe1153bb"
+    },
+    {
+      "file": "after-windows-startup-resume-365x600-100-light-actions.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "765fd73bd651a2727d33dc597a412125b781b315ffd820eb2a3880c74b9bd0e7"
+    },
+    {
+      "file": "after-windows-startup-resume-365x600-100-light-top.png",
+      "sourceCommit": "32d72b7a1ddb8de8b25a4f669af7d9cc798f598c",
+      "workflowRun": 40588357489,
+      "artifactId": 12772917444,
+      "sha256": "effafc6837870f7459ff48c8fcc4371d6ef844ae6d3608785300d0db71c8cca6"
+    }
+  ]
+}

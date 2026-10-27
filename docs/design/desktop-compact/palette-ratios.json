@@ -1,0 +1,78 @@
+{
+  "scope": "Opaque design token pairs only; not measured native Electron controls or full accessibility acceptance",
+  "formula": "WCAG sRGB relative luminance, matching the existing phase15 contrast helper",
+  "pairs": [
+    {
+      "pair": "Light main",
+      "foreground": "#0E2943",
+      "background": "#F5EFE7",
+      "ratio": 12.9741
+    },
+    {
+      "pair": "Light secondary",
+      "foreground": "#55514D",
+      "background": "#F5EFE7",
+      "ratio": 6.884
+    },
+    {
+      "pair": "Light content",
+      "foreground": "#0E2943",
+      "background": "#FFFAF3",
+      "ratio": 14.2709
+    },
+    {
+      "pair": "Light hover",
+      "foreground": "#0E2943",
+      "background": "#E8DED2",
+      "ratio": 11.1584
+    },
+    {
+      "pair": "Light primary",
+      "foreground": "#FFFFFF",
+      "background": "#0E2943",
+      "ratio": 14.8211
+    },
+    {
+      "pair": "Light accent",
+      "foreground": "#793327",
+      "background": "#F5EFE7",
+      "ratio": 7.938
+    },
+    {
+      "pair": "Dark main",
+      "foreground": "#F3F0EB",
+      "background": "#191919",
+      "ratio": 15.4674
+    },
+    {
+      "pair": "Dark secondary",
+      "foreground": "#C9C1B8",
+      "background": "#191919",
+      "ratio": 9.8823
+    },
+    {
+      "pair": "Dark content",
+      "foreground": "#F3F0EB",
+      "background": "#2B2B2B",
+      "ratio": 12.4563
+    },
+    {
+      "pair": "Dark hover",
+      "foreground": "#F3F0EB",
+      "background": "#3B3834",
+      "ratio": 10.2567
+    },
+    {
+      "pair": "Dark primary",
+      "foreground": "#191919",
+      "background": "#F5EFE7",
+      "ratio": 15.3907
+    },
+    {
+      "pair": "Dark accent",
+      "foreground": "#E8B7A5",
+      "background": "#191919",
+      "ratio": 9.8356
+    }
+  ]
+}
