@@ -253,6 +253,7 @@ for (const [width, height, scale] of [
 for (const defect of ['horizontal clipping', 'internal cover'] as const) {
   test(`text overflow guard rejects ${defect}`, async ({ desktop }) => {
     const { page } = desktop;
+    await chooseWrittenLessons(page);
     const instruction = page.locator('.lesson-instruction');
     await expect(instruction).toBeVisible();
     // Negative controls alter only this isolated Leqad test window, not CAD UI.

@@ -26,8 +26,36 @@ function startWindowsFixture(): ChildProcess {
       '-File',
       fixtureScript,
     ],
-    { windowsHide: true, stdio: 'ignore' },
+    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
   );
+}
+
+// Fixed readiness signal only: never read or log titles, handles, or credentials.
+async function waitForFixtureWindow(fixture: ChildProcess) {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(
+      () => finish(new Error('Disposable window did not become visible')),
+      15_000,
+    );
+    const onData = (data: Buffer) => {
+      if (data.toString().includes('WINDOW_READY')) finish();
+    };
+    const onExit = () =>
+      finish(new Error('Disposable window process exited before readiness'));
+    const onError = () =>
+      finish(new Error('Disposable window process could not start'));
+    function finish(error?: Error) {
+      clearTimeout(timer);
+      fixture.stdout?.off('data', onData);
+      fixture.off('exit', onExit);
+      fixture.off('error', onError);
+      if (error) reject(error);
+      else resolve();
+    }
+    fixture.stdout?.on('data', onData);
+    fixture.once('exit', onExit);
+    fixture.once('error', onError);
+  });
 }
 
 async function stopWindowsFixture(fixture: ChildProcess | undefined) {
@@ -63,6 +91,15 @@ test('startup requires an explicit choice and starts the lesson by keyboard', as
   await expect(
     page.getByRole('button', { name: 'Got it', exact: true }),
   ).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: /^Help/ })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'Got it', exact: true }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('button', { name: 'Got it', exact: true }),
+  ).not.toHaveCSS('outline-style', 'none');
   await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
   await captureScreenshot(page, testInfo, 'm2-explicit-written-lesson.png');
 });
@@ -151,118 +188,185 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
-test('selects a disposable visible Windows window without granting screen access', async ({
-  desktop,
-}, testInfo) => {
-  test.skip(
-    process.platform !== 'win32',
-    'Requires Windows window enumeration',
-  );
-  const { app, page, userDataDir } = desktop;
-  let fixture: ChildProcess | undefined = startWindowsFixture();
-  try {
-    await expect(
-      page.getByRole('heading', {
-        name: 'Learn alongside your CAD workspace',
-        exact: true,
-      }),
-    ).toBeVisible();
-    const fixtureChoice = page
-      .getByRole('radio', {
-        name: /^Other app · Window \d+$/,
-      })
-      .first();
-    await expect(fixtureChoice).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('input[type="radio"]:checked')).toHaveCount(0);
-    await captureScreenshot(
-      page,
-      testInfo,
-      'm2-window-selection-unselected.png',
+for (const [width, height, textScale, appearance] of [
+  [365, 600, 1, 'light'],
+  [365, 600, 1, 'dark'],
+  [320, 400, 2, 'light'],
+  [320, 400, 2, 'dark'],
+] as const) {
+  test(`selects a disposable visible Windows window without granting screen access ${width}x${height} ${appearance}`, async ({}, testInfo) => {
+    test.skip(
+      process.platform !== 'win32',
+      'Requires Windows window enumeration',
     );
-
-    await fixtureChoice.check();
-    await page
-      .getByRole('button', { name: 'Use selected window', exact: true })
-      .click();
-    await expect(
-      page.getByRole('heading', {
-        name: 'Visual help isn’t available in this build',
-        exact: true,
+    const userDataDir = await createUserDataDir();
+    await writeFile(
+      path.join(userDataDir, 'desktop-state.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        preferences: { ...DEFAULT_PREFERENCES, appearance, textScale },
+        lesson: null,
+        placement: null,
       }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/Selected: Other app · Window \d+/),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Allow/i })).toHaveCount(0);
-    await captureScreenshot(
-      page,
-      testInfo,
-      'm2-window-selected-screen-off.png',
     );
+    const { app, page } = await launchDesktop(userDataDir);
+    await app.evaluate(
+      ({ BrowserWindow }, [width, height]) =>
+        BrowserWindow.getAllWindows()[0]!.setContentSize(width!, height!),
+      [width, height],
+    );
+    let fixture: ChildProcess | undefined = startWindowsFixture();
+    try {
+      await expect(
+        page.getByRole('heading', {
+          name: 'Learn alongside your CAD workspace',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await waitForFixtureWindow(fixture);
+      // The startup catalog predates this window. Refresh through the normal UI.
+      await page
+        .getByRole('button', { name: 'Refresh window list', exact: true })
+        .click();
+      const fixtureChoice = page
+        .getByRole('radio', {
+          name: /^Other app · Window \d+$/,
+        })
+        .first();
+      await expect(
+        fixtureChoice,
+        'A real shown fixture must appear after the native catalog refresh',
+      ).toBeVisible({ timeout: 20_000 });
+      console.log(
+        'M2_NATIVE_WINDOW: fixture shown; native catalog exposes a selectable Other app',
+      );
+      await expect(page.locator('input[type="radio"]:checked')).toHaveCount(0);
+      await captureScreenshot(
+        page,
+        testInfo,
+        'm2-window-selection-unselected.png',
+      );
 
-    await page
-      .getByRole('button', {
-        name: 'Continue with written lessons',
-        exact: true,
-      })
-      .click();
-    await expect(
-      page.getByText('Screen access off', { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
-    await page.getByRole('button', { name: 'Got it', exact: true }).click();
-    await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
+      await fixtureChoice.check();
+      await page
+        .getByRole('button', { name: 'Use selected window', exact: true })
+        .click();
+      await expect(
+        page.getByRole('heading', {
+          name: 'Visual help isn’t available in this build',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/Selected: Other app · Window \d+/),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: /Allow/i })).toHaveCount(0);
+      console.log(
+        'M2_NATIVE_WINDOW: native selection validated; screen access remains off',
+      );
+      await captureScreenshot(
+        page,
+        testInfo,
+        'm2-window-selected-screen-off.png',
+      );
 
-    await page.getByLabel('Open lesson menu', { exact: true }).click();
-    await page.getByRole('button', { name: 'Pause window session' }).click();
-    await expect(
-      page.getByText(/Window session paused · Screen access off/),
-    ).toBeVisible();
-    await page.getByLabel('Open lesson menu', { exact: true }).click();
-    await page.getByRole('button', { name: 'Resume window session' }).click();
-    await expect(
-      page.getByText('Screen access off', { exact: true }),
-    ).toBeVisible();
+      await page
+        .getByRole('button', {
+          name: 'Continue with written lessons',
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByText('Screen access off', { exact: true }),
+      ).toBeVisible();
+      await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
+      await page.getByRole('button', { name: 'Got it', exact: true }).click();
+      await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
 
-    await stopWindowsFixture(fixture);
-    fixture = undefined;
-    await expect(
-      page.getByText('Selected window disconnected', { exact: true }),
-    ).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
-    const persisted = JSON.parse(
-      await readFile(path.join(userDataDir, 'desktop-state.json'), 'utf8'),
-    ) as Record<string, unknown>;
-    expect(persisted).not.toHaveProperty('session');
-    expect(persisted.lesson).toMatchObject({ currentStep: 1 });
+      await page.getByLabel('Open lesson menu', { exact: true }).click();
+      await page.getByRole('button', { name: 'Pause window session' }).click();
+      await expect(
+        page.getByText(/Window session paused · Screen access off/),
+      ).toBeVisible();
+      await captureScreenshot(page, testInfo, 'm2-window-paused.png');
+      await page.getByLabel('Open lesson menu', { exact: true }).click();
+      await page.getByRole('button', { name: 'Resume window session' }).click();
+      await expect(
+        page.getByText('Screen access off', { exact: true }),
+      ).toBeVisible();
 
-    await page.reload();
-    await expect(
-      page.getByRole('heading', {
-        name: 'Learn alongside your CAD workspace',
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(page.locator('input[type="radio"]:checked')).toHaveCount(0);
-    await expect(
-      page.getByRole('button', { name: 'Got it', exact: true }),
-    ).toHaveCount(0);
-    await expect(page.getByText(/Step 1 of 8/)).toHaveCount(0);
-    await page
-      .getByRole('button', { name: 'Use written lessons', exact: true })
-      .click();
-    await expect(
-      page.getByRole('heading', {
-        name: 'Continue Your First Sketch?',
-        exact: true,
-      }),
-    ).toBeVisible();
-    await page
-      .getByRole('button', { name: 'Resume lesson', exact: true })
-      .click();
-    await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
-  } finally {
-    await stopWindowsFixture(fixture);
-    await app.close().catch(() => undefined);
-  }
-});
+      await stopWindowsFixture(fixture);
+      fixture = undefined;
+      await expect(
+        page.getByText('Selected window disconnected', { exact: true }),
+      ).toBeVisible({ timeout: 10_000 });
+      console.log(
+        'M2_NATIVE_WINDOW: closing fixture disconnected selected window',
+      );
+      await captureScreenshot(page, testInfo, 'm2-window-disconnected.png');
+      await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
+      const persisted = JSON.parse(
+        await readFile(path.join(userDataDir, 'desktop-state.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      expect(persisted).not.toHaveProperty('session');
+      expect(persisted.lesson).toMatchObject({ currentStep: 1 });
+
+      await page.reload();
+      await expect(
+        page.getByRole('heading', {
+          name: 'Learn alongside your CAD workspace',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.locator('input[type="radio"]:checked')).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: 'Got it', exact: true }),
+      ).toHaveCount(0);
+      await expect(page.getByText(/Step 1 of 8/)).toHaveCount(0);
+      await page
+        .getByRole('button', { name: 'Use written lessons', exact: true })
+        .click();
+      await expect(
+        page.getByRole('heading', {
+          name: 'Continue Your First Sketch?',
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page
+        .getByRole('button', { name: 'Resume lesson', exact: true })
+        .click();
+      await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
+      await captureScreenshot(
+        page,
+        testInfo,
+        'm2-written-fallback-restored.png',
+      );
+    } finally {
+      const catalog = await page
+        .evaluate(async () => {
+          const result = await window.leqad?.listWindows();
+          return (
+            result && {
+              availability: result.availability,
+              incomplete: result.incomplete,
+              unavailableReason: result.unavailableReason,
+              windows: result.windows.map(({ application, kind, ordinal }) => ({
+                application,
+                kind,
+                ordinal,
+              })),
+            }
+          );
+        })
+        .catch(() => ({ availability: 'unavailable' }));
+      await testInfo.attach('native-catalog-summary.json', {
+        body: JSON.stringify(catalog),
+        contentType: 'application/json',
+      });
+      console.log('M2_NATIVE_CATALOG', JSON.stringify(catalog));
+      await stopWindowsFixture(fixture);
+      await app.close().catch(() => undefined);
+      await rm(userDataDir, { recursive: true, force: true });
+    }
+  });
+}

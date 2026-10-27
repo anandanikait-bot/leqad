@@ -105,6 +105,18 @@ describe('desktop written teaching workspace', () => {
     expect(savedLessons).toHaveLength(0);
   });
 
+  it('moves focus from window setup to the lesson action after keyboard entry', async () => {
+    render(<App />);
+    const writtenLessons = await screen.findByRole('button', {
+      name: 'Use written lessons',
+    });
+    writtenLessons.focus();
+    fireEvent.click(writtenLessons);
+
+    const primaryAction = await screen.findByRole('button', { name: 'Got it' });
+    await waitFor(() => expect(document.activeElement).toBe(primaryAction));
+  });
+
   it('validates a selected window and continues with screen access off when unavailable', async () => {
     const bridge = installBridge();
     const selectedWindow = {

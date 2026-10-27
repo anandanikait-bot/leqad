@@ -15,4 +15,5 @@ $label.AutoSize = $true
 $label.Location = New-Object System.Drawing.Point(16, 20)
 $form.Controls.Add($label)
 
+$form.Add_Shown({ [Console]::WriteLine('WINDOW_READY') })
 [System.Windows.Forms.Application]::Run($form)

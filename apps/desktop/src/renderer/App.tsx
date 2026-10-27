@@ -77,6 +77,11 @@ export function App() {
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [freshSessionOnly, setFreshSessionOnly] = useState(false);
   const [resumePrompt, setResumePrompt] = useState(false);
+  const [focusLessonAction, setFocusLessonAction] = useState(false);
+  const clearLessonActionFocus = useCallback(
+    () => setFocusLessonAction(false),
+    [],
+  );
   const resumeHeadingRef = useRef<HTMLHeadingElement>(null);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const menuTriggerRef = useRef<HTMLElement>(null);
@@ -171,12 +176,14 @@ export function App() {
 
   const useWrittenLessons = async () => {
     await sendSessionCommand({ type: 'use-written' });
+    setFocusLessonAction(!resumePrompt && !view.isComplete);
     setPage(setupReturnPage);
     setSetupMode('ready');
   };
 
   const continueWithoutScreenAccess = async () => {
     await sendSessionCommand({ type: 'consent', allow: false });
+    setFocusLessonAction(!resumePrompt && !view.isComplete);
     setPage(setupReturnPage);
     setSetupMode('ready');
   };
@@ -585,6 +592,8 @@ export function App() {
         />
       ) : (
         <LessonWorkspace
+          focusOnEntry={focusLessonAction}
+          onEntryFocused={clearLessonActionFocus}
           loadError={view.loadError || lessonLoadFailed}
           onAskQuestion={setSelectedQuestion}
           onDispatch={dispatch}

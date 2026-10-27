@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -48,7 +49,22 @@ export async function captureScreenshot(
   name: string,
 ) {
   const screenshotPath = testInfo.outputPath(name);
-  await page.screenshot({ path: screenshotPath });
+  const bytes = await page.screenshot({ path: screenshotPath });
+  // Bounded review transport for isolated Leqad UI fixtures only.
+  if (
+    process.platform === 'win32' &&
+    process.env.LEQAD_REVIEW_STARTUP_PNGS === '1' &&
+    name.startsWith('m2-')
+  ) {
+    const encoded = bytes.toString('base64');
+    for (let offset = 0; offset < encoded.length; offset += 12000)
+      console.log(
+        `M2_PNG ${name} ${offset} ${encoded.slice(offset, offset + 12000)}`,
+      );
+    console.log(
+      `M2_PNG_END ${name} ${createHash('sha256').update(bytes).digest('hex')}`,
+    );
+  }
   await testInfo.attach(name, {
     path: screenshotPath,
     contentType: 'image/png',
