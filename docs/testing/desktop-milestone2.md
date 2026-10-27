@@ -71,13 +71,13 @@ not authenticated CAD observations. The Windows UI workflow uses a disposable
 local WinForms window created by the test itself; it does not open Onshape or
 inspect a real CAD application.
 
-| Check                                          | Result                                 |
-| ---------------------------------------------- | -------------------------------------- |
-| Desktop unit and component tests               | 114 passed locally; final CI in PR #20 |
-| Windows native selection and lifecycle fixture | Final Windows run linked in PR #20     |
-| General repository CI                          | Final General run linked in PR #20     |
-| Windows 10/11 owner acceptance                 | Not yet performed                      |
-| Onshape window/tab/Sketch compatibility        | Not tested; unsupported by this build  |
+| Check                                          | Result                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| Desktop unit and component tests               | 115 passed locally; Windows native query required; final CI in PR #20 |
+| Windows native selection and lifecycle fixture | Final Windows run linked in PR #20                                    |
+| General repository CI                          | Final General run linked in PR #20                                    |
+| Windows 10/11 owner acceptance                 | Not yet performed                                                     |
+| Onshape window/tab/Sketch compatibility        | Not tested; unsupported by this build                                 |
 
 The Windows regression enters written mode through the real startup UI before
 running either readability negative control. Launch checks separately cover the
@@ -92,6 +92,15 @@ selection. No synthetic catalog is injected. The selection, pause/resume, closur
 both themes at 365 × 600 with normal text and 320 × 400 with 200% text. Sanitized
 catalog summaries omit selection tokens and native identifiers. Screenshots show
 only the isolated Leqad renderer and synthetic lesson data.
+
+The restricted PowerShell subprocess originally omitted Windows host/compiler
+runtime paths. On Windows CI this stalled at `Add-Type` until the deadline;
+changing module search paths or command encoding alone did not resolve it. The
+same query with the host environment completed in 2.2 seconds. The provider now
+preserves an explicit Windows runtime-variable allowlist, uses the trusted system
+module directory, and still excludes credentials and unrelated environment data.
+The five-second subprocess deadline and fail-closed checks remain. A real Windows
+query regression and a secret-forwarding negative test guard this boundary.
 
 The final pass/fail counts and exact source commit are recorded in PR #20.
 The Windows CI screenshots and Playwright report are attached to the Windows

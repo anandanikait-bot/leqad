@@ -165,8 +165,35 @@ function invokePowerShell(script: string): Promise<string> {
       SystemRoot: systemRoot,
       WINDIR: systemRoot,
     };
-    if (process.env.TEMP) environment.TEMP = process.env.TEMP;
-    if (process.env.TMP) environment.TMP = process.env.TMP;
+    // Add-Type needs the Windows host/compiler runtime environment. Keep this
+    // allowlist explicit so credentials and unrelated application settings never
+    // reach the fixed metadata subprocess.
+    for (const key of [
+      'TEMP',
+      'TMP',
+      'PATH',
+      'PATHEXT',
+      'ComSpec',
+      'SystemDrive',
+      'USERPROFILE',
+      'LOCALAPPDATA',
+      'APPDATA',
+      'ProgramFiles',
+      'ProgramFiles(x86)',
+      'ProgramW6432',
+      'CommonProgramFiles',
+      'CommonProgramFiles(x86)',
+      'CommonProgramW6432',
+    ]) {
+      if (process.env[key]) environment[key] = process.env[key];
+    }
+    environment.PSModulePath = path.join(
+      systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'Modules',
+    );
     execFile(
       path.join(
         systemRoot,
