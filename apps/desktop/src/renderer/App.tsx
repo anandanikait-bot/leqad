@@ -48,6 +48,7 @@ export function App() {
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [freshSessionOnly, setFreshSessionOnly] = useState(false);
   const [resumePrompt, setResumePrompt] = useState(false);
+  const resumeHeadingRef = useRef<HTMLHeadingElement>(null);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const menuTriggerRef = useRef<HTMLElement>(null);
   const lessonWriteBlockedRef = useRef(false);
@@ -61,38 +62,39 @@ export function App() {
     }
     let active = true;
 
-    void Promise.allSettled([
-      bridge.loadLesson(),
-      bridge.loadPreferences(),
-    ]).then(([lessonResult, preferencesResult]) => {
-      if (!active) return;
+    const preferencesPromise = bridge.loadPreferences().then((loaded) => {
+      if (active) setPreferences(loaded);
+      return loaded;
+    });
+    void Promise.allSettled([bridge.loadLesson(), preferencesPromise]).then(
+      ([lessonResult, preferencesResult]) => {
+        if (!active) return;
 
-      if (lessonResult.status === 'fulfilled') {
-        const savedLesson = lessonResult.value;
-        const controller = createDesktopLessonController(savedLesson);
-        controllerRef.current = controller;
-        const loadedView = controller.getView();
-        setView(loadedView);
-        if (loadedView.loadError) {
+        if (lessonResult.status === 'fulfilled') {
+          const savedLesson = lessonResult.value;
+          const controller = createDesktopLessonController(savedLesson);
+          controllerRef.current = controller;
+          const loadedView = controller.getView();
+          setView(loadedView);
+          if (loadedView.loadError) {
+            lessonWriteBlockedRef.current = true;
+            setLessonLoadFailed(true);
+          } else if (savedLesson) {
+            setResumePrompt(true);
+          }
+        } else {
           lessonWriteBlockedRef.current = true;
           setLessonLoadFailed(true);
-        } else if (savedLesson) {
-          setResumePrompt(true);
         }
-      } else {
-        lessonWriteBlockedRef.current = true;
-        setLessonLoadFailed(true);
-      }
 
-      if (preferencesResult.status === 'fulfilled') {
-        setPreferences(preferencesResult.value);
-      } else {
-        setLoadError(
-          "We couldn't load your settings. Using default settings for now.",
-        );
-      }
-      setLessonReady(true);
-    });
+        if (preferencesResult.status === 'rejected') {
+          setLoadError(
+            "We couldn't load your settings. Using default settings for now.",
+          );
+        }
+        setLessonReady(true);
+      },
+    );
 
     return () => {
       active = false;
@@ -102,6 +104,10 @@ export function App() {
   useEffect(() => {
     setSelectedQuestion(null);
   }, [view.currentStepIndex]);
+
+  useEffect(() => {
+    if (resumePrompt) resumeHeadingRef.current?.focus();
+  }, [resumePrompt]);
 
   const persistLesson = useCallback((record: StoredLesson) => {
     const bridge = window.leqad;
@@ -303,9 +309,10 @@ export function App() {
       ) : null}
 
       {!lessonReady ? (
-        <div className="load-warning" role="status">
-          Loading your lesson and settings...
-        </div>
+        <section className="startup-loading" role="status" tabIndex={0}>
+          <h2>Opening Leqad</h2>
+          <p>Loading your lesson and settings...</p>
+        </section>
       ) : resumePrompt ? (
         <>
           <section
@@ -313,8 +320,10 @@ export function App() {
             aria-label="Saved lesson recovery"
             role="region"
           >
-            <h2>Continue Your First Sketch?</h2>
-            <p>
+            <h2 ref={resumeHeadingRef} tabIndex={-1}>
+              Continue Your First Sketch?
+            </h2>
+            <p className="progress-copy">
               {`Step ${view.currentStepIndex + 1} of 8 · ${view.completionCount} ${view.completionCount === 1 ? 'step' : 'steps'} marked complete`}
             </p>
             <p>
@@ -325,7 +334,10 @@ export function App() {
           <footer className="workspace-footer resume-footer">
             <button
               className="primary-button"
-              onClick={() => setResumePrompt(false)}
+              onClick={() => {
+                setResumePrompt(false);
+                requestAnimationFrame(() => menuTriggerRef.current?.focus());
+              }}
               type="button"
             >
               Resume lesson

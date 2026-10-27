@@ -168,6 +168,10 @@ for (const [width, height] of [
             await capture('top');
             const root = page.locator('.desktop-app');
             await expect(root).toHaveAttribute('data-appearance', theme);
+            await expect(root).toHaveCSS(
+              'background-color',
+              theme === 'dark' ? 'rgb(25, 25, 25)' : 'rgb(245, 239, 231)',
+            );
             await expect(root).toHaveAttribute(
               'data-text-scale',
               String(scale / 100),
@@ -262,6 +266,24 @@ for (const [width, height] of [
                 'Step 2 of 8',
               );
             } else {
+              await page.keyboard.press('Tab');
+              const status = page.getByRole('status');
+              await expect(status).toBeFocused();
+              expect(
+                await status.evaluate(
+                  (el) => getComputedStyle(el).outlineStyle,
+                ),
+              ).not.toBe('none');
+              const overflow = await root.evaluate(
+                (el) => el.scrollHeight > el.clientHeight + 1,
+              );
+              if (overflow) {
+                await root.evaluate((el) => (el.scrollTop = 0));
+                await page.keyboard.press('PageDown');
+                await expect
+                  .poll(() => root.evaluate((el) => el.scrollTop))
+                  .toBeGreaterThan(0);
+              }
               await expect(page.getByRole('button')).toHaveCount(0);
               await expect(page.locator('.step-counter')).toHaveCount(0);
             }

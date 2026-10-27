@@ -584,6 +584,48 @@ button:disabled {
   margin: 0 0 8px;
 }
 
+/* Startup uses the same content inset and heading scale as the lesson. */
+.startup-loading,
+.resume-body {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.startup-loading {
+  gap: 8px;
+}
+
+.startup-loading h2,
+.resume-body h2 {
+  margin: 0;
+  font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
+  font-size: calc(20px * var(--text-scale, 1));
+  font-weight: 600;
+  line-height: calc(26px * var(--text-scale, 1));
+}
+
+.startup-loading p,
+.resume-body p {
+  margin: 0;
+}
+
+.resume-footer {
+  margin-top: auto;
+}
+
+.startup-loading:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.resume-body h2:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .settings-body,
 .completion-body {
   min-height: 0;

@@ -513,3 +513,49 @@ it('explains that a fresh lesson can replace prior progress when a read failure 
     ),
   ).toBe(true);
 });
+
+it('applies saved accessibility preferences while the lesson is still loading without enabling progress', async () => {
+  const bridge = installBridge();
+  bridge.loadPreferences.mockResolvedValue({
+    ...DEFAULT_PREFERENCES,
+    appearance: 'dark',
+    textScale: 2,
+  });
+  let release: ((value: unknown) => void) | undefined;
+  bridge.loadLesson.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  render(<App />);
+  await waitFor(() =>
+    expect(
+      document.querySelector('.desktop-app')?.getAttribute('data-appearance'),
+    ).toBe('dark'),
+  );
+  expect(
+    document.querySelector('.desktop-app')?.getAttribute('data-text-scale'),
+  ).toBe('2');
+  expect(screen.queryByRole('button', { name: 'Got it' })).toBeNull();
+  expect(bridge.saveLesson).not.toHaveBeenCalled();
+  await act(async () => release?.(null));
+  expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
+});
+
+it('focuses the saved-lesson heading and resumes the same step without writing progress', async () => {
+  const bridge = installBridge(savedSecondStep());
+  render(<App />);
+  const heading = await screen.findByRole('heading', {
+    name: 'Continue Your First Sketch?',
+  });
+  expect(document.activeElement).toBe(heading);
+  fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByLabelText('Open lesson menu'),
+    ),
+  );
+  expect(screen.getByText('Your First Sketch · Step 2 of 8')).toBeTruthy();
+  expect(bridge.saveLesson).not.toHaveBeenCalled();
+});
