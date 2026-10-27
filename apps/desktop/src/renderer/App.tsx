@@ -336,7 +336,9 @@ export function App() {
               className="primary-button"
               onClick={() => {
                 setResumePrompt(false);
-                requestAnimationFrame(() => menuTriggerRef.current?.focus());
+                if (!view.isComplete) {
+                  requestAnimationFrame(() => menuTriggerRef.current?.focus());
+                }
               }}
               type="button"
             >

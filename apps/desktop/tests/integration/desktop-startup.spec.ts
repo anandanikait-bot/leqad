@@ -236,6 +236,17 @@ for (const [width, height] of [
                 }),
               ).toBe(true);
               await heading.focus();
+              if (
+                await root.evaluate(
+                  (el) => el.scrollHeight > el.clientHeight + 1,
+                )
+              ) {
+                await root.evaluate((el) => (el.scrollTop = 0));
+                await page.keyboard.press('PageDown');
+                await expect
+                  .poll(() => root.evaluate((el) => el.scrollTop))
+                  .toBeGreaterThan(0);
+              }
               await page.keyboard.press('Tab');
               await expect(resume).toBeFocused();
               await fullBounds(resume);
@@ -318,3 +329,65 @@ for (const [width, height] of [
     }
   }
 }
+
+test('a completed saved lesson resumes its summary without resetting progress', async ({}, info) => {
+  const completed = createDesktopLessonController();
+  for (let index = 0; index < 8; index++) {
+    completed.dispatch({
+      type: index === 0 || index === 6 ? 'ACKNOWLEDGE' : 'MARK_DONE',
+    });
+    if (index < 7) completed.dispatch({ type: 'NEXT' });
+  }
+  const lesson = completed.serialize();
+  const userDataDir = await createUserDataDir();
+  const file = path.join(userDataDir, 'desktop-state.json');
+  await writeFile(
+    file,
+    JSON.stringify({
+      schemaVersion: 1,
+      preferences: { ...DEFAULT_PREFERENCES, appearance: 'dark', textScale: 2 },
+      lesson,
+      placement: null,
+    }),
+  );
+  const { app, page } = await launchDesktop(userDataDir);
+  try {
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.setContentSize(320, 400),
+    );
+    await expect(
+      page.getByRole('heading', {
+        name: 'Continue Your First Sketch?',
+        exact: true,
+      }),
+    ).toBeFocused();
+    const resume = page.getByRole('button', {
+      name: 'Resume lesson',
+      exact: true,
+    });
+    await resume.focus();
+    await page.keyboard.press('Enter');
+    // Wait through the return-focus animation frame to reject a transient focus pass.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Lesson complete', exact: true }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole('region', {
+        name: 'Eight-step completion summary',
+        exact: true,
+      }),
+    ).toContainText('8 steps marked complete');
+    expect(JSON.parse(await readFile(file, 'utf8')).lesson).toEqual(lesson);
+    await info.attach('completed-lesson-resumed.png', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
+  } finally {
+    await app.close();
+    await rm(userDataDir, { recursive: true, force: true });
+  }
+});

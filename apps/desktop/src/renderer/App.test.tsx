@@ -377,6 +377,14 @@ describe('desktop written teaching workspace', () => {
     const summary = await screen.findByRole('region', {
       name: 'Eight-step completion summary',
     });
+    await act(async () => {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+    });
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { name: 'Lesson complete' }),
+    );
     expect(summary.querySelectorAll('li')).toHaveLength(8);
     expect(
       screen.getByText(
