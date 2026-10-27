@@ -71,14 +71,29 @@ not authenticated CAD observations. The Windows UI workflow uses a disposable
 local WinForms window created by the test itself; it does not open Onshape or
 inspect a real CAD application.
 
-| Check                                          | Result                                |
-| ---------------------------------------------- | ------------------------------------- |
-| Desktop unit and component tests               | Pending this branch's CI run          |
-| Windows native selection and lifecycle fixture | Pending this branch's Windows CI run  |
-| General repository CI                          | Pending this branch's CI run          |
-| Windows 10/11 owner acceptance                 | Not yet performed                     |
-| Onshape window/tab/Sketch compatibility        | Not tested; unsupported by this build |
+| Check                                          | Result                                 |
+| ---------------------------------------------- | -------------------------------------- |
+| Desktop unit and component tests               | 114 passed locally; final CI in PR #20 |
+| Windows native selection and lifecycle fixture | Final Windows run linked in PR #20     |
+| General repository CI                          | Final General run linked in PR #20     |
+| Windows 10/11 owner acceptance                 | Not yet performed                      |
+| Onshape window/tab/Sketch compatibility        | Not tested; unsupported by this build  |
 
+The Windows regression enters written mode through the real startup UI before
+running either readability negative control. Launch checks separately cover the
+unselected, screen-access-off startup and the written lesson. Entering the lesson
+moves keyboard focus to its primary action; saved-progress and completion focus
+retain their existing destinations.
+
+The native fixture emits a fixed readiness marker when its real WinForms window
+is shown. The test then refreshes the actual native catalog through the UI,
+selects a listed window, and requires that closing the fixture disconnects that
+selection. No synthetic catalog is injected. The selection, pause/resume, closure, and saved-progress reload checks run in
+both themes at 365 × 600 with normal text and 320 × 400 with 200% text. Sanitized
+catalog summaries omit selection tokens and native identifiers. Screenshots show
+only the isolated Leqad renderer and synthetic lesson data.
+
+The final pass/fail counts and exact source commit are recorded in PR #20.
 The Windows CI screenshots and Playwright report are attached to the Windows
 workflow run. They show only the app and its disposable fixture state; they do
 not establish owner-machine or Onshape compatibility.

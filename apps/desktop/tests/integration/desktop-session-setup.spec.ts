@@ -1,8 +1,10 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from '@playwright/test';
+import { promisify } from 'node:util';
+import { createWindowsMetadataScanner } from '../../src/main/windowCatalog';
 import { DEFAULT_PREFERENCES } from '@leqad/desktop-contracts';
 import {
   captureScreenshot,
@@ -56,6 +58,73 @@ async function waitForFixtureWindow(fixture: ChildProcess) {
     fixture.once('exit', onExit);
     fixture.once('error', onError);
   });
+}
+
+async function diagnoseNativeScanner() {
+  let stage = 'invoke';
+  const scan = createWindowsMetadataScanner(async (script) => {
+    const root = process.env.SystemRoot ?? process.env.WINDIR;
+    if (!root) throw new Error('Missing system root');
+    const env: NodeJS.ProcessEnv = { SystemRoot: root, WINDIR: root };
+    if (process.env.TEMP) env.TEMP = process.env.TEMP;
+    if (process.env.TMP) env.TMP = process.env.TMP;
+    try {
+      const { stdout } = await promisify(execFile)(
+        path.join(
+          root,
+          'System32',
+          'WindowsPowerShell',
+          'v1.0',
+          'powershell.exe',
+        ),
+        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
+        {
+          env,
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 5000,
+          maxBuffer: 1048576,
+        },
+      );
+      stage = 'parse';
+      return stdout;
+    } catch (error) {
+      const failure = error as {
+        killed?: boolean;
+        code?: string | number;
+        stderr?: string;
+      };
+      // Only fixed status and compiler codes. No raw stderr or native identities.
+      console.log(
+        'M2_NATIVE_PROBE',
+        JSON.stringify({
+          stage,
+          timeout: failure.killed === true,
+          missingExecutable: failure.code === 'ENOENT',
+          compilerCodes: [
+            ...new Set(failure.stderr?.match(/CS[0-9]{4}/g) ?? []),
+          ].slice(0, 8),
+          policyBlocked: /PSSecurityException|UnauthorizedAccessException/.test(
+            failure.stderr ?? '',
+          ),
+        }),
+      );
+      throw new Error('Native probe failed');
+    }
+  });
+  try {
+    const result = await scan();
+    console.log(
+      'M2_NATIVE_PROBE',
+      JSON.stringify({
+        stage: 'complete',
+        incomplete: result.incomplete,
+        count: result.windows.length,
+      }),
+    );
+  } catch {
+    console.log('M2_NATIVE_PROBE_FAILURE_STAGE', stage);
+  }
 }
 
 async function stopWindowsFixture(fixture: ChildProcess | undefined) {
@@ -364,6 +433,18 @@ for (const [width, height, textScale, appearance] of [
         contentType: 'application/json',
       });
       console.log('M2_NATIVE_CATALOG', JSON.stringify(catalog));
+      if (
+        catalog?.availability === 'unavailable' &&
+        width === 365 &&
+        appearance === 'light'
+      ) {
+        await captureScreenshot(
+          page,
+          testInfo,
+          'm2-native-provider-unavailable.png',
+        );
+        await diagnoseNativeScanner();
+      }
       await stopWindowsFixture(fixture);
       await app.close().catch(() => undefined);
       await rm(userDataDir, { recursive: true, force: true });
