@@ -17,16 +17,14 @@ test('answers the authored local Ask example without network requests', async ({
 
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   const ask = page.getByRole('region', { name: 'Ask' });
-  await expect(ask).toContainText('Local prototype · no AI connected');
+  await expect(ask).toContainText('Local prototype · no AI');
   await page
     .getByRole('button', { name: 'Why use Corner Rectangle?', exact: true })
     .click();
   await expect(ask).toContainText(
-    'Corner Rectangle uses two opposite corners.',
+    'Corner Rectangle lets you draw by clicking two opposite corners.',
   );
-  await expect(ask).toContainText(
-    'This explanation does not check your sketch.',
-  );
+  await expect(ask).toContainText('Click Back to lesson to follow the steps.');
   expect(externalRequests).toEqual([]);
   await captureScreenshot(page, testInfo, 'desktop-local-ask.png');
 });
@@ -42,9 +40,9 @@ test('the local answer remains readable above the footer with keyboard scrolling
   });
   await question.focus();
   await page.keyboard.press('Enter');
-  const answer = page.getByRole('region', { name: 'Local example' });
+  const answer = page.getByRole('region', { name: 'Example answer' });
   const explanation = answer.getByText(
-    'This explanation does not check your sketch.',
+    'Click Back to lesson to follow the steps.',
     { exact: true },
   );
   await explanation.scrollIntoViewIfNeeded();
@@ -88,11 +86,14 @@ test('the local answer remains readable above the footer with keyboard scrolling
   await question.focus();
   await page.keyboard.press('Tab');
   await expect(
-    page.getByRole('button', { name: 'What can Leqad verify?', exact: true }),
+    page.getByRole('button', {
+      name: 'Can Leqad check my drawing?',
+      exact: true,
+    }),
   ).toBeFocused();
   await page.keyboard.press('Tab');
   const back = page.getByRole('button', {
-    name: 'Return to Learn',
+    name: 'Back to lesson',
     exact: true,
   });
   await expect(back).toBeFocused();
@@ -102,11 +103,11 @@ test('the local answer remains readable above the footer with keyboard scrolling
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await expect(question).toBeFocused();
-  await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
+  await expect(page.locator('.step-counter')).toContainText('Step 1 of 8');
   await back.focus();
   await page.keyboard.press('Enter');
   await expect(
     page.getByLabel('Open lesson menu', { exact: true }),
   ).toBeFocused();
-  await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
+  await expect(page.locator('.step-counter')).toContainText('Step 1 of 8');
 });

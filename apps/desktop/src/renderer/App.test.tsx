@@ -5,10 +5,13 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PREFERENCES, EMPTY_SESSION } from '@leqad/desktop-contracts';
 import { App } from './App';
+import { DESKTOP_STEP_COPY } from './desktopCopy';
+import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
 
 const savedLessons: unknown[] = [];
 
@@ -64,7 +67,7 @@ describe('desktop written teaching workspace', () => {
     render(<App />);
 
     expect(
-      await screen.findByText('Written lessons · Capture off'),
+      await screen.findByText('Written lesson · No screen capture'),
     ).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
@@ -106,15 +109,19 @@ describe('desktop written teaching workspace', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Got it' }));
     expect(
-      await screen.findByText('Progress couldn’t be saved on this device.'),
+      await screen.findByText(
+        "We couldn't save your progress. Try saving again before you close Leqad.",
+      ),
     ).toBeTruthy();
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Try saving again' }));
     await waitFor(() => expect(bridge.saveLesson).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(
-        screen.queryByText('Progress couldn’t be saved on this device.'),
+        screen.queryByText(
+          "We couldn't save your progress. Try saving again before you close Leqad.",
+        ),
       ).toBeNull(),
     );
     expect(savedLessons).toHaveLength(1);
@@ -132,7 +139,7 @@ describe('desktop written teaching workspace', () => {
     render(<App />);
 
     expect(screen.getByRole('status').textContent).toContain(
-      'Loading saved lesson and settings',
+      'Loading your lesson and settings',
     );
     expect(screen.queryByRole('button', { name: 'Got it' })).toBeNull();
     await act(async () => resolveLesson?.(null));
@@ -143,16 +150,18 @@ describe('desktop written teaching workspace', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Ask' }));
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
-    expect(screen.getByText('Local prototype · no AI connected')).toBeTruthy();
+    expect(screen.getByText('Local prototype · no AI')).toBeTruthy();
     fireEvent.click(
       screen.getByRole('button', { name: 'Why use Corner Rectangle?' }),
     );
 
     expect(
-      screen.getByText(/Corner Rectangle uses two opposite corners\./),
+      screen.getByText(
+        /Corner Rectangle lets you draw by clicking two opposite corners\./,
+      ),
     ).toBeTruthy();
     expect(
-      screen.getByText('Local examples do not change progress.'),
+      screen.getByText('Reading answers does not change your progress.'),
     ).toBeTruthy();
     expect(savedLessons).toHaveLength(0);
   });
@@ -164,12 +173,14 @@ describe('desktop written teaching workspace', () => {
 
     const help = screen.getByRole('region', { name: 'Lesson help' });
     expect(
-      screen.getByText('A sketch starts as geometry on one flat reference.'),
+      screen.getByText(
+        'A Part Studio is the Onshape workspace where you create parts.',
+      ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'More help' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next hint' }));
     expect(
       screen.getByText(
-        'Reference planes provide stable places to begin a sketch.',
+        'A plane is a flat surface where you can draw a sketch.',
       ),
     ).toBeTruthy();
     help.focus();
@@ -188,14 +199,12 @@ describe('desktop written teaching workspace', () => {
 
     const heading = await screen.findByRole('heading', { name: 'Settings' });
     expect(document.activeElement).toBe(heading);
+    expect(screen.getByText(/This app can't capture the screen/)).toBeTruthy();
     expect(
-      screen.getByText(/Visual help isn’t available in this build/),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: 'Change window' }),
+      screen.getByRole('button', { name: 'Choose a CAD window' }),
     ).toHaveProperty('disabled', true);
     expect(
-      screen.getByRole('button', { name: 'Report misaligned highlight' }),
+      screen.getByRole('button', { name: 'Report a misplaced highlight' }),
     ).toHaveProperty('disabled', true);
 
     fireEvent.click(screen.getByRole('radio', { name: 'Dark' }));
@@ -217,10 +226,12 @@ describe('desktop written teaching workspace', () => {
         name: 'Continue Your First Sketch?',
       }),
     ).toBeTruthy();
-    expect(screen.getByText('Step 2 of 8 · 1 step completed')).toBeTruthy();
+    expect(
+      screen.getByText('Step 2 of 8 · 1 step marked complete'),
+    ).toBeTruthy();
     expect(
       screen.getByText(
-        'Saved lesson progress does not describe your current CAD model.',
+        "This is your saved lesson progress. Leqad hasn't checked your current drawing.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
@@ -234,9 +245,7 @@ describe('desktop written teaching workspace', () => {
     );
     render(<App />);
 
-    expect(
-      await screen.findByText(/fresh lesson in this session/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/start fresh for now/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Got it' })).toHaveProperty(
       'disabled',
       true,
@@ -244,22 +253,26 @@ describe('desktop written teaching workspace', () => {
     expect(bridge.saveLesson).not.toHaveBeenCalled();
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Start fresh in this session' }),
+      screen.getByRole('button', { name: 'Start fresh for now' }),
     );
     expect(
       screen.getByRole('dialog', {
-        name: 'Start a fresh lesson in this session?',
+        name: 'Start fresh for now?',
       }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Start fresh' }));
     expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
     expect(
-      await screen.findByText('Progress couldn’t be saved on this device.'),
+      await screen.findByText(
+        "We couldn't save your progress. Try saving again before you close Leqad.",
+      ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Try saving again' }));
     await waitFor(() => expect(bridge.saveLesson).toHaveBeenCalledTimes(2));
     expect(
-      screen.getByText('Progress couldn’t be saved on this device.'),
+      screen.getByText(
+        "We couldn't save your progress. Try saving again before you close Leqad.",
+      ),
     ).toBeTruthy();
     expect(savedLessons).toHaveLength(0);
   });
@@ -269,9 +282,7 @@ describe('desktop written teaching workspace', () => {
     bridge.loadLesson.mockRejectedValueOnce(new Error('disk read failed'));
     render(<App />);
 
-    expect(
-      await screen.findByText(/fresh lesson in this session/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/start fresh for now/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Got it' })).toHaveProperty(
       'disabled',
       true,
@@ -294,7 +305,7 @@ describe('desktop written teaching workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
     expect(screen.getByText('Your First Sketch · Step 2 of 8')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain(
-      'Settings could not be loaded',
+      "We couldn't load your settings",
     );
     expect(bridge.saveLesson).not.toHaveBeenCalled();
   });
@@ -319,7 +330,7 @@ describe('desktop written teaching workspace', () => {
     expect(savedLessons).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Start again' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reset lesson' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restart lesson' }));
     expect(
       await screen.findByText('Your First Sketch · Step 1 of 8'),
     ).toBeTruthy();
@@ -369,13 +380,11 @@ describe('desktop written teaching workspace', () => {
     expect(summary.querySelectorAll('li')).toHaveLength(8);
     expect(
       screen.getByText(
-        '8 steps completed. CAD work is not independently verified.',
+        '8 steps marked complete. Leqad has not checked your drawing.',
       ),
     ).toBeTruthy();
-    expect(screen.getAllByText('Instruction acknowledged')).toHaveLength(2);
-    expect(
-      screen.getAllByText('Marked done by you · CAD work unverified'),
-    ).toHaveLength(6);
+    expect(screen.getAllByText('You clicked Got it')).toHaveLength(2);
+    expect(screen.getAllByText('Marked done by you')).toHaveLength(6);
 
     const originalRows = Array.from(summary.querySelectorAll('li')).map(
       (item) => item.textContent,
@@ -402,4 +411,107 @@ describe('desktop written teaching workspace', () => {
     ).toEqual(outcomes);
     expect(bridge.command).not.toHaveBeenCalled();
   });
+});
+
+it('shows all eight desktop steps and five hints with optional Why and original stored outcomes', async () => {
+  const original = JSON.stringify(FOUNDATIONS_FIRST_SKETCH);
+  const bridge = installBridge();
+  render(<App />);
+  await screen.findByRole('button', { name: 'Got it' });
+  for (const [index, definition] of FOUNDATIONS_FIRST_SKETCH.steps.entries()) {
+    const copy = DESKTOP_STEP_COPY[definition.id];
+    expect(screen.getByRole('heading', { name: copy.heading })).toBeTruthy();
+    expect(screen.getByText(copy.action)).toBeTruthy();
+    expect(screen.queryByText(copy.explanation)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Why it matters' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Help +' }));
+    const help = screen.getByRole('region', { name: 'Lesson help' });
+    for (let hint = 0; hint < 5; hint++) {
+      expect(within(help).getByText(copy.hints[hint]!)).toBeTruthy();
+      if (hint < 4)
+        fireEvent.click(
+          within(help).getByRole('button', { name: 'Next hint' }),
+        );
+    }
+    expect(
+      within(help).queryByRole('button', { name: 'Next hint' }),
+    ).toBeNull();
+    fireEvent.click(
+      within(help).getByRole('button', { name: 'Why it matters' }),
+    );
+    expect(within(help).getByText(copy.explanation)).toBeTruthy();
+    fireEvent.click(within(help).getByRole('button', { name: 'Step details' }));
+    for (const mistake of copy.commonErrors)
+      expect(within(help).getByText(mistake)).toBeTruthy();
+    for (const recovery of copy.recoveryActions)
+      expect(within(help).getByText(recovery)).toBeTruthy();
+    if (definition.requiredEvidence) {
+      fireEvent.click(
+        within(help).getByRole('button', { name: "Why can't Leqad check?" }),
+      );
+      expect(
+        within(help).getByText("This app can't see Onshape."),
+      ).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Help −' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: index === 0 || index === 6 ? 'Got it' : 'Mark done',
+      }),
+    );
+    if (index < 7)
+      fireEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  }
+  expect(screen.getAllByText('You clicked Got it')).toHaveLength(2);
+  expect(screen.getAllByText('Marked done by you')).toHaveLength(6);
+  await waitFor(() =>
+    expect(
+      (savedLessons.at(-1) as { steps: { outcome: string }[] }).steps.map(
+        (s) => s.outcome,
+      ),
+    ).toEqual([
+      'ACKNOWLEDGED',
+      'SELF_REPORTED',
+      'SELF_REPORTED',
+      'SELF_REPORTED',
+      'SELF_REPORTED',
+      'SELF_REPORTED',
+      'ACKNOWLEDGED',
+      'SELF_REPORTED',
+    ]),
+  );
+  expect(JSON.stringify(FOUNDATIONS_FIRST_SKETCH)).toBe(original);
+  expect(bridge.command).not.toHaveBeenCalled();
+});
+
+it('explains that a fresh lesson can replace prior progress when a read failure was temporary', async () => {
+  const bridge = installBridge();
+  bridge.loadLesson.mockRejectedValueOnce(new Error('temporary read failure'));
+  render(<App />);
+  await screen.findByRole('button', { name: 'Start fresh for now' });
+  fireEvent.click(screen.getByRole('button', { name: 'Start fresh for now' }));
+  const dialog = screen.getByRole('dialog', { name: 'Start fresh for now?' });
+  expect(
+    within(dialog).getByText(
+      /If saving works, it replaces your previous progress/,
+    ),
+  ).toBeTruthy();
+  expect(dialog.textContent).not.toMatch(
+    /won't fix or erase|will not fix or erase/,
+  );
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Start fresh', exact: true }),
+  );
+  await waitFor(() => expect(savedLessons).toHaveLength(1));
+  expect(savedLessons[0]).toMatchObject({
+    schemaVersion: 1,
+    lessonId: 'foundations-first-sketch',
+    lessonVersion: '2.0.0',
+    currentStep: 0,
+  });
+  expect(
+    (savedLessons[0] as { steps: { outcome: string }[] }).steps.every(
+      (s) => s.outcome === 'NONE',
+    ),
+  ).toBe(true);
 });

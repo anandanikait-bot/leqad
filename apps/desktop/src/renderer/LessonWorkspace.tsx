@@ -1,3 +1,4 @@
+import { DESKTOP_STEP_COPY } from './desktopCopy';
 import { useCallback, useState } from 'react';
 import type { DesktopLessonEvent, DesktopLessonView } from './lessonController';
 import { AskLocal, type QuestionId } from './AskLocal';
@@ -17,27 +18,16 @@ type LessonWorkspaceProps = {
   onRetrySave(): void;
 };
 
-const STEP_TITLES: Record<string, string> = {
-  introduction: 'Before you begin',
-  'select-reference-plane': 'Choose the Top reference plane',
-  'start-sketch': 'Start a Sketch',
-  'draw-rectangle': 'Draw a Corner Rectangle',
-  'apply-dimensions': 'Add dimensions',
-  'finish-sketch': 'Finish the sketch',
-  'understand-result': 'Understand the result',
-  'independent-practice': 'Try it yourself',
-};
-
 function evidenceText(view: DesktopLessonView): string {
   switch (view.currentStep.outcome) {
     case 'ACKNOWLEDGED':
-      return 'Instruction acknowledged. No CAD operation was checked.';
+      return 'You clicked Got it.';
     case 'SELF_REPORTED':
-      return 'Marked done by you. CAD work has not been verified.';
+      return "You marked this step done. Leqad hasn't checked it.";
     default:
       return view.currentStep.completionMode === 'ACKNOWLEDGEMENT'
-        ? 'Acknowledgement only. No CAD operation has been checked.'
-        : 'Not checked. Marking done records your report.';
+        ? 'Read this step, then click Got it.'
+        : "Leqad can't check this step. Click Mark done when you've finished.";
   }
 }
 
@@ -61,7 +51,7 @@ export function LessonWorkspace({
   );
   const currentIsCompleted = view.currentStep.status === 'COMPLETED';
   const currentIsPaused = view.currentStep.status === 'PAUSED';
-  const title = STEP_TITLES[view.currentStep.id] ?? view.currentStep.goal;
+  const copy = DESKTOP_STEP_COPY[view.currentStep.id];
 
   return (
     <>
@@ -74,23 +64,22 @@ export function LessonWorkspace({
       >
         {loadError ? (
           <p className="load-error" role="alert">
-            Saved progress couldn’t be read. You can continue with a fresh
-            lesson in this session. The unreadable record is not cleared by this
-            action.
+            We couldn't read your saved progress. You can start fresh for now.
+            Saving may replace the previous lesson.
             <button
               className="text-action"
               onClick={onStartFresh}
               type="button"
             >
-              Start fresh in this session
+              Start fresh for now
             </button>
           </p>
         ) : null}
         <section className="lesson-context" aria-label="Current lesson context">
           <p className="step-counter">{`${view.lesson.title} · Step ${view.currentStepIndex + 1} of 8`}</p>
-          <h2 className="step-title">{title}</h2>
+          <h2 className="step-title">{copy.heading}</h2>
           <p className="progress-copy">
-            {`${view.completionCount} ${view.completionCount === 1 ? 'step' : 'steps'} completed · CAD work unverified`}
+            {`${view.completionCount} of 8 steps marked complete`}
           </p>
           <progress
             aria-label="Steps completed"
@@ -98,15 +87,15 @@ export function LessonWorkspace({
             max={8}
             value={view.completionCount}
           />
-          <p className="step-goal">{view.currentStep.goal}</p>
+          <p className="step-goal">{copy.goal}</p>
         </section>
 
         {page === 'learn' ? (
           <div className="lesson-instruction">
-            <p>{view.currentStep.action}</p>
+            <p>{copy.action}</p>
             {currentIsPaused ? (
               <p className="pause-status" role="status">
-                Paused. No observation running.
+                Lesson paused.
               </p>
             ) : null}
           </div>
@@ -136,7 +125,7 @@ export function LessonWorkspace({
           <div className="save-error" role="alert">
             <span>{saveError}</span>
             <button className="text-action" onClick={onRetrySave} type="button">
-              Retry save
+              Try saving again
             </button>
           </div>
         ) : null}
@@ -188,14 +177,14 @@ export function LessonWorkspace({
         ) : (
           <>
             <p className="evidence-copy">
-              Local examples do not change progress.
+              Reading answers does not change your progress.
             </p>
             <button
               className="primary-button"
               onClick={() => onPageChange('learn')}
               type="button"
             >
-              Return to Learn
+              Back to lesson
             </button>
           </>
         )}

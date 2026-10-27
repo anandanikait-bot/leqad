@@ -15,7 +15,9 @@ test('launches one secure written-only Electron window', async ({
   expect(await app.evaluate(({ app }) => app.getName())).toBe('Leqad');
   expect(windowCount).toBe(1);
   expect(contentSize).toEqual([365, 600]);
-  await expect(page.getByText('Written lessons · Capture off')).toBeVisible();
+  await expect(
+    page.getByText('Written lesson · No screen capture'),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'SHOW', exact: true }),
   ).toHaveCount(0);

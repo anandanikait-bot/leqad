@@ -1,6 +1,6 @@
 # Desktop Milestone 1 beginner copy review
 
-Status: proposed wording for owner approval. No application copy has changed.
+Status: approved by the owner at `201a30f`, with final refinements implemented. The tables preserve the reviewed proposal; the final shorter Why explanations, manual Top-plane hint, reduced repeated warnings and accurate fresh-start warning are recorded in [the implementation review](../../reviews/phase1b/beginner-copy/README.md).
 
 Reviewed source: PR #19 at `b16a0d82f092f2e49fd1c2f6b0d746e29b45008c`. The owner reports that the Windows application launched and the eight-step lesson worked. That feedback establishes the reported written-lesson experience, not CAD observation, geometry verification, or AI availability.
 

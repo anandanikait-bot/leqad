@@ -1,3 +1,4 @@
+import { DESKTOP_STEP_COPY } from './desktopCopy';
 import { useEffect, useRef, useState } from 'react';
 import type { DesktopStepView } from './lessonController';
 
@@ -19,7 +20,7 @@ type ContextualHelpProps = {
 
 const TOPICS: { id: HelpTopic; label: string }[] = [
   { id: 'hint', label: 'Hint' },
-  { id: 'detail', label: 'Detailed guidance' },
+  { id: 'detail', label: 'Step details' },
   { id: 'why', label: 'Why it matters' },
 ];
 
@@ -29,6 +30,8 @@ export function ContextualHelp({
   onMoreHelp,
   onScrollModeChange,
 }: ContextualHelpProps) {
+  const copy = DESKTOP_STEP_COPY[step.id];
+  const hint = step.hintLevel > 0 ? copy.hints[step.hintLevel - 1] : null;
   const [expanded, setExpanded] = useState(false);
   const [topic, setTopic] = useState<HelpTopic>('hint');
   const disclosureRef = useRef<HTMLButtonElement>(null);
@@ -136,7 +139,12 @@ export function ContextualHelp({
             {[
               ...TOPICS,
               ...(step.requiredEvidence
-                ? [{ id: 'unable' as const, label: 'Unable to verify' }]
+                ? [
+                    {
+                      id: 'unable' as const,
+                      label: "Why can't Leqad check?",
+                    },
+                  ]
                 : []),
             ].map((item) => (
               <button
@@ -153,45 +161,40 @@ export function ContextualHelp({
           <div className="help-topic-body">
             {topic === 'hint' && (
               <div>
-                <p>
-                  {step.hint ?? 'Select More help to reveal the first hint.'}
-                </p>
+                <p>{hint ?? 'Click Next hint to see a hint.'}</p>
                 {step.hintLevel < 5 ? (
                   <button
                     className="text-action"
                     onClick={onMoreHelp}
                     type="button"
                   >
-                    More help
+                    Next hint
                   </button>
                 ) : null}
               </div>
             )}
             {topic === 'detail' && (
               <div>
-                <p>{step.hints[0]}</p>
+                <p>{copy.hints[0]}</p>
                 <h3>Common mistakes</h3>
                 <ul>
-                  {step.commonErrors.map((error) => (
+                  {copy.commonErrors.map((error) => (
                     <li key={error}>{error}</li>
                   ))}
                 </ul>
-                <h3>Recovery</h3>
+                <h3>How to fix it</h3>
                 <ul>
-                  {step.recoveryActions.map((action) => (
+                  {copy.recoveryActions.map((action) => (
                     <li key={action}>{action}</li>
                   ))}
                 </ul>
               </div>
             )}
-            {topic === 'why' && <p>{step.explanation}</p>}
+            {topic === 'why' && <p>{copy.explanation}</p>}
             {topic === 'unable' && (
               <div>
-                <p>Visual guidance for this control isn’t available yet.</p>
-                <p>
-                  Follow the written steps. Marking done records your report; no
-                  selection or geometry is checked.
-                </p>
+                <p>This app can't see Onshape.</p>
+                <p>Use the written steps to check your work yourself.</p>
               </div>
             )}
           </div>

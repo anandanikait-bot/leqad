@@ -1,3 +1,4 @@
+import { DESKTOP_STEP_COPY } from './desktopCopy';
 import { useEffect, useRef } from 'react';
 import type { DesktopLessonView } from './lessonController';
 
@@ -12,17 +13,17 @@ function outcomeLabel(
 ): string {
   switch (outcome) {
     case 'ACKNOWLEDGED':
-      return 'Instruction acknowledged';
+      return 'You clicked Got it';
     case 'SELF_REPORTED':
-      return 'Marked done by you · CAD work unverified';
+      return 'Marked done by you';
     case 'UI_VERIFIED':
       return 'Interface state verified';
     case 'MODEL_VERIFIED':
       return 'Model state verified';
     case 'UNABLE_TO_VERIFY':
-      return 'Unable to verify';
+      return "Leqad couldn't check this step";
     case 'NONE':
-      return 'Not completed';
+      return 'Not done yet';
   }
 }
 
@@ -48,19 +49,19 @@ export function CompletionSummary({
         tabIndex={0}
       >
         <h2 ref={headingRef} tabIndex={-1}>
-          Lesson completed
+          Lesson complete
         </h2>
         <p>
-          {view.completionCount} steps completed.{' '}
+          {view.completionCount} steps marked complete.{' '}
           {independentlyVerified
             ? 'Some steps have an independent interface or model check.'
-            : 'CAD work is not independently verified.'}
+            : 'Leqad has not checked your drawing.'}
         </p>
-        <p className="muted-copy">Scroll to review all 8 steps.</p>
+        <p className="muted-copy">Scroll to see all 8 steps.</p>
         <ol className="completion-list">
           {view.lesson.steps.map((step, index) => (
             <li key={step.id}>
-              <strong>{`${index + 1} · ${step.goal}`}</strong>
+              <strong>{`${index + 1} · ${DESKTOP_STEP_COPY[step.id].goal}`}</strong>
               <span>{outcomeLabel(view.steps[index]!.outcome)}</span>
             </li>
           ))}
@@ -68,7 +69,7 @@ export function CompletionSummary({
       </section>
       <footer className="workspace-footer completion-footer">
         <p className="muted-copy">
-          Review keeps progress. Restart requires confirmation.
+          Reviewing keeps your progress. Restarting asks you first.
         </p>
         <button
           className="primary-button"
@@ -78,7 +79,7 @@ export function CompletionSummary({
           Review steps
         </button>
         <button className="text-action" onClick={onEndSession} type="button">
-          End session
+          Close Leqad
         </button>
       </footer>
     </>

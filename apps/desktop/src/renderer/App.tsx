@@ -88,7 +88,7 @@ export function App() {
         setPreferences(preferencesResult.value);
       } else {
         setLoadError(
-          'Settings could not be loaded. Default settings are in use.',
+          "We couldn't load your settings. Using default settings for now.",
         );
       }
       setLessonReady(true);
@@ -106,7 +106,9 @@ export function App() {
   const persistLesson = useCallback((record: StoredLesson) => {
     const bridge = window.leqad;
     if (!bridge) {
-      setSaveError('Progress couldn’t be saved on this device.');
+      setSaveError(
+        "We couldn't save your progress. Try saving again before you close Leqad.",
+      );
       return;
     }
 
@@ -114,7 +116,11 @@ export function App() {
       .catch(() => undefined)
       .then(() => bridge.saveLesson(record))
       .then(() => setSaveError(null))
-      .catch(() => setSaveError('Progress couldn’t be saved on this device.'));
+      .catch(() =>
+        setSaveError(
+          "We couldn't save your progress. Try saving again before you close Leqad.",
+        ),
+      );
   }, []);
 
   const dispatch = useCallback(
@@ -141,14 +147,18 @@ export function App() {
     setPreferences(next);
     const bridge = window.leqad;
     if (!bridge) {
-      setSettingsMessage('Settings couldn’t be saved on this device.');
+      setSettingsMessage(
+        "We couldn't save your settings. Your changes may be lost when you close Leqad.",
+      );
       return;
     }
     void bridge
       .savePreferences(next)
       .then(() => setSettingsMessage('Settings saved.'))
       .catch(() =>
-        setSettingsMessage('Settings couldn’t be saved on this device.'),
+        setSettingsMessage(
+          "We couldn't save your settings. Your changes may be lost when you close Leqad.",
+        ),
       );
   };
 
@@ -169,7 +179,7 @@ export function App() {
     const bridge = window.leqad;
     if (!bridge) {
       setSettingsMessage(
-        'Visual access is off. Written lessons remain available.',
+        'Screen access is off. You can still follow the written lesson.',
       );
       return;
     }
@@ -177,12 +187,12 @@ export function App() {
       .command({ type: 'revoke' })
       .then(() =>
         setSettingsMessage(
-          'Visual access is off. Written lessons remain available.',
+          'Screen access is off. You can still follow the written lesson.',
         ),
       )
       .catch(() =>
         setSettingsMessage(
-          'Visual access could not be updated. Written lessons remain available.',
+          "We couldn't update screen access. You can still follow the written lesson.",
         ),
       );
   };
@@ -190,21 +200,15 @@ export function App() {
   const resetPosition = () => {
     const bridge = window.leqad;
     if (!bridge) {
-      setSettingsMessage(
-        'Panel position can only be reset by the desktop window.',
-      );
+      setSettingsMessage('Open the desktop app to reset its window position.');
       return;
     }
     void bridge
       .command({ type: 'reset-position' })
-      .then(() =>
-        setSettingsMessage(
-          'Panel position reset. The CAD window was not moved.',
-        ),
-      )
+      .then(() => setSettingsMessage('Leqad panel position reset.'))
       .catch(() =>
         setSettingsMessage(
-          'Panel position couldn’t be reset. Use the window’s Move command.',
+          "We couldn't reset the panel position. Try moving the Leqad window yourself.",
         ),
       );
   };
@@ -267,8 +271,8 @@ export function App() {
       </header>
 
       <div className="session-strip">
-        <span>Written lessons · Capture off</span>
-        <span aria-live="polite">No CAD work is being observed</span>
+        <span>Written lesson · No screen capture</span>
+        <span aria-live="polite">Follow along in Onshape</span>
       </div>
 
       {lessonReady && page !== 'settings' && !resumePrompt ? (
@@ -300,7 +304,7 @@ export function App() {
 
       {!lessonReady ? (
         <div className="load-warning" role="status">
-          Loading saved lesson and settings…
+          Loading your lesson and settings...
         </div>
       ) : resumePrompt ? (
         <>
@@ -311,10 +315,11 @@ export function App() {
           >
             <h2>Continue Your First Sketch?</h2>
             <p>
-              {`Step ${view.currentStepIndex + 1} of 8 · ${view.completionCount} ${view.completionCount === 1 ? 'step' : 'steps'} completed`}
+              {`Step ${view.currentStepIndex + 1} of 8 · ${view.completionCount} ${view.completionCount === 1 ? 'step' : 'steps'} marked complete`}
             </p>
             <p>
-              Saved lesson progress does not describe your current CAD model.
+              This is your saved lesson progress. Leqad hasn't checked your
+              current drawing.
             </p>
           </section>
           <footer className="workspace-footer resume-footer">
@@ -384,13 +389,13 @@ export function App() {
           >
             <h2 id="restart-title">
               {freshSessionOnly
-                ? 'Start a fresh lesson in this session?'
+                ? 'Start fresh for now?'
                 : 'Start this lesson again?'}
             </h2>
             <p>
               {freshSessionOnly
-                ? 'This starts fresh in the current session. It does not clear the unreadable saved record. New progress may fail to save; if it does, Leqad will show an error and let you retry.'
-                : 'Reset this lesson’s progress on this device?'}
+                ? 'This starts at step 1. If saving works, it replaces your previous progress. If saving fails, Leqad will show a message so you can try again.'
+                : 'This clears your lesson progress on this device and starts at step 1.'}
             </p>
             <div className="dialog-actions">
               <button
@@ -405,7 +410,7 @@ export function App() {
                 onClick={confirmRestart}
                 type="button"
               >
-                {freshSessionOnly ? 'Start fresh' : 'Reset lesson'}
+                {freshSessionOnly ? 'Start fresh' : 'Restart lesson'}
               </button>
             </div>
           </section>

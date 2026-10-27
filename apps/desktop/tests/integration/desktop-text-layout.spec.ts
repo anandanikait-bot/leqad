@@ -30,7 +30,7 @@ for (const [width, height] of [
       ).toBeCloseTo((14 * scale) / 100, 1);
       await page.getByRole('button', { name: /^Help/ }).click();
       await page
-        .getByRole('button', { name: 'Detailed guidance', exact: true })
+        .getByRole('button', { name: 'Step details', exact: true })
         .click();
       try {
         await expect

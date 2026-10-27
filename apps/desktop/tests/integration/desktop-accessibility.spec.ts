@@ -16,7 +16,7 @@ test('Help and Settings work from the keyboard and keep one scroller at minimum 
     page.getByRole('button', { name: 'Hint', exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Detailed guidance', exact: true }),
+    page.getByRole('button', { name: 'Step details', exact: true }),
   ).toBeVisible();
   await help.focus();
   await page.keyboard.press('Escape');
@@ -49,9 +49,7 @@ test('Help and Settings work from the keyboard and keep one scroller at minimum 
     .poll(() => page.evaluate(() => [window.innerWidth, window.innerHeight]))
     .toEqual([320, 400]);
   await helpButton.click();
-  await page
-    .getByRole('button', { name: 'Detailed guidance', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Step details', exact: true }).click();
 
   const activeScrollTops = () =>
     page.evaluate(() => {
@@ -71,9 +69,7 @@ test('Help and Settings work from the keyboard and keep one scroller at minimum 
     });
   const before = await activeScrollTops();
   expect(before).toHaveLength(1);
-  await page
-    .getByRole('button', { name: 'Detailed guidance', exact: true })
-    .focus();
+  await page.getByRole('button', { name: 'Step details', exact: true }).focus();
   await page.keyboard.press('PageDown');
   await expect
     .poll(async () => {

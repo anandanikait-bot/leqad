@@ -39,10 +39,10 @@ export function Settings({
         </h2>
 
         <section className="settings-group" aria-labelledby="recovery-heading">
-          <h3 id="recovery-heading">Visual access and recovery</h3>
+          <h3 id="recovery-heading">Screen access and panel position</h3>
           <p className="muted-copy">
-            Visual help isn’t available in this build. No window is selected and
-            no capture is running.
+            This app can't capture the screen or highlight Onshape tools. No CAD
+            window is selected.
           </p>
           <div className="settings-actions">
             <button
@@ -50,13 +50,13 @@ export function Settings({
               onClick={onStopVisualAccess}
               type="button"
             >
-              Stop / revoke visual access
+              Turn off screen access
             </button>
             <button className="secondary-button" disabled type="button">
-              Change window
+              Choose a CAD window
             </button>
             <p className="settings-reason">
-              Window selection isn’t available in this build.
+              You can't choose a CAD window in this app.
             </p>
             <button
               className="secondary-button"
@@ -66,10 +66,10 @@ export function Settings({
               Reset panel position
             </button>
             <button className="secondary-button" disabled type="button">
-              Report misaligned highlight
+              Report a misplaced highlight
             </button>
             <p className="settings-reason">
-              No highlights are available to report.
+              This app can't highlight Onshape tools.
             </p>
           </div>
           <p aria-live="polite" className="settings-status">
@@ -81,7 +81,7 @@ export function Settings({
           className="settings-group"
           aria-labelledby="appearance-heading"
         >
-          <h3 id="appearance-heading">Appearance and accessibility</h3>
+          <h3 id="appearance-heading">Display and text</h3>
           <fieldset className="radio-group">
             <legend>Appearance</legend>
             {(['system', 'light', 'dark'] as const).map((appearance) => (
@@ -96,7 +96,9 @@ export function Settings({
                   value={appearance}
                 />
                 <span>
-                  {appearance[0]!.toUpperCase() + appearance.slice(1)}
+                  {appearance === 'system'
+                    ? 'Use Windows setting'
+                    : appearance[0]!.toUpperCase() + appearance.slice(1)}
                 </span>
               </label>
             ))}
@@ -131,7 +133,7 @@ export function Settings({
               }
               type="checkbox"
             />
-            <span>Keep panel visible on top</span>
+            <span>Keep Leqad on top</span>
           </label>
 
           <fieldset className="radio-group">
@@ -149,7 +151,7 @@ export function Settings({
                 />
                 <span>
                   {reduceMotion === 'system'
-                    ? 'Follow Windows'
+                    ? 'Use Windows setting'
                     : 'Reduce motion'}
                 </span>
               </label>

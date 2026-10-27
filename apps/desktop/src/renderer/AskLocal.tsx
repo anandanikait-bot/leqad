@@ -1,3 +1,4 @@
+import { DESKTOP_STEP_COPY } from './desktopCopy';
 import type { DesktopStepView } from './lessonController';
 
 type QuestionId = 'corner-rectangle' | 'verification';
@@ -6,12 +7,12 @@ const ANSWERS: Record<QuestionId, { question: string; answer: string }> = {
   'corner-rectangle': {
     question: 'Why use Corner Rectangle?',
     answer:
-      'Corner Rectangle uses two opposite corners. It suits this lesson’s corner-based rectangular profile. Center Rectangle starts from a center point instead.',
+      'Corner Rectangle lets you draw by clicking two opposite corners. It is a simple choice for this lesson. Center Point Rectangle starts at the center instead. Use the Rectangle arrow to choose Corner Rectangle.',
   },
   verification: {
-    question: 'What can Leqad verify?',
+    question: 'Can Leqad check my drawing?',
     answer:
-      'Visual inspection is unavailable in this build. Marking a step done records your report; it does not check the CAD interface or geometry.',
+      "No. This desktop app can't see Onshape or check your drawing. Mark done records that you say you finished a step.",
   },
 };
 
@@ -28,26 +29,28 @@ export function AskLocal({
   selectedQuestion,
   onSelectQuestion,
 }: AskLocalProps) {
+  const copy = DESKTOP_STEP_COPY[step.id];
   const selected = selectedQuestion ? ANSWERS[selectedQuestion] : null;
 
   return (
-    <section aria-label="Ask local prototype" className="ask-local">
+    <section
+      aria-label="Ask prototype with example answers"
+      className="ask-local"
+    >
       <div className="ask-heading-row">
         <h2 id="ask-title">Ask</h2>
-        <span className="local-prototype-label">
-          Local prototype · no AI connected
-        </span>
+        <span className="local-prototype-label">Local prototype · no AI</span>
       </div>
       <div className="ask-context" aria-label="Current lesson context">
-        <p>{step.goal}</p>
+        <p>{copy.goal}</p>
         <p>
           {step.id === 'introduction'
-            ? 'A sketch provides a flat profile for a later 3D feature.'
-            : step.action}
+            ? 'A later tool can use a flat sketch to create a 3D part.'
+            : copy.action}
         </p>
-        <p className="ask-step-context">{`Step ${stepNumber} · ${step.id}`}</p>
+        <p className="ask-step-context">{`Step ${stepNumber} of 8`}</p>
       </div>
-      <div className="ask-questions" aria-label="Authored questions">
+      <div className="ask-questions" aria-label="Example questions">
         {(
           Object.entries(ANSWERS) as [
             QuestionId,
@@ -69,17 +72,17 @@ export function AskLocal({
         <section
           className="ask-answer"
           aria-live="polite"
-          aria-label="Local example"
+          aria-label="Example answer"
         >
-          <h3>Local example</h3>
+          <h3>Example answer</h3>
           <p>{selected.answer}</p>
           <p className="muted-copy">
-            This explanation does not check your sketch.
+            Click Back to lesson to follow the steps.
           </p>
         </section>
       ) : (
         <p className="muted-copy">
-          Choose an authored example for this lesson.
+          Choose a question to see an example answer.
         </p>
       )}
     </section>
