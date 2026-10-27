@@ -77,12 +77,26 @@ async function diagnoseNativeScanner() {
           'v1.0',
           'powershell.exe',
         ),
-        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
+        [
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          script
+            .replace(
+              'Add-Type -TypeDefinition $source -Language CSharp',
+              "[Console]::Error.WriteLine('PROBE_BEFORE_COMPILE')\nAdd-Type -TypeDefinition $source -Language CSharp\n[Console]::Error.WriteLine('PROBE_AFTER_COMPILE')",
+            )
+            .replace(
+              '$windows = @(',
+              "[Console]::Error.WriteLine('PROBE_AFTER_ENUMERATION')\n$windows = @(",
+            ),
+        ],
         {
           env,
           encoding: 'utf8',
           windowsHide: true,
-          timeout: 5000,
+          timeout: 15000,
           maxBuffer: 1048576,
         },
       );
@@ -104,6 +118,14 @@ async function diagnoseNativeScanner() {
           compilerCodes: [
             ...new Set(failure.stderr?.match(/CS[0-9]{4}/g) ?? []),
           ].slice(0, 8),
+          stages:
+            failure.stderr?.match(
+              /PROBE_(?:BEFORE_COMPILE|AFTER_COMPILE|AFTER_ENUMERATION)/g,
+            ) ?? [],
+          shellSyntaxError:
+            /ParserError|TerminatorExpected|MissingEndCurlyBrace/.test(
+              failure.stderr ?? '',
+            ),
           policyBlocked: /PSSecurityException|UnauthorizedAccessException/.test(
             failure.stderr ?? '',
           ),
@@ -350,6 +372,9 @@ for (const [width, height, textScale, appearance] of [
       ).toBeVisible();
       await expect(page.getByText(/Step 1 of 8/)).toBeVisible();
       await page.getByRole('button', { name: 'Got it', exact: true }).click();
+      await page
+        .getByRole('button', { name: 'Next step', exact: true })
+        .click();
       await expect(page.getByText(/Step 2 of 8/)).toBeVisible();
 
       await page.getByLabel('Open lesson menu', { exact: true }).click();
