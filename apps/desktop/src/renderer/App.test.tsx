@@ -499,9 +499,7 @@ it('explains that a fresh lesson can replace prior progress when a read failure 
   expect(dialog.textContent).not.toMatch(
     /won't fix or erase|will not fix or erase/,
   );
-  fireEvent.click(
-    within(dialog).getByRole('button', { name: 'Start fresh', exact: true }),
-  );
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Start fresh' }));
   await waitFor(() => expect(savedLessons).toHaveLength(1));
   expect(savedLessons[0]).toMatchObject({
     schemaVersion: 1,
