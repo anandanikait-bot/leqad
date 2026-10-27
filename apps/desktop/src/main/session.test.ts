@@ -249,7 +249,7 @@ describe('desktop host session', () => {
 
     expect(disconnected.reason).toBe('canceled');
     expect(controller.getView()).toMatchObject({
-      paused: true,
+      paused: false,
       binding: 'disconnected',
       selectedWindow: null,
       consent: 'off',
@@ -266,6 +266,47 @@ describe('desktop host session', () => {
     expect(view.binding).toBe('disconnected');
     expect(view.selectedWindow).toBeNull();
     expect(view.reason).toBe('canceled');
+  });
+
+  it('starts unpaused after pause then disconnect, written lessons, or window change', async () => {
+    for (const path of [
+      'disconnect',
+      'written-only',
+      'window-change',
+    ] as const) {
+      const { controller } = createController();
+      await controller.command({
+        type: 'select',
+        windowToken: 'listed-token-1',
+      });
+      await controller.command({ type: 'pause', paused: true });
+
+      if (path === 'disconnect') {
+        const disconnected = await controller.command({ type: 'disconnect' });
+        expect(disconnected.paused).toBe(false);
+      } else if (path === 'written-only') {
+        const written = await controller.command({ type: 'use-written' });
+        expect(written.paused).toBe(false);
+      }
+
+      const view = await controller.command({
+        type: 'select',
+        windowToken: 'listed-token-2',
+      });
+
+      expect(view).toMatchObject({
+        paused: false,
+        binding: 'selected',
+        selectedWindow: {
+          application: 'FreeCAD',
+          ordinal: 1,
+          kind: 'native',
+        },
+        consent: 'off',
+        visual: 'unavailable',
+      });
+      controller.dispose();
+    }
   });
 
   it('denies consent without losing the selected written-learning context', async () => {

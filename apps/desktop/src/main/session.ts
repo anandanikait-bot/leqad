@@ -101,6 +101,7 @@ export function createSessionController(
         binding,
         consent: 'off',
         selectedWindow: null,
+        paused: false,
         reason,
       }),
     );
@@ -148,6 +149,7 @@ export function createSessionController(
         binding: 'unbound',
         consent: 'off',
         selectedWindow: null,
+        paused: false,
         reason: 'canceled',
       }),
     );
@@ -269,6 +271,7 @@ export function createSessionController(
               binding: 'unbound',
               consent: 'off',
               selectedWindow: null,
+              paused: false,
               reason: 'unsupported',
             }),
           );
@@ -397,6 +400,7 @@ export function createSessionController(
           binding: 'disconnected',
           consent: 'off',
           selectedWindow: null,
+          paused: false,
           reason: 'canceled',
         }),
       );
