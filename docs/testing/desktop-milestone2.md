@@ -87,8 +87,10 @@ retain their existing destinations.
 
 The native fixture emits a fixed readiness marker when its real WinForms window
 is shown. The test then refreshes the actual native catalog through the UI,
-selects a listed window, and requires that closing the fixture disconnects that
-selection. No synthetic catalog is injected. The selection, pause/resume, closure, and saved-progress reload checks run in
+resolves the known fixture process against a real native scan in memory, and
+selects its matching application ordinal through the real UI. It excludes
+Electron's owner process consistently and rejects an ambiguous fixture identity.
+Closing that same fixture must disconnect the selection. No synthetic catalog is injected. The selection, pause/resume, closure, and saved-progress reload checks run in
 both themes at 365 × 600 with normal text and 320 × 400 with 200% text. Sanitized
 catalog summaries omit selection tokens and native identifiers. Screenshots show
 only the isolated Leqad renderer and synthetic lesson data.

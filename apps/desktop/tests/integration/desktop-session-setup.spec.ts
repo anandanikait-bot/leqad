@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from '@playwright/test';
+import { createWindowsMetadataScanner } from '../../src/main/windowCatalog';
 import { DEFAULT_PREFERENCES } from '@leqad/desktop-contracts';
 import {
   captureScreenshot,
@@ -228,11 +229,34 @@ for (const [width, height, textScale, appearance] of [
       await page
         .getByRole('button', { name: 'Refresh window list', exact: true })
         .click();
-      const fixtureChoice = page
-        .getByRole('radio', {
-          name: /^Other app · Window \d+$/,
-        })
-        .first();
+      // Identify our own real fixture in memory. The test process has no GUI;
+      // the app catalog excludes Electron's owner PID, so exclude it here too.
+      // Never serialize handles/PIDs, and never inject a catalog into the app.
+      await expect(
+        page.getByText('Looking for open windows...', { exact: true }),
+      ).toHaveCount(0, { timeout: 10_000 });
+      const native = await createWindowsMetadataScanner()();
+      expect(
+        native.incomplete,
+        'Fixture identity requires a complete native scan',
+      ).toBe(false);
+      const otherWindows = native.windows.filter(
+        (window) =>
+          window.processId !== app.process().pid &&
+          window.application === 'Other app',
+      );
+      const matches = otherWindows.filter(
+        (window) => window.processId === fixture?.pid,
+      );
+      expect(
+        matches.length,
+        'Exactly one visible top-level window must belong to our fixture process',
+      ).toBe(1);
+      const ordinal = otherWindows.indexOf(matches[0]!) + 1;
+      const fixtureChoice = page.getByRole('radio', {
+        name: `Other app · Window ${ordinal}`,
+        exact: true,
+      });
       await expect(
         fixtureChoice,
         'A real shown fixture must appear after the native catalog refresh',
