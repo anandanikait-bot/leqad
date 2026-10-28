@@ -27,12 +27,14 @@ export async function createUserDataDir() {
 
 export async function launchDesktop(
   userDataDir: string,
+  entryScript: string = mainScript,
 ): Promise<DesktopInstance> {
   const app = await electron.launch({
     executablePath: electronExecutable,
-    args: [mainScript],
+    args: [entryScript],
     env: {
       ...process.env,
+      OPENAI_API_KEY: '',
       LEQAD_DESKTOP_TEST_MODE: '1',
       LEQAD_DESKTOP_USER_DATA: userDataDir,
     },
@@ -54,7 +56,7 @@ export async function captureScreenshot(
   if (
     process.platform === 'win32' &&
     process.env.LEQAD_REVIEW_STARTUP_PNGS === '1' &&
-    name.startsWith('m2-')
+    (name.startsWith('m2-') || name.startsWith('tutor-'))
   ) {
     const encoded = bytes.toString('base64');
     for (let offset = 0; offset < encoded.length; offset += 12000)

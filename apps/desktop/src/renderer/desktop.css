@@ -36,7 +36,9 @@ body {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 
@@ -284,7 +286,7 @@ button {
 
 .step-title,
 .lesson-context h2,
-.ask-local h2,
+.ask-tutor h2,
 .settings-body h2,
 .completion-body h2 {
   margin: 2px 0 0;
@@ -494,10 +496,8 @@ button:disabled {
   justify-content: space-between;
 }
 
-.ask-local {
+.ask-tutor {
   display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
 }
@@ -510,44 +510,153 @@ button:disabled {
   gap: 4px 8px;
 }
 
-.local-prototype-label,
+.tutor-mode,
 .ask-step-context {
   color: var(--muted);
   font-size: calc(12px * var(--text-scale, 1));
 }
 
-.ask-context {
-  padding: 8px;
-  border-left: 2px solid var(--text);
-  background: var(--content);
+.ask-step-context,
+.tutor-message h3,
+.tutor-message p,
+.tutor-status,
+.tutor-error p,
+.tutor-privacy-note,
+.tutor-history-body p {
+  margin: 0;
 }
 
-.ask-context p {
-  margin: 0 0 4px;
-}
-
-.ask-context p:last-child {
-  margin-bottom: 0;
-}
-
-.ask-questions {
+.tutor-conversation {
   display: grid;
   gap: 8px;
 }
 
-.ask-answer {
+.tutor-message {
+  min-width: 0;
+  padding: 8px;
+  border-left: 2px solid var(--border);
+  background: var(--content);
+}
+
+.tutor-message-assistant {
+  border-left-color: var(--primary);
+}
+
+.tutor-message h3 {
+  margin-bottom: 4px;
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 700;
+}
+
+.tutor-message p {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.tutor-suggestions {
+  display: grid;
+  gap: 6px;
+}
+
+.tutor-suggestion {
+  min-height: 36px;
+  text-align: left;
+  white-space: normal;
+}
+
+.tutor-composer {
+  display: grid;
+  gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 
-.ask-answer h3,
-.ask-answer p {
-  margin: 0 0 6px;
+.tutor-composer label,
+.tutor-history-body label {
+  font-size: calc(12px * var(--text-scale, 1));
+  font-weight: 700;
 }
 
-.ask-answer h3 {
+.tutor-composer textarea {
+  width: 100%;
+  min-height: 68px;
+  max-height: 180px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--content);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.tutor-composer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--muted);
   font-size: calc(12px * var(--text-scale, 1));
-  font-weight: 600;
+}
+
+.tutor-privacy-note,
+.tutor-unavailable {
+  color: var(--muted);
+  font-size: calc(12px * var(--text-scale, 1));
+  line-height: calc(18px * var(--text-scale, 1));
+}
+
+.tutor-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--accent);
+  font-size: calc(12px * var(--text-scale, 1));
+}
+
+.tutor-history {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.tutor-history summary {
+  min-height: 32px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.tutor-history-body {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+
+.tutor-history-body select {
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--content);
+  color: var(--text);
+}
+
+.tutor-events {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.tutor-events li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 4px;
 }
 
 .ask-boundary {

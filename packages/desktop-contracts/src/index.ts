@@ -268,3 +268,5 @@ export interface DesktopBridge {
   loadLesson(): Promise<StoredLesson | null>;
   saveLesson(value: StoredLesson): Promise<void>;
 }
+
+export * from './tutor';

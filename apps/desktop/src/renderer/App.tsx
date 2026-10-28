@@ -16,7 +16,6 @@ import { CompletionSummary } from './CompletionSummary';
 import { LessonWorkspace } from './LessonWorkspace';
 import { Settings } from './Settings';
 import { SessionSetup, windowChoiceLabel } from './SessionSetup';
-import type { QuestionId } from './AskLocal';
 import { createDesktopLessonController } from './lessonController';
 import type { DesktopLessonEvent, DesktopLessonView } from './lessonController';
 
@@ -65,9 +64,6 @@ export function App() {
   const catalogRequestRef = useRef(0);
   const [settingsReturnPage, setSettingsReturnPage] = useState<'learn' | 'ask'>(
     'learn',
-  );
-  const [selectedQuestion, setSelectedQuestion] = useState<QuestionId | null>(
-    null,
   );
   const [lessonReady, setLessonReady] = useState(false);
   const [lessonLoadFailed, setLessonLoadFailed] = useState(false);
@@ -259,10 +255,6 @@ export function App() {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    setSelectedQuestion(null);
-  }, [view.currentStepIndex]);
 
   useEffect(() => {
     if (resumePrompt && setupMode === 'ready')
@@ -595,7 +587,6 @@ export function App() {
           focusOnEntry={focusLessonAction}
           onEntryFocused={clearLessonActionFocus}
           loadError={view.loadError || lessonLoadFailed}
-          onAskQuestion={setSelectedQuestion}
           onDispatch={dispatch}
           onPageChange={(nextPage) => {
             setPage(nextPage);
@@ -605,7 +596,6 @@ export function App() {
           onStartFresh={requestRestart}
           page={page}
           saveError={saveError}
-          selectedQuestion={selectedQuestion}
           textScale={preferences.textScale}
           view={view}
         />

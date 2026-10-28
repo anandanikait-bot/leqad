@@ -5,7 +5,7 @@ import {
   test,
 } from './helpers/desktop';
 
-test('answers the authored local Ask example without network requests', async ({
+test('shows honest AI unavailability without network requests', async ({
   desktop,
 }, testInfo) => {
   const { page } = desktop;
@@ -22,19 +22,22 @@ test('answers the authored local Ask example without network requests', async ({
 
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   const ask = page.getByRole('region', { name: 'Ask' });
-  await expect(ask).toContainText('Local prototype · no AI');
+  await expect(ask).toContainText('AI unavailable');
+  await expect(ask).toContainText('No answer was generated.');
+  await expect(ask).toContainText('Don’t include private CAD data.');
   await page
     .getByRole('button', { name: 'Why use Corner Rectangle?', exact: true })
     .click();
-  await expect(ask).toContainText(
-    'Corner Rectangle lets you draw by clicking two opposite corners.',
-  );
-  await expect(ask).toContainText('Click Back to lesson to follow the steps.');
+  await expect(
+    page.getByRole('textbox', { name: 'Your question' }),
+  ).toHaveValue('Why use Corner Rectangle?');
+  await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(ask).not.toContainText('Corner Rectangle lets you draw');
   expect(externalRequests).toEqual([]);
-  await captureScreenshot(page, testInfo, 'desktop-local-ask.png');
+  await captureScreenshot(page, testInfo, 'tutor-unavailable.png');
 });
 
-test('the local answer remains readable above the footer with keyboard scrolling', async ({
+test('the unavailable Ask screen stays readable above the footer with keyboard navigation', async ({
   desktop,
 }, testInfo) => {
   const { page } = desktop;
@@ -46,14 +49,14 @@ test('the local answer remains readable above the footer with keyboard scrolling
   });
   await question.focus();
   await page.keyboard.press('Enter');
-  const answer = page.getByRole('region', { name: 'Example answer' });
-  const explanation = answer.getByText(
-    'Click Back to lesson to follow the steps.',
-    { exact: true },
-  );
-  await explanation.scrollIntoViewIfNeeded();
+  const input = page.getByRole('textbox', { name: 'Your question' });
+  await expect(input).toBeDisabled();
+  await expect(question).toBeFocused();
+  await expect(input).toHaveValue('Why use Corner Rectangle?');
+  const privacyNote = page.locator('.tutor-privacy-note');
+  await privacyNote.scrollIntoViewIfNeeded();
   const readableBounds = () =>
-    explanation.evaluate((el) => {
+    privacyNote.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const footer = document
         .querySelector('.workspace-footer')!
@@ -84,18 +87,26 @@ test('the local answer remains readable above the footer with keyboard scrolling
   await expect
     .poll(() => workspace.evaluate((el) => el.scrollTop))
     .toBeGreaterThan(0);
-  await explanation.scrollIntoViewIfNeeded();
+  await privacyNote.scrollIntoViewIfNeeded();
   await expect.poll(readableBounds).toBe(true);
-  await captureScreenshot(page, testInfo, 'desktop-ask-readable-answer.png');
+  await captureScreenshot(page, testInfo, 'tutor-unavailable-readable.png');
 
-  // Tab to the primary return action, then back to the authored question.
+  // Suggested questions and learning history remain keyboard reachable.
   await question.focus();
   await page.keyboard.press('Tab');
   await expect(
     page.getByRole('button', {
-      name: 'Can Leqad check my drawing?',
+      name: 'How do I dimension a rectangle?',
       exact: true,
     }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: "I'm still confused.", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByText('Learning history', { exact: true }),
   ).toBeFocused();
   await page.keyboard.press('Tab');
   const back = page.getByRole('button', {
@@ -106,6 +117,8 @@ test('the local answer remains readable above the footer with keyboard scrolling
   expect(
     await back.evaluate((el) => getComputedStyle(el).outlineStyle),
   ).not.toBe('none');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await expect(question).toBeFocused();

@@ -1,4 +1,8 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { registerTutorIpc } from './tutorIpc';
+import { createTutorService } from './tutor/service';
+import { createOpenAIProvider } from './tutor/provider';
+import { createLearnerProfileStore } from './tutor/memory';
 import { mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,9 +55,14 @@ let windowPreferences: WindowPreferenceController | null = null;
 let session: SessionController | null = null;
 let sessionHealthTimer: NodeJS.Timeout | null = null;
 let ipcRegistration: DesktopIpcRegistration | null = null;
+let learnerProfileStore: ReturnType<typeof createLearnerProfileStore> | null =
+  null;
 let shuttingDown = false;
+let tutorRegistration: ReturnType<typeof registerTutorIpc> | null = null;
 
 function cleanupSession(): void {
+  tutorRegistration?.dispose();
+  tutorRegistration = null;
   if (sessionHealthTimer) clearInterval(sessionHealthTimer);
   sessionHealthTimer = null;
   ipcRegistration?.dispose();
@@ -99,6 +108,24 @@ function recreateSession(): void {
       }
     },
   });
+  // Tutor has no window catalog or lesson mutation capability.
+  // A reload disposes pending requests and conversation; only bounded topic memory survives.
+  tutorRegistration = registerTutorIpc({
+    ipcMain: ipcMain as unknown as Parameters<
+      typeof registerTutorIpc
+    >[0]['ipcMain'],
+    getWindow: () =>
+      ownerWindow.isDestroyed() ? null : (ownerWindow as unknown as IpcWindow),
+    isTrustedRendererUrl: createTrustedRendererUrlCheck(
+      devServerUrl,
+      pathToFileURL(path.join(__dirname, 'renderer', 'index.html')).toString(),
+    ),
+    service: createTutorService({
+      provider: createOpenAIProvider(process.env),
+      profileStore: learnerProfileStore!,
+      loadLesson: () => stateStore!.loadLesson(),
+    }),
+  });
   let healthCheckInFlight = false;
   sessionHealthTimer = setInterval(() => {
     const currentSession = session;
@@ -126,6 +153,9 @@ function createMainWindow(): void {
 
   stateStore = createDesktopStateStore(
     path.join(app.getPath('userData'), 'desktop-state.json'),
+  );
+  learnerProfileStore ??= createLearnerProfileStore(
+    path.join(app.getPath('userData'), 'learner-profile.json'),
   );
   const preferencesPromise = stateStore.loadPreferences();
 
