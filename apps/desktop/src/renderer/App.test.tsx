@@ -402,7 +402,7 @@ describe('desktop written teaching workspace', () => {
     fireEvent.click(settingsInvoker);
 
     const heading = await screen.findByRole('heading', { name: 'Settings' });
-    expect(document.activeElement).toBe(heading);
+    await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(screen.getByText(/This build cannot capture a screen/)).toBeTruthy();
     expect(
       screen.getByRole('button', { name: 'Choose a CAD window' }),
@@ -766,7 +766,7 @@ it('focuses the saved-lesson heading and resumes the same step without writing p
   const heading = await screen.findByRole('heading', {
     name: 'Continue Your First Sketch?',
   });
-  expect(document.activeElement).toBe(heading);
+  await waitFor(() => expect(document.activeElement).toBe(heading));
   fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(

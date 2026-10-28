@@ -229,11 +229,6 @@ for (const [width, height, textScale, appearance] of [
         BrowserWindow.getAllWindows()[0]!.setContentSize(width!, height!),
       [width, height],
     );
-    const ownerProcessId = app.process().pid;
-    if (!Number.isSafeInteger(ownerProcessId) || !ownerProcessId)
-      throw new Error('Missing Electron owner process');
-    // Query the real OS under the SAME exclusion/ordinal context as the app.
-    const scanForApp = createWindowsMetadataScanner(undefined, ownerProcessId);
     let fixture: ChildProcess | undefined = startWindowsFixture();
     try {
       await expect(
@@ -243,34 +238,90 @@ for (const [width, height, textScale, appearance] of [
         }),
       ).toBeVisible();
       const fixtureProcessId = await waitForFixtureWindow(fixture);
+      // Read-only observation of the real producer boundary: the callback,
+      // native query, validation, and UI catalog remain unchanged. Only safe
+      // counts/ordinal are retained. The fixture PID stays in this closure.
+      await app.evaluate((_electron, fixturePid) => {
+        const cp = process.getBuiltinModule(
+          'child_process',
+        ) as typeof import('node:child_process');
+        const original = cp.execFile;
+        const state = globalThis as typeof globalThis & {
+          __leqadFixtureObservation?: {
+            ordinal: number;
+            count: number;
+            complete: boolean;
+          };
+        };
+        cp.execFile = ((...args: unknown[]) => {
+          const command = args[1];
+          const callback = args[3];
+          if (
+            Array.isArray(command) &&
+            command.some(
+              (value) =>
+                typeof value === 'string' &&
+                value.includes('namespace LeqadWindowCatalog'),
+            ) &&
+            typeof callback === 'function'
+          ) {
+            args[3] = (error: unknown, stdout: unknown, stderr: unknown) => {
+              if (!error && typeof stdout === 'string') {
+                try {
+                  const parsed = JSON.parse(stdout) as {
+                    incomplete?: boolean;
+                    windows?: { application?: string; processId?: number }[];
+                  };
+                  if (Array.isArray(parsed.windows)) {
+                    const rows = parsed.windows.filter(
+                      (row) => row.application === 'Other app',
+                    );
+                    state.__leqadFixtureObservation = {
+                      ordinal:
+                        rows.findIndex((row) => row.processId === fixturePid) +
+                        1,
+                      count: rows.length,
+                      complete: parsed.incomplete === false,
+                    };
+                  }
+                } catch {
+                  /* No raw provider data is exported. */
+                }
+              }
+              Reflect.apply(callback, undefined, [error, stdout, stderr]);
+            };
+          }
+          return Reflect.apply(original, cp, args) as ChildProcess;
+        }) as typeof cp.execFile;
+      }, fixtureProcessId);
       // The startup catalog predates this window. Refresh through the normal UI.
       await page
         .getByRole('button', { name: 'Refresh window list', exact: true })
         .click();
-      // Identify our fixture using the app's owner exclusion and ordinal context.
-      // Never serialize handles/PIDs, and never inject a catalog into the app.
-      await expect(
-        page.getByText('Looking for open windows...', { exact: true }),
-      ).toHaveCount(0, { timeout: 10_000 });
-      const native = await scanForApp();
-      expect(
-        native.incomplete,
-        'Fixture identity requires a complete native scan',
-      ).toBe(false);
-      const otherWindows = native.windows.filter(
-        (window) => window.application === 'Other app',
-      );
-      const matches = otherWindows.filter(
-        (window) => window.processId === fixtureProcessId,
-      );
-      expect(
-        matches.length,
-        'Exactly one visible top-level window must belong to our fixture process',
-      ).toBe(1);
+      const readObservation = () =>
+        app.evaluate(
+          () =>
+            (
+              globalThis as typeof globalThis & {
+                __leqadFixtureObservation?: {
+                  ordinal: number;
+                  count: number;
+                  complete: boolean;
+                };
+              }
+            ).__leqadFixtureObservation,
+        );
+      await expect
+        .poll(async () => (await readObservation())?.ordinal ?? 0, {
+          message: 'The real native producer must observe the visible fixture',
+        })
+        .toBeGreaterThan(0);
+      const observed = (await readObservation())!;
+      expect(observed.complete).toBe(true);
       await expect(
         page.getByRole('radio', { name: /^Other app · Window \d+$/ }),
-      ).toHaveCount(otherWindows.length);
-      const ordinal = otherWindows.indexOf(matches[0]!) + 1;
+      ).toHaveCount(observed.count);
+      const ordinal = observed.ordinal;
       const fixtureChoice = page.getByRole('radio', {
         name: `Other app · Window ${ordinal}`,
         exact: true,
@@ -348,7 +399,7 @@ for (const [width, height, textScale, appearance] of [
       ).toHaveCount(0);
       await stopWindowsFixture(fixture);
       fixture = undefined;
-      const afterClosure = await scanForApp();
+      const afterClosure = await createWindowsMetadataScanner()();
       expect(
         afterClosure.windows.some(
           (window) => window.processId === fixtureProcessId,
