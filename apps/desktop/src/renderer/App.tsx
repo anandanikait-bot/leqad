@@ -2,15 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   DEFAULT_PREFERENCES,
+  EMPTY_SESSION,
+  type Command,
   type DesktopBridge,
   type DesktopPreferences,
+  type SessionView,
   type StoredLesson,
+  type WindowCatalog,
 } from '@leqad/desktop-contracts';
 import lightLogo from '../assets/brand/leqad-official-horizontal-light-v1.svg';
 import darkLogo from '../assets/brand/leqad-official-horizontal-dark-v1.svg';
 import { CompletionSummary } from './CompletionSummary';
 import { LessonWorkspace } from './LessonWorkspace';
 import { Settings } from './Settings';
+import { SessionSetup, windowChoiceLabel } from './SessionSetup';
 import type { QuestionId } from './AskLocal';
 import { createDesktopLessonController } from './lessonController';
 import type { DesktopLessonEvent, DesktopLessonView } from './lessonController';
@@ -22,6 +27,14 @@ declare global {
 }
 
 type WorkspacePage = 'learn' | 'ask' | 'settings';
+type LessonPage = Exclude<WorkspacePage, 'settings'>;
+
+const UNAVAILABLE_WINDOW_CATALOG: WindowCatalog = Object.freeze({
+  availability: 'unavailable',
+  unavailableReason: 'unsupported',
+  incomplete: false,
+  windows: Object.freeze([]),
+});
 
 const freshController = () => createDesktopLessonController();
 
@@ -34,6 +47,22 @@ export function App() {
     ...DEFAULT_PREFERENCES,
   });
   const [page, setPage] = useState<WorkspacePage>('learn');
+  const [sessionView, setSessionView] = useState<SessionView>(EMPTY_SESSION);
+  const [setupMode, setSetupMode] = useState<
+    'select' | 'visual-unavailable' | 'ready'
+  >('select');
+  const [setupReturnPage, setSetupReturnPage] = useState<LessonPage>('learn');
+  const [windowCatalog, setWindowCatalog] = useState<WindowCatalog>(
+    UNAVAILABLE_WINDOW_CATALOG,
+  );
+  const [windowListLoading, setWindowListLoading] = useState(true);
+  const [selectedWindowToken, setSelectedWindowToken] = useState<string | null>(
+    null,
+  );
+  const [selectionError, setSelectionError] = useState<
+    'window-lost' | 'provider-failed' | null
+  >(null);
+  const catalogRequestRef = useRef(0);
   const [settingsReturnPage, setSettingsReturnPage] = useState<'learn' | 'ask'>(
     'learn',
   );
@@ -48,11 +77,141 @@ export function App() {
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [freshSessionOnly, setFreshSessionOnly] = useState(false);
   const [resumePrompt, setResumePrompt] = useState(false);
+  const [focusLessonAction, setFocusLessonAction] = useState(false);
+  const clearLessonActionFocus = useCallback(
+    () => setFocusLessonAction(false),
+    [],
+  );
   const resumeHeadingRef = useRef<HTMLHeadingElement>(null);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const menuTriggerRef = useRef<HTMLElement>(null);
   const lessonWriteBlockedRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const refreshWindowList = useCallback(async () => {
+    const request = ++catalogRequestRef.current;
+    setSelectedWindowToken(null);
+    setSelectionError(null);
+    setWindowListLoading(true);
+    const bridge = window.leqad;
+    if (!bridge) {
+      setWindowCatalog(UNAVAILABLE_WINDOW_CATALOG);
+      setWindowListLoading(false);
+      return;
+    }
+    try {
+      const catalog = await bridge.listWindows();
+      if (request === catalogRequestRef.current) setWindowCatalog(catalog);
+    } catch {
+      if (request === catalogRequestRef.current) {
+        setWindowCatalog({
+          availability: 'unavailable',
+          unavailableReason: 'provider-failed',
+          incomplete: false,
+          windows: [],
+        });
+        setSelectionError('provider-failed');
+      }
+    } finally {
+      if (request === catalogRequestRef.current) setWindowListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshWindowList();
+    return () => {
+      catalogRequestRef.current += 1;
+    };
+  }, [refreshWindowList]);
+
+  useEffect(() => {
+    const unsubscribe = window.leqad?.subscribe(setSessionView);
+    return () => unsubscribe?.();
+  }, []);
+
+  const sendSessionCommand = useCallback(
+    async (command: Command): Promise<SessionView | null> => {
+      const bridge = window.leqad;
+      if (!bridge) return null;
+      try {
+        const next = await bridge.command(command);
+        setSessionView(next);
+        return next;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
+  const closeLessonMenu = () => {
+    if (menuRef.current) menuRef.current.open = false;
+  };
+
+  const chooseWindow = async (token: string) => {
+    if (
+      windowCatalog.availability !== 'available' ||
+      windowCatalog.incomplete ||
+      !windowCatalog.windows.some((window) => window.token === token)
+    ) {
+      setSelectionError('window-lost');
+      return;
+    }
+    setSelectionError(null);
+    const selected = await sendSessionCommand({
+      type: 'select',
+      windowToken: token,
+    });
+    if (selected?.binding === 'selected' && selected.selectedWindow) {
+      setSelectedWindowToken(token);
+      setSetupMode('visual-unavailable');
+      return;
+    }
+    setSelectedWindowToken(null);
+    setSelectionError(
+      selected?.reason === 'window-lost' ? 'window-lost' : 'provider-failed',
+    );
+    void refreshWindowList();
+  };
+
+  const useWrittenLessons = async () => {
+    await sendSessionCommand({ type: 'use-written' });
+    setFocusLessonAction(!resumePrompt && !view.isComplete);
+    setPage(setupReturnPage);
+    setSetupMode('ready');
+  };
+
+  const continueWithoutScreenAccess = async () => {
+    await sendSessionCommand({ type: 'consent', allow: false });
+    setFocusLessonAction(!resumePrompt && !view.isComplete);
+    setPage(setupReturnPage);
+    setSetupMode('ready');
+  };
+
+  const returnToWindowSelection = async () => {
+    closeLessonMenu();
+    await sendSessionCommand({ type: 'disconnect' });
+    setSelectedWindowToken(null);
+    setSelectionError(null);
+    setSetupMode('select');
+    void refreshWindowList();
+  };
+
+  const beginWindowChange = async () => {
+    const returnPage = page === 'settings' ? settingsReturnPage : page;
+    setSetupReturnPage(returnPage === 'ask' ? 'ask' : 'learn');
+    await returnToWindowSelection();
+  };
+
+  const toggleSessionPause = async () => {
+    closeLessonMenu();
+    await sendSessionCommand({ type: 'pause', paused: !sessionView.paused });
+  };
+
+  const disconnectWindow = async () => {
+    closeLessonMenu();
+    await sendSessionCommand({ type: 'disconnect' });
+  };
 
   useEffect(() => {
     const bridge = window.leqad;
@@ -106,8 +265,9 @@ export function App() {
   }, [view.currentStepIndex]);
 
   useEffect(() => {
-    if (resumePrompt) resumeHeadingRef.current?.focus();
-  }, [resumePrompt]);
+    if (resumePrompt && setupMode === 'ready')
+      resumeHeadingRef.current?.focus();
+  }, [resumePrompt, setupMode]);
 
   const persistLesson = useCallback((record: StoredLesson) => {
     const bridge = window.leqad;
@@ -171,7 +331,7 @@ export function App() {
   const openSettings = () => {
     setSettingsReturnPage(page === 'ask' ? 'ask' : 'learn');
     setSettingsMessage('');
-    if (menuRef.current) menuRef.current.open = false;
+    closeLessonMenu();
     setPage('settings');
   };
 
@@ -182,25 +342,19 @@ export function App() {
   };
 
   const stopVisualAccess = () => {
-    const bridge = window.leqad;
-    if (!bridge) {
+    if (!window.leqad) {
       setSettingsMessage(
         'Screen access is off. You can still follow the written lesson.',
       );
       return;
     }
-    void bridge
-      .command({ type: 'revoke' })
-      .then(() =>
-        setSettingsMessage(
-          'Screen access is off. You can still follow the written lesson.',
-        ),
-      )
-      .catch(() =>
-        setSettingsMessage(
-          "We couldn't update screen access. You can still follow the written lesson.",
-        ),
-      );
+    void sendSessionCommand({ type: 'revoke' }).then((result) =>
+      setSettingsMessage(
+        result
+          ? 'Screen access remains off. Written lessons are available.'
+          : "We couldn't update screen access. Written lessons are still available.",
+      ),
+    );
   };
 
   const resetPosition = () => {
@@ -231,13 +385,29 @@ export function App() {
   };
 
   const requestRestart = () => {
+    closeLessonMenu();
     setFreshSessionOnly(lessonWriteBlockedRef.current);
     setRestartConfirm(true);
   };
 
   const showSummary = view.isComplete && page === 'learn';
   const rootStyle = { '--text-scale': preferences.textScale } as CSSProperties;
-  const showMenu = lessonReady && page !== 'settings' && !resumePrompt;
+  const showMenu =
+    lessonReady &&
+    setupMode === 'ready' &&
+    page !== 'settings' &&
+    !resumePrompt;
+  const showSetup = lessonReady && setupMode !== 'ready';
+  const windowStatus = sessionView.selectedWindow
+    ? windowChoiceLabel(sessionView.selectedWindow)
+    : sessionView.binding === 'disconnected'
+      ? 'Selected window disconnected'
+      : setupMode === 'ready'
+        ? 'Written lesson · No window selected'
+        : 'Choose a window or use written lessons';
+  const accessStatus = sessionView.paused
+    ? 'Window session paused · Screen access off'
+    : 'Screen access off';
 
   return (
     <div
@@ -269,6 +439,21 @@ export function App() {
             <button onClick={openSettings} type="button">
               Settings
             </button>
+            {sessionView.selectedWindow ? (
+              <button onClick={toggleSessionPause} type="button">
+                {sessionView.paused
+                  ? 'Resume window session'
+                  : 'Pause window session'}
+              </button>
+            ) : null}
+            <button onClick={beginWindowChange} type="button">
+              {sessionView.selectedWindow ? 'Change window' : 'Choose a window'}
+            </button>
+            {sessionView.selectedWindow ? (
+              <button onClick={disconnectWindow} type="button">
+                Disconnect window
+              </button>
+            ) : null}
             <button onClick={requestRestart} type="button">
               Restart lesson
             </button>
@@ -277,11 +462,14 @@ export function App() {
       </header>
 
       <div className="session-strip">
-        <span>Written lesson · No screen capture</span>
-        <span aria-live="polite">Follow along in Onshape</span>
+        <span>{windowStatus}</span>
+        <span aria-live="polite">{accessStatus}</span>
       </div>
 
-      {lessonReady && page !== 'settings' && !resumePrompt ? (
+      {lessonReady &&
+      setupMode === 'ready' &&
+      page !== 'settings' &&
+      !resumePrompt ? (
         <nav aria-label="Lesson views" className="workspace-navigation">
           <button
             aria-current={page === 'learn' ? 'page' : undefined}
@@ -302,7 +490,7 @@ export function App() {
         </nav>
       ) : null}
 
-      {loadError && lessonReady && !resumePrompt ? (
+      {loadError && lessonReady && setupMode === 'ready' && !resumePrompt ? (
         <div className="load-warning" role="status">
           {loadError}
         </div>
@@ -313,6 +501,29 @@ export function App() {
           <h2>Opening Leqad</h2>
           <p>Loading your lesson and settings...</p>
         </section>
+      ) : showSetup ? (
+        setupMode === 'visual-unavailable' && sessionView.selectedWindow ? (
+          <SessionSetup
+            mode="visual-unavailable"
+            onChooseAnotherWindow={() => void returnToWindowSelection()}
+            onContinueWithoutScreenAccess={() =>
+              void continueWithoutScreenAccess()
+            }
+            selectedWindow={sessionView.selectedWindow}
+          />
+        ) : (
+          <SessionSetup
+            catalog={windowCatalog}
+            loading={windowListLoading}
+            mode="select"
+            onRefresh={() => void refreshWindowList()}
+            onSelectionChange={setSelectedWindowToken}
+            onUseSelectedWindow={(token) => void chooseWindow(token)}
+            onUseWrittenLessons={() => void useWrittenLessons()}
+            selectedToken={selectedWindowToken}
+            selectionError={selectionError}
+          />
+        )
       ) : resumePrompt ? (
         <>
           <section
@@ -355,11 +566,16 @@ export function App() {
         </>
       ) : page === 'settings' ? (
         <Settings
+          onChangeWindow={() => void beginWindowChange()}
+          onDisconnectWindow={disconnectWindow}
           onPreferenceChange={changePreferences}
+          onSessionPause={() => void toggleSessionPause()}
           onResetPosition={resetPosition}
           onReturn={returnFromSettings}
           onStopVisualAccess={stopVisualAccess}
           preferences={preferences}
+          sessionPaused={sessionView.paused}
+          selectedWindow={sessionView.selectedWindow}
           returnLabel={
             settingsReturnPage === 'ask' ? 'Back to Ask' : 'Back to lesson'
           }
@@ -376,6 +592,8 @@ export function App() {
         />
       ) : (
         <LessonWorkspace
+          focusOnEntry={focusLessonAction}
+          onEntryFocused={clearLessonActionFocus}
           loadError={view.loadError || lessonLoadFailed}
           onAskQuestion={setSelectedQuestion}
           onDispatch={dispatch}

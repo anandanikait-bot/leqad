@@ -15,6 +15,7 @@ import {
   resolveTestUserDataPath,
 } from './runtimeConfig';
 import { createSessionController, type SessionController } from './session';
+import { createWindowCatalogProvider } from './windowCatalog';
 import {
   createWindowPreferenceController,
   type WindowPreferenceController,
@@ -48,10 +49,13 @@ let stateStore: DesktopStateStore | null = null;
 let placement: WindowPlacementController | null = null;
 let windowPreferences: WindowPreferenceController | null = null;
 let session: SessionController | null = null;
+let sessionHealthTimer: NodeJS.Timeout | null = null;
 let ipcRegistration: DesktopIpcRegistration | null = null;
 let shuttingDown = false;
 
 function cleanupSession(): void {
+  if (sessionHealthTimer) clearInterval(sessionHealthTimer);
+  sessionHealthTimer = null;
   ipcRegistration?.dispose();
   ipcRegistration = null;
   session?.dispose();
@@ -63,12 +67,14 @@ function recreateSession(): void {
     return;
   cleanupSession();
   const ownerWindow = mainWindow;
+  const windowCatalog = createWindowCatalogProvider();
   session = createSessionController({
     abortActive: () => undefined,
     resetPosition: () => placement?.resetPosition(),
     closeWindow: () => {
       if (!ownerWindow.isDestroyed()) ownerWindow.close();
     },
+    windowCatalog,
   });
   ipcRegistration = registerDesktopIpc({
     ipcMain: ipcMain as unknown as Parameters<
@@ -81,6 +87,7 @@ function recreateSession(): void {
       pathToFileURL(path.join(__dirname, 'renderer', 'index.html')).toString(),
     ),
     controller: session,
+    windowCatalog,
     store: stateStore,
     onPreferencesSaved: (preferences) => {
       windowPreferences?.setKeepVisible(preferences.keepVisible);
@@ -92,6 +99,22 @@ function recreateSession(): void {
       }
     },
   });
+  let healthCheckInFlight = false;
+  sessionHealthTimer = setInterval(() => {
+    const currentSession = session;
+    if (
+      healthCheckInFlight ||
+      !currentSession ||
+      currentSession.getView().paused
+    ) {
+      return;
+    }
+    healthCheckInFlight = true;
+    void currentSession.checkWindow().finally(() => {
+      healthCheckInFlight = false;
+    });
+  }, 1200);
+  sessionHealthTimer.unref();
 }
 
 function workAreas() {

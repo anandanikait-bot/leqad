@@ -1,10 +1,15 @@
 import { expect } from '@playwright/test';
-import { captureScreenshot, test } from './helpers/desktop';
+import {
+  captureScreenshot,
+  chooseWrittenLessons,
+  test,
+} from './helpers/desktop';
 
 test('answers the authored local Ask example without network requests', async ({
   desktop,
 }, testInfo) => {
   const { page } = desktop;
+  await chooseWrittenLessons(page);
   const externalRequests: string[] = [];
   page.on('request', (request) => {
     if (/^https?:\/\//i.test(request.url()))
@@ -33,6 +38,7 @@ test('the local answer remains readable above the footer with keyboard scrolling
   desktop,
 }, testInfo) => {
   const { page } = desktop;
+  await chooseWrittenLessons(page);
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   const question = page.getByRole('button', {
     name: 'Why use Corner Rectangle?',

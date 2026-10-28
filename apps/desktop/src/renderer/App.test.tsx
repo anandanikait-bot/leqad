@@ -8,7 +8,12 @@ import {
   within,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_PREFERENCES, EMPTY_SESSION } from '@leqad/desktop-contracts';
+import {
+  DEFAULT_PREFERENCES,
+  EMPTY_SESSION,
+  type WindowCatalog,
+  type SessionView,
+} from '@leqad/desktop-contracts';
 import { App } from './App';
 import { DESKTOP_STEP_COPY } from './desktopCopy';
 import { FOUNDATIONS_FIRST_SKETCH } from '@leqad/lesson-engine';
@@ -18,8 +23,16 @@ const savedLessons: unknown[] = [];
 function installBridge(savedLesson: unknown = null) {
   savedLessons.length = 0;
   const bridge = {
-    listWindows: vi.fn(async () => ({ windows: [], incomplete: false })),
-    command: vi.fn(async () => EMPTY_SESSION),
+    listWindows: vi.fn(async (): Promise<WindowCatalog> => ({
+      availability: 'unavailable' as const,
+      unavailableReason: 'unsupported' as const,
+      windows: [],
+      incomplete: false,
+    })),
+    command: vi.fn(async (command: unknown) => {
+      void command;
+      return EMPTY_SESSION;
+    }),
     subscribe: vi.fn(() => () => undefined),
     loadPreferences: vi.fn(async () => ({ ...DEFAULT_PREFERENCES })),
     savePreferences: vi.fn(async () => undefined),
@@ -33,6 +46,13 @@ function installBridge(savedLesson: unknown = null) {
     value: bridge,
   });
   return bridge;
+}
+
+async function enterWrittenLessons() {
+  render(<App />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Use written lessons' }),
+  );
 }
 
 function savedSecondStep() {
@@ -63,11 +83,192 @@ afterEach(() => {
 });
 
 describe('desktop written teaching workspace', () => {
-  it('opens directly into the first authored step with capture off', async () => {
+  it('requires a window choice or explicit written-only choice before opening the lesson', async () => {
+    const bridge = installBridge();
     render(<App />);
 
     expect(
-      await screen.findByText('Written lesson · No screen capture'),
+      await screen.findByRole('heading', {
+        name: 'Learn alongside your CAD workspace',
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Got it' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Use written lessons' }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use written lessons' }),
+    );
+    expect(bridge.command).toHaveBeenCalledWith({ type: 'use-written' });
+    expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
+    expect(savedLessons).toHaveLength(0);
+  });
+
+  it('moves focus from window setup to the lesson action after keyboard entry', async () => {
+    render(<App />);
+    const writtenLessons = await screen.findByRole('button', {
+      name: 'Use written lessons',
+    });
+    writtenLessons.focus();
+    fireEvent.click(writtenLessons);
+
+    const primaryAction = await screen.findByRole('button', { name: 'Got it' });
+    await waitFor(() => expect(document.activeElement).toBe(primaryAction));
+  });
+
+  it('validates a selected window and continues with screen access off when unavailable', async () => {
+    const bridge = installBridge();
+    const selectedWindow = {
+      application: 'Chrome' as const,
+      ordinal: 1,
+      kind: 'browser' as const,
+    };
+    bridge.listWindows.mockResolvedValue({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: false,
+      windows: [{ token: 'window-1', ...selectedWindow }],
+    });
+    const selectedView: SessionView = {
+      ...EMPTY_SESSION,
+      binding: 'selected',
+      selectedWindow,
+    };
+    bridge.command.mockImplementation(async (rawCommand) => {
+      const command = rawCommand as { type: string; allow?: boolean };
+      if (command.type === 'select') return selectedView;
+      if (command.type === 'consent' && command.allow === false)
+        return { ...selectedView, consent: 'denied' };
+      return EMPTY_SESSION;
+    });
+    render(<App />);
+
+    expect(
+      await screen.findByRole('radio', { name: 'Chrome · Window 1' }),
+    ).toHaveProperty('checked', false);
+    fireEvent.click(
+      await screen.findByRole('radio', { name: 'Chrome · Window 1' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use selected window' }),
+    );
+    expect(bridge.command).toHaveBeenCalledWith({
+      type: 'select',
+      windowToken: 'window-1',
+    });
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Visual help isn’t available in this build',
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Allow/i })).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Continue with written lessons' }),
+    );
+    expect(bridge.command).toHaveBeenCalledWith({
+      type: 'consent',
+      allow: false,
+    });
+    expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
+    expect(savedLessons).toHaveLength(0);
+  });
+
+  it('keeps separately saved lesson progress after the user declines screen access', async () => {
+    const bridge = installBridge(savedSecondStep());
+    bridge.listWindows.mockResolvedValue({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: false,
+      windows: [
+        {
+          token: 'window-1',
+          application: 'Chrome',
+          ordinal: 1,
+          kind: 'browser',
+        },
+      ],
+    });
+    bridge.command.mockImplementation(async (rawCommand) => {
+      const command = rawCommand as { type: string; allow?: boolean };
+      if (command.type === 'select')
+        return {
+          ...EMPTY_SESSION,
+          binding: 'selected',
+          selectedWindow: {
+            application: 'Chrome',
+            ordinal: 1,
+            kind: 'browser',
+          },
+        };
+      if (command.type === 'consent' && command.allow === false)
+        return { ...EMPTY_SESSION, consent: 'denied' };
+      return EMPTY_SESSION;
+    });
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('radio', { name: 'Chrome · Window 1' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use selected window' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Continue with written lessons',
+      }),
+    );
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Continue Your First Sketch?',
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
+    expect(screen.getByText('Your First Sketch · Step 2 of 8')).toBeTruthy();
+    expect(bridge.saveLesson).not.toHaveBeenCalled();
+  });
+
+  it('refuses selection from incomplete metadata and keeps written lessons available', async () => {
+    const bridge = installBridge();
+    bridge.listWindows.mockResolvedValue({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: true,
+      windows: [
+        {
+          token: 'partial-window',
+          application: 'Chrome',
+          ordinal: 1,
+          kind: 'browser',
+        },
+      ],
+    });
+    render(<App />);
+
+    expect(await screen.findByText(/window list is incomplete/i)).toBeTruthy();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Use selected window' }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use written lessons' }),
+    );
+    expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
+    expect(bridge.command).toHaveBeenCalledExactlyOnceWith({
+      type: 'use-written',
+    });
+    expect(savedLessons).toHaveLength(0);
+  });
+
+  it('opens the first authored step after the user chooses written lessons', async () => {
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Use written lessons' }),
+    );
+
+    expect(
+      await screen.findByText('Written lesson · No window selected'),
     ).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
@@ -78,7 +279,7 @@ describe('desktop written teaching workspace', () => {
   });
 
   it('persists an acknowledgement and only advances through the lesson engine', async () => {
-    render(<App />);
+    await enterWrittenLessons();
     fireEvent.click(await screen.findByRole('button', { name: 'Got it' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Next step' }));
 
@@ -105,7 +306,7 @@ describe('desktop written teaching workspace', () => {
   it('keeps progress available after a save error and retries through the bridge', async () => {
     const bridge = installBridge();
     bridge.saveLesson.mockRejectedValueOnce(new Error('disk full'));
-    render(<App />);
+    await enterWrittenLessons();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Got it' }));
     expect(
@@ -143,11 +344,14 @@ describe('desktop written teaching workspace', () => {
     );
     expect(screen.queryByRole('button', { name: 'Got it' })).toBeNull();
     await act(async () => resolveLesson?.(null));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Use written lessons' }),
+    );
     expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
   });
 
   it('shows an authored local answer without changing lesson progress', async () => {
-    render(<App />);
+    await enterWrittenLessons();
     fireEvent.click(await screen.findByRole('button', { name: 'Ask' }));
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
     expect(screen.getByText('Local prototype · no AI')).toBeTruthy();
@@ -167,7 +371,7 @@ describe('desktop written teaching workspace', () => {
   });
 
   it('reveals ordered Help and Escape restores focus to its disclosure', async () => {
-    render(<App />);
+    await enterWrittenLessons();
     const disclosure = await screen.findByRole('button', { name: 'Help +' });
     fireEvent.click(disclosure);
 
@@ -191,18 +395,18 @@ describe('desktop written teaching workspace', () => {
 
   it('offers recovery and returns Settings focus to the closed menu trigger', async () => {
     const bridge = installBridge();
-    render(<App />);
+    await enterWrittenLessons();
     const menuTrigger = await screen.findByLabelText('Open lesson menu');
     fireEvent.click(menuTrigger);
     const settingsInvoker = screen.getByRole('button', { name: 'Settings' });
     fireEvent.click(settingsInvoker);
 
     const heading = await screen.findByRole('heading', { name: 'Settings' });
-    expect(document.activeElement).toBe(heading);
-    expect(screen.getByText(/This app can't capture the screen/)).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(screen.getByText(/This build cannot capture a screen/)).toBeTruthy();
     expect(
       screen.getByRole('button', { name: 'Choose a CAD window' }),
-    ).toHaveProperty('disabled', true);
+    ).toHaveProperty('disabled', false);
     expect(
       screen.getByRole('button', { name: 'Report a misplaced highlight' }),
     ).toHaveProperty('disabled', true);
@@ -219,7 +423,7 @@ describe('desktop written teaching workspace', () => {
 
   it('requires an explicit choice before resuming saved lesson progress', async () => {
     installBridge(savedSecondStep());
-    render(<App />);
+    await enterWrittenLessons();
 
     expect(
       await screen.findByRole('heading', {
@@ -243,7 +447,7 @@ describe('desktop written teaching workspace', () => {
     bridge.saveLesson.mockRejectedValue(
       new Error('host refused unreadable data'),
     );
-    render(<App />);
+    await enterWrittenLessons();
 
     expect(await screen.findByText(/start fresh for now/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Got it' })).toHaveProperty(
@@ -280,7 +484,7 @@ describe('desktop written teaching workspace', () => {
   it('does not enable progress writes when loading the saved lesson fails', async () => {
     const bridge = installBridge();
     bridge.loadLesson.mockRejectedValueOnce(new Error('disk read failed'));
-    render(<App />);
+    await enterWrittenLessons();
 
     expect(await screen.findByText(/start fresh for now/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Got it' })).toHaveProperty(
@@ -295,7 +499,7 @@ describe('desktop written teaching workspace', () => {
     bridge.loadPreferences.mockRejectedValueOnce(
       new Error('preferences unavailable'),
     );
-    render(<App />);
+    await enterWrittenLessons();
 
     expect(
       await screen.findByRole('heading', {
@@ -312,7 +516,7 @@ describe('desktop written teaching workspace', () => {
 
   it('requires confirmation before replacing saved progress with a fresh lesson', async () => {
     installBridge(savedSecondStep());
-    render(<App />);
+    await enterWrittenLessons();
 
     expect(
       await screen.findByRole('heading', {
@@ -369,7 +573,7 @@ describe('desktop written teaching workspace', () => {
         outcome: outcomes[index],
       })),
     });
-    render(<App />);
+    await enterWrittenLessons();
     fireEvent.click(
       await screen.findByRole('button', { name: 'Resume lesson' }),
     );
@@ -417,14 +621,15 @@ describe('desktop written teaching workspace', () => {
         ({ outcome }) => outcome,
       ),
     ).toEqual(outcomes);
-    expect(bridge.command).not.toHaveBeenCalled();
+    expect(bridge.command).toHaveBeenCalledTimes(1);
+    expect(bridge.command).toHaveBeenCalledWith({ type: 'use-written' });
   });
 });
 
 it('shows all eight desktop steps and five hints with optional Why and original stored outcomes', async () => {
   const original = JSON.stringify(FOUNDATIONS_FIRST_SKETCH);
   const bridge = installBridge();
-  render(<App />);
+  await enterWrittenLessons();
   await screen.findByRole('button', { name: 'Got it' });
   for (const [index, definition] of FOUNDATIONS_FIRST_SKETCH.steps.entries()) {
     const copy = DESKTOP_STEP_COPY[definition.id];
@@ -489,13 +694,14 @@ it('shows all eight desktop steps and five hints with optional Why and original 
     ]),
   );
   expect(JSON.stringify(FOUNDATIONS_FIRST_SKETCH)).toBe(original);
-  expect(bridge.command).not.toHaveBeenCalled();
+  expect(bridge.command).toHaveBeenCalledTimes(1);
+  expect(bridge.command).toHaveBeenCalledWith({ type: 'use-written' });
 });
 
 it('explains that a fresh lesson can replace prior progress when a read failure was temporary', async () => {
   const bridge = installBridge();
   bridge.loadLesson.mockRejectedValueOnce(new Error('temporary read failure'));
-  render(<App />);
+  await enterWrittenLessons();
   await screen.findByRole('button', { name: 'Start fresh for now' });
   fireEvent.click(screen.getByRole('button', { name: 'Start fresh for now' }));
   const dialog = screen.getByRole('dialog', { name: 'Start fresh for now?' });
@@ -548,16 +754,19 @@ it('applies saved accessibility preferences while the lesson is still loading wi
   expect(screen.queryByRole('button', { name: 'Got it' })).toBeNull();
   expect(bridge.saveLesson).not.toHaveBeenCalled();
   await act(async () => release?.(null));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Use written lessons' }),
+  );
   expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
 });
 
 it('focuses the saved-lesson heading and resumes the same step without writing progress', async () => {
   const bridge = installBridge(savedSecondStep());
-  render(<App />);
+  await enterWrittenLessons();
   const heading = await screen.findByRole('heading', {
     name: 'Continue Your First Sketch?',
   });
-  expect(document.activeElement).toBe(heading);
+  await waitFor(() => expect(document.activeElement).toBe(heading));
   fireEvent.click(screen.getByRole('button', { name: 'Resume lesson' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(

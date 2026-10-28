@@ -1,5 +1,10 @@
 import { expect } from '@playwright/test';
-import { captureScreenshot, openSettings, test } from './helpers/desktop';
+import {
+  captureScreenshot,
+  chooseWrittenLessons,
+  openSettings,
+  test,
+} from './helpers/desktop';
 
 for (const [width, height] of [
   [365, 600],
@@ -10,6 +15,7 @@ for (const [width, height] of [
       desktop,
     }, info) => {
       const { page, app } = desktop;
+      await chooseWrittenLessons(page);
       await openSettings(page);
       await page.getByRole('radio', { name: `${scale}%`, exact: true }).check();
       await page

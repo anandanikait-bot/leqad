@@ -5,7 +5,12 @@ describe('sandboxed DesktopBridge', () => {
   it('exposes only closed bridge methods and fixed IPC channels', async () => {
     const invoke = vi.fn(async (channel: string) => {
       if (channel === 'desktop:list-windows')
-        return { windows: [], incomplete: false };
+        return {
+          availability: 'unavailable',
+          unavailableReason: 'unsupported',
+          windows: [],
+          incomplete: false,
+        };
       return undefined;
     });
     const bridge = createDesktopBridge({
@@ -25,6 +30,30 @@ describe('sandboxed DesktopBridge', () => {
     ]);
     await bridge.listWindows();
     expect(invoke).toHaveBeenCalledExactlyOnceWith('desktop:list-windows');
+  });
+
+  it('rejects window titles or unbounded app labels at the renderer boundary', async () => {
+    const invoke = vi.fn(async () => ({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: false,
+      windows: [
+        {
+          token: 'window-1',
+          application: 'Chrome',
+          ordinal: 1,
+          kind: 'browser',
+          title: 'Private document title',
+        },
+      ],
+    }));
+    const bridge = createDesktopBridge({
+      invoke,
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    });
+
+    await expect(bridge.listWindows()).rejects.toThrow();
   });
 
   it('removes session listeners idempotently when a renderer unsubscribes', () => {

@@ -4,6 +4,8 @@ import {
   PreferencesSchema,
   parseStoredLesson,
   EMPTY_SESSION,
+  parseSessionView,
+  parseWindowCatalog,
 } from './index';
 describe('desktop trust boundary', () => {
   it('accepts only the closed supported commands', () => {
@@ -19,6 +21,7 @@ describe('desktop trust boundary', () => {
       'cancel',
       'revoke',
       'disconnect',
+      'use-written',
       'reset-position',
       'close',
     ])
@@ -39,6 +42,83 @@ describe('desktop trust boundary', () => {
     expect(EMPTY_SESSION.availableActions).toEqual([]);
     expect(EMPTY_SESSION.consent).toBe('off');
     expect(EMPTY_SESSION.token).toBeNull();
+    expect(EMPTY_SESSION.selectedWindow).toBeNull();
+  });
+  it('keeps window catalog records to bounded aliases and opaque tokens', () => {
+    const catalog = parseWindowCatalog({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: false,
+      windows: [
+        {
+          token: 'opaque-window-token',
+          application: 'Chrome',
+          ordinal: 1,
+          kind: 'browser',
+        },
+      ],
+    });
+
+    expect(catalog.windows[0]).toEqual({
+      token: 'opaque-window-token',
+      application: 'Chrome',
+      ordinal: 1,
+      kind: 'browser',
+    });
+    expect(() =>
+      parseWindowCatalog({
+        ...catalog,
+        windows: [{ ...catalog.windows[0], title: 'Private document' }],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseWindowCatalog({
+        ...catalog,
+        windows: [{ ...catalog.windows[0], application: 'My CAD file' }],
+      }),
+    ).toThrow();
+    expect(() =>
+      parseWindowCatalog({
+        availability: 'available',
+        unavailableReason: null,
+        incomplete: false,
+        windows: Array.from({ length: 51 }, (_, index) => ({
+          token: `window-${index}`,
+          application: 'Other app',
+          ordinal: index + 1,
+          kind: 'other',
+        })),
+      }),
+    ).toThrow();
+  });
+  it('keeps selected window labels safe and never accepts grant state in M2', () => {
+    const view = parseSessionView({
+      ...EMPTY_SESSION,
+      binding: 'selected',
+      selectedWindow: {
+        application: 'Microsoft Edge',
+        ordinal: 2,
+        kind: 'browser',
+      },
+    });
+
+    expect(view.selectedWindow).toEqual({
+      application: 'Microsoft Edge',
+      ordinal: 2,
+      kind: 'browser',
+    });
+    expect(() =>
+      parseSessionView({
+        ...view,
+        selectedWindow: {
+          ...view.selectedWindow,
+          title: 'Sensitive document name',
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      parseSessionView({ ...view, consent: 'on-request' }),
+    ).toThrow();
   });
   it('rejects unexpected preferences and unsupported scale', () => {
     expect(

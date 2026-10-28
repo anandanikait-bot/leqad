@@ -1,11 +1,16 @@
 import { expect } from '@playwright/test';
 import { expectTextAA } from './helpers/contrast';
-import { captureScreenshot, test } from './helpers/desktop';
+import {
+  captureScreenshot,
+  chooseWrittenLessons,
+  test,
+} from './helpers/desktop';
 
 test('Help and Settings work from the keyboard and keep one scroller at minimum size', async ({
   desktop,
 }, testInfo) => {
   const { app, page } = desktop;
+  await chooseWrittenLessons(page);
   const helpButton = page.getByRole('button', { name: /^Help/ });
 
   await helpButton.focus();
@@ -89,6 +94,7 @@ for (const theme of ['light', 'dark'] as const) {
     desktop,
   }, testInfo) => {
     const { page } = desktop;
+    await chooseWrittenLessons(page);
     await page.getByLabel('Open lesson menu', { exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page

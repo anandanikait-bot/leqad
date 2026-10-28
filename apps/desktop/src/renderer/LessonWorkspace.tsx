@@ -1,10 +1,12 @@
 import { DESKTOP_STEP_COPY } from './desktopCopy';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DesktopLessonEvent, DesktopLessonView } from './lessonController';
 import { AskLocal, type QuestionId } from './AskLocal';
 import { ContextualHelp } from './ContextualHelp';
 
 type LessonWorkspaceProps = {
+  focusOnEntry?: boolean;
+  onEntryFocused?(): void;
   view: DesktopLessonView;
   page: 'learn' | 'ask';
   textScale: number;
@@ -32,6 +34,8 @@ function evidenceText(view: DesktopLessonView): string {
 }
 
 export function LessonWorkspace({
+  focusOnEntry,
+  onEntryFocused,
   view,
   page,
   textScale,
@@ -44,6 +48,12 @@ export function LessonWorkspace({
   onAskQuestion,
   onRetrySave,
 }: LessonWorkspaceProps) {
+  const primaryActionRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!focusOnEntry) return;
+    primaryActionRef.current?.focus();
+    onEntryFocused?.();
+  }, [focusOnEntry, onEntryFocused]);
   const [singleScroller, setSingleScroller] = useState(false);
   const setScrollMode = useCallback(
     (value: boolean) => setSingleScroller(value),
@@ -134,6 +144,7 @@ export function LessonWorkspace({
             <p className="evidence-copy">{evidenceText(view)}</p>
             <button
               className="primary-button"
+              ref={primaryActionRef}
               disabled={currentIsPaused || loadError}
               onClick={() => {
                 if (currentIsCompleted) onDispatch({ type: 'NEXT' });
@@ -181,6 +192,7 @@ export function LessonWorkspace({
             </p>
             <button
               className="primary-button"
+              ref={primaryActionRef}
               onClick={() => onPageChange('learn')}
               type="button"
             >

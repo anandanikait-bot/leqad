@@ -19,10 +19,22 @@ function createHarness(
     send: vi.fn(),
   };
   const window = { webContents, close: vi.fn() };
+  const windowCatalog = {
+    list: vi.fn(async () => ({
+      availability: 'unavailable' as const,
+      unavailableReason: 'unsupported' as const,
+      incomplete: false,
+      windows: [],
+    })),
+    select: vi.fn(async () => null),
+    isCurrent: vi.fn(async () => false),
+    dispose: vi.fn(),
+  };
   const controller = createSessionController({
     abortActive: vi.fn(),
     resetPosition: vi.fn(),
     closeWindow: window.close,
+    windowCatalog,
   });
   const store = {
     loadPreferences: vi.fn(async () => ({
@@ -43,6 +55,7 @@ function createHarness(
     getWindow: () => window,
     isTrustedRendererUrl: (url) => url === trustedUrl,
     controller,
+    windowCatalog,
     store,
     ...(onPreferencesSaved ? { onPreferencesSaved } : {}),
   });
@@ -55,6 +68,7 @@ function createHarness(
     registered,
     removeHandler,
     store,
+    windowCatalog,
     webContents,
   };
 }
@@ -163,6 +177,37 @@ describe('desktop IPC boundary', () => {
     const list = harness.handlers.get('desktop:list-windows')!;
 
     await expect(list(harness.event)).resolves.toEqual({
+      availability: 'unavailable',
+      unavailableReason: 'unsupported',
+      windows: [],
+      incomplete: false,
+    });
+    harness.windowCatalog.list.mockRejectedValueOnce(
+      new Error('provider failed'),
+    );
+    await expect(list(harness.event)).resolves.toEqual({
+      availability: 'unavailable',
+      unavailableReason: 'provider-failed',
+      windows: [],
+      incomplete: false,
+    });
+    harness.windowCatalog.list.mockResolvedValueOnce({
+      availability: 'available',
+      unavailableReason: null,
+      incomplete: false,
+      windows: [
+        {
+          token: 'opaque-token',
+          application: 'Chrome',
+          ordinal: 1,
+          kind: 'browser',
+          title: 'Private title',
+        },
+      ],
+    } as never);
+    await expect(list(harness.event)).resolves.toEqual({
+      availability: 'unavailable',
+      unavailableReason: 'provider-failed',
       windows: [],
       incomplete: false,
     });

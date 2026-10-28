@@ -227,9 +227,16 @@ test('V1 panel supports pointer dragging and a narrow viewport without horizonta
       (element) => element.scrollWidth <= element.clientWidth,
     ),
   ).toBe(true);
-  const after = (await panel.boundingBox())!;
-  expect(after.x).toBeGreaterThanOrEqual(8);
-  expect(after.x + after.width).toBeLessThanOrEqual(312);
+  // CSS width resolves before the resize event's position clamp is rendered.
+  await expect
+    .poll(
+      async () => {
+        const after = (await panel.boundingBox())!;
+        return after.x >= 8 && after.x + after.width <= 312;
+      },
+      { message: 'Resized panel must settle inside the viewport' },
+    )
+    .toBe(true);
   await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByText('Step 2 of 8 · Visited')).toBeVisible();

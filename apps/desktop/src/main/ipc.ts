@@ -1,12 +1,14 @@
 import {
   PreferencesSchema,
   parseCommand,
+  parseWindowCatalog,
   parseStoredLesson,
   type Command,
   type DesktopPreferences,
 } from '@leqad/desktop-contracts';
 import type { DesktopStateStore } from './preferences';
 import type { SessionController } from './session';
+import type { WindowCatalogProvider } from './windowCatalogTypes';
 
 export const DESKTOP_CHANNELS = Object.freeze({
   listWindows: 'desktop:list-windows',
@@ -51,6 +53,7 @@ export interface DesktopIpcDependencies {
   getWindow(): IpcWindow | null;
   isTrustedRendererUrl(value: string): boolean;
   controller: SessionController;
+  windowCatalog: WindowCatalogProvider;
   store: Pick<
     DesktopStateStore,
     'loadPreferences' | 'savePreferences' | 'loadLesson' | 'saveLesson'
@@ -155,10 +158,18 @@ export function registerDesktopIpc(
     });
   };
 
-  addHandler(DESKTOP_CHANNELS.listWindows, 0, () => ({
-    windows: [],
-    incomplete: false,
-  }));
+  addHandler(DESKTOP_CHANNELS.listWindows, 0, async () => {
+    try {
+      return parseWindowCatalog(await dependencies.windowCatalog.list());
+    } catch {
+      return {
+        availability: 'unavailable',
+        unavailableReason: 'provider-failed',
+        incomplete: false,
+        windows: [],
+      } as const;
+    }
+  });
   addHandler(DESKTOP_CHANNELS.command, 1, async (_window, rawCommand) => {
     const command: Command = parseCommand(copyPlainData(rawCommand));
     return dependencies.controller.command(command);

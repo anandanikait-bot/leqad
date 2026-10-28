@@ -1,5 +1,9 @@
 import { expect } from '@playwright/test';
-import { captureScreenshot, test } from './helpers/desktop';
+import {
+  captureScreenshot,
+  chooseWrittenLessons,
+  test,
+} from './helpers/desktop';
 
 async function expectStep(page: import('@playwright/test').Page, step: number) {
   await expect(page.getByText(new RegExp(`Step ${step} of 8`))).toBeVisible();
@@ -17,6 +21,7 @@ test('completes all eight written steps with honest outcome categories', async (
   desktop,
 }, testInfo) => {
   const { page } = desktop;
+  await chooseWrittenLessons(page);
 
   await expectStep(page, 1);
   await page.getByRole('button', { name: 'Got it', exact: true }).click();

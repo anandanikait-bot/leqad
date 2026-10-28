@@ -1,5 +1,7 @@
 import {
   PreferencesSchema,
+  parseSessionView as validateSessionView,
+  parseWindowCatalog as validateWindowCatalog,
   parseCommand,
   parseStoredLesson,
   type Command,
@@ -18,27 +20,6 @@ export interface IpcRendererPort {
     listener: (event: unknown, value: unknown) => void,
   ): void;
 }
-
-const actions = new Set([
-  'reference.top',
-  'sketch.start',
-  'rectangle.corner',
-  'dimension',
-  'sketch.finish',
-]);
-const reasons = new Set([
-  'unsupported',
-  'permission-required',
-  'window-lost',
-  'context-unknown',
-  'ambiguous',
-  'stale',
-  'expired',
-  'canceled',
-  'invalid-bounds',
-  'occluded',
-  'provider-failed',
-]);
 
 function plainRecord(
   value: unknown,
@@ -65,87 +46,30 @@ function plainRecord(
 }
 
 function parseSessionView(value: unknown): SessionView {
-  const item = plainRecord(value, [
+  plainRecord(value, [
     'token',
     'generation',
     'binding',
     'consent',
+    'selectedWindow',
     'paused',
     'visual',
     'reason',
     'availableActions',
   ]);
-  if (
-    !(
-      item.token === null ||
-      (typeof item.token === 'string' && item.token.length <= 128)
-    ) ||
-    typeof item.generation !== 'number' ||
-    !Number.isSafeInteger(item.generation) ||
-    item.generation < 0 ||
-    !['unbound', 'selected', 'disconnected'].includes(String(item.binding)) ||
-    !['off', 'on-request'].includes(String(item.consent)) ||
-    typeof item.paused !== 'boolean' ||
-    !['idle', 'waiting', 'inspecting', 'highlighted', 'unavailable'].includes(
-      String(item.visual),
-    ) ||
-    !(
-      item.reason === null ||
-      (typeof item.reason === 'string' && reasons.has(item.reason))
-    ) ||
-    !Array.isArray(item.availableActions) ||
-    item.availableActions.some(
-      (action) => typeof action !== 'string' || !actions.has(action),
-    )
-  ) {
-    throw new Error('Invalid desktop session view');
-  }
-  return Object.freeze({
-    token: item.token,
-    generation: item.generation,
-    binding: item.binding,
-    consent: item.consent,
-    paused: item.paused,
-    visual: item.visual,
-    reason: item.reason,
-    availableActions: Object.freeze([...item.availableActions]),
-  }) as SessionView;
+  return validateSessionView(value);
 }
 
 function parseWindows(
   value: unknown,
 ): Awaited<ReturnType<DesktopBridge['listWindows']>> {
-  const item = plainRecord(value, ['windows', 'incomplete']);
-  if (
-    typeof item.incomplete !== 'boolean' ||
-    !Array.isArray(item.windows) ||
-    item.windows.length > 50
-  ) {
-    throw new Error('Invalid desktop window list');
-  }
-  const windows = item.windows.map((window) => {
-    const choice = plainRecord(window, ['token', 'label', 'kind']);
-    if (
-      typeof choice.token !== 'string' ||
-      choice.token.length < 1 ||
-      choice.token.length > 128 ||
-      typeof choice.label !== 'string' ||
-      choice.label.length < 1 ||
-      choice.label.length > 80 ||
-      (choice.kind !== 'browser' && choice.kind !== 'native')
-    ) {
-      throw new Error('Invalid desktop window choice');
-    }
-    return Object.freeze({
-      token: choice.token,
-      label: choice.label,
-      kind: choice.kind,
-    });
-  });
-  return Object.freeze({
-    windows: Object.freeze(windows),
-    incomplete: item.incomplete,
-  });
+  plainRecord(value, [
+    'availability',
+    'unavailableReason',
+    'incomplete',
+    'windows',
+  ]);
+  return validateWindowCatalog(value);
 }
 
 export function createDesktopBridge(
