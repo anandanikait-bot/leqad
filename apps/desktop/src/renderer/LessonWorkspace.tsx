@@ -1,7 +1,7 @@
 import { DESKTOP_STEP_COPY } from './desktopCopy';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DesktopLessonEvent, DesktopLessonView } from './lessonController';
-import { AskLocal, type QuestionId } from './AskLocal';
+import { AskTutor } from './AskTutor';
 import { ContextualHelp } from './ContextualHelp';
 
 type LessonWorkspaceProps = {
@@ -10,13 +10,11 @@ type LessonWorkspaceProps = {
   view: DesktopLessonView;
   page: 'learn' | 'ask';
   textScale: number;
-  selectedQuestion: QuestionId | null;
   saveError: string | null;
   loadError: boolean;
   onStartFresh(): void;
   onDispatch(event: DesktopLessonEvent): void;
   onPageChange(page: 'learn' | 'ask'): void;
-  onAskQuestion(question: QuestionId): void;
   onRetrySave(): void;
 };
 
@@ -39,13 +37,11 @@ export function LessonWorkspace({
   view,
   page,
   textScale,
-  selectedQuestion,
   saveError,
   loadError,
   onStartFresh,
   onDispatch,
   onPageChange,
-  onAskQuestion,
   onRetrySave,
 }: LessonWorkspaceProps) {
   const primaryActionRef = useRef<HTMLButtonElement>(null);
@@ -110,12 +106,7 @@ export function LessonWorkspace({
             ) : null}
           </div>
         ) : (
-          <AskLocal
-            onSelectQuestion={onAskQuestion}
-            selectedQuestion={selectedQuestion}
-            step={view.currentStep}
-            stepNumber={view.currentStepIndex + 1}
-          />
+          <AskTutor stepIndex={view.currentStepIndex} />
         )}
 
         {page === 'learn' ? (

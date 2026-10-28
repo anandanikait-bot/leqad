@@ -65,7 +65,7 @@ export interface DesktopIpcRegistration {
   dispose(): void;
 }
 
-function copyPlainData(
+export function copyPlainData(
   value: unknown,
   state = { nodes: 0 },
   depth = 0,
@@ -113,9 +113,12 @@ function copyPlainData(
   return result;
 }
 
-function assertTrustedSender(
+export function assertTrustedSender(
   event: RendererEvent,
-  dependencies: DesktopIpcDependencies,
+  dependencies: Pick<
+    DesktopIpcDependencies,
+    'getWindow' | 'isTrustedRendererUrl'
+  >,
 ): IpcWindow {
   const window = dependencies.getWindow();
   const frame = event.senderFrame;

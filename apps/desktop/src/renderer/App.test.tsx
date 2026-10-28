@@ -350,20 +350,30 @@ describe('desktop written teaching workspace', () => {
     expect(await screen.findByRole('button', { name: 'Got it' })).toBeTruthy();
   });
 
-  it('shows an authored local answer without changing lesson progress', async () => {
+  it('shows honest tutor unavailability without changing lesson progress', async () => {
     await enterWrittenLessons();
     fireEvent.click(await screen.findByRole('button', { name: 'Ask' }));
     expect(screen.getByText('Your First Sketch · Step 1 of 8')).toBeTruthy();
-    expect(screen.getByText('Local prototype · no AI')).toBeTruthy();
+    expect(await screen.findByText('AI unavailable')).toBeTruthy();
+    expect(
+      screen.getByText(/Your question, recent tutor conversation/),
+    ).toBeTruthy();
     fireEvent.click(
       screen.getByRole('button', { name: 'Why use Corner Rectangle?' }),
     );
 
     expect(
-      screen.getByText(
-        /Corner Rectangle lets you draw by clicking two opposite corners\./,
-      ),
-    ).toBeTruthy();
+      (
+        screen.getByRole('textbox', {
+          name: 'Your question',
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe('Why use Corner Rectangle?');
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    expect(screen.queryByText(/Corner Rectangle lets you draw/)).toBeNull();
     expect(
       screen.getByText('Reading answers does not change your progress.'),
     ).toBeTruthy();
