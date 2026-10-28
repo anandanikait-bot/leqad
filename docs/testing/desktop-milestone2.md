@@ -73,7 +73,7 @@ inspect a real CAD application.
 
 | Check                                          | Result                                                                |
 | ---------------------------------------------- | --------------------------------------------------------------------- |
-| Desktop unit and component tests               | 115 passed locally; Windows native query required; final CI in PR #20 |
+| Desktop unit and component tests               | 116 passed locally; Windows native query required; final CI in PR #20 |
 | Windows native selection and lifecycle fixture | Final Windows run linked in PR #20                                    |
 | General repository CI                          | Final General run linked in PR #20                                    |
 | Windows 10/11 owner acceptance                 | Not yet performed                                                     |
@@ -89,7 +89,8 @@ The native fixture emits a fixed readiness marker when its real WinForms window
 is shown. The test then refreshes the actual native catalog through the UI,
 resolves the known fixture process against a real native scan in memory, and
 selects its matching application ordinal through the real UI. It excludes
-Electron's owner process consistently and rejects an ambiguous fixture identity.
+Electron's owner process consistently, passes that same owner context explicitly
+to the comparison scan, and rejects an ambiguous fixture identity.
 Closing that same fixture must disconnect the selection. No synthetic catalog is injected. The selection, pause/resume, closure, and saved-progress reload checks run in
 both themes at 365 × 600 with normal text and 320 × 400 with 200% text. Sanitized
 catalog summaries omit selection tokens and native identifiers. Screenshots show

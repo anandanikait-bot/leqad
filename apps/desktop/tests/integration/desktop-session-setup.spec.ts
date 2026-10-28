@@ -229,6 +229,11 @@ for (const [width, height, textScale, appearance] of [
         BrowserWindow.getAllWindows()[0]!.setContentSize(width!, height!),
       [width, height],
     );
+    const ownerProcessId = app.process().pid;
+    if (!Number.isSafeInteger(ownerProcessId) || !ownerProcessId)
+      throw new Error('Missing Electron owner process');
+    // Query the real OS under the SAME exclusion/ordinal context as the app.
+    const scanForApp = createWindowsMetadataScanner(undefined, ownerProcessId);
     let fixture: ChildProcess | undefined = startWindowsFixture();
     try {
       await expect(
@@ -242,21 +247,18 @@ for (const [width, height, textScale, appearance] of [
       await page
         .getByRole('button', { name: 'Refresh window list', exact: true })
         .click();
-      // Identify our own real fixture in memory. The test process has no GUI;
-      // the app catalog excludes Electron's owner PID, so exclude it here too.
+      // Identify our fixture using the app's owner exclusion and ordinal context.
       // Never serialize handles/PIDs, and never inject a catalog into the app.
       await expect(
         page.getByText('Looking for open windows...', { exact: true }),
       ).toHaveCount(0, { timeout: 10_000 });
-      const native = await createWindowsMetadataScanner()();
+      const native = await scanForApp();
       expect(
         native.incomplete,
         'Fixture identity requires a complete native scan',
       ).toBe(false);
       const otherWindows = native.windows.filter(
-        (window) =>
-          window.processId !== app.process().pid &&
-          window.application === 'Other app',
+        (window) => window.application === 'Other app',
       );
       const matches = otherWindows.filter(
         (window) => window.processId === fixtureProcessId,
@@ -265,6 +267,9 @@ for (const [width, height, textScale, appearance] of [
         matches.length,
         'Exactly one visible top-level window must belong to our fixture process',
       ).toBe(1);
+      await expect(
+        page.getByRole('radio', { name: /^Other app · Window \d+$/ }),
+      ).toHaveCount(otherWindows.length);
       const ordinal = otherWindows.indexOf(matches[0]!) + 1;
       const fixtureChoice = page.getByRole('radio', {
         name: `Other app · Window ${ordinal}`,
@@ -343,7 +348,7 @@ for (const [width, height, textScale, appearance] of [
       ).toHaveCount(0);
       await stopWindowsFixture(fixture);
       fixture = undefined;
-      const afterClosure = await createWindowsMetadataScanner()();
+      const afterClosure = await scanForApp();
       expect(
         afterClosure.windows.some(
           (window) => window.processId === fixtureProcessId,
@@ -357,12 +362,18 @@ for (const [width, height, textScale, appearance] of [
         .catch(async (error) => {
           const state = await page.evaluate(async () => {
             try {
-              // Already resumed: this is a no-op host-state read, not an acceptance shortcut.
+              // Failure-only session revalidation; the original assertion still fails.
               const view = await window.leqad?.command({
                 type: 'pause',
                 paused: false,
               });
+              await window.leqad?.command({ type: 'pause', paused: true });
+              const revalidated = await window.leqad?.command({
+                type: 'pause',
+                paused: false,
+              });
               return {
+                afterRevalidation: revalidated?.binding,
                 binding: view?.binding,
                 paused: view?.paused,
                 reason: view?.reason,

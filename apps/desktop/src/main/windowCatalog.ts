@@ -277,9 +277,9 @@ function parseWindowsScan(stdout: string): NativeWindowScan {
 
 export function createWindowsMetadataScanner(
   invoke: PowerShellInvoker = invokePowerShell,
+  ownerProcessId: number = process.pid,
 ): () => Promise<NativeWindowScan> {
   return async () => {
-    const ownerProcessId = process.pid;
     if (!Number.isSafeInteger(ownerProcessId) || ownerProcessId <= 0) {
       throw new Error('Invalid owner process');
     }
